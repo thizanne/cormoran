@@ -3,8 +3,14 @@ open Syntax
 open Error
 
 let type_error e msg = Error [TypeError, e.startpos, e.endpos, msg]
-let not_defined e = Error
-  [NameError, e.startpos, e.endpos, sprintf "%s not defined" e.item]
+
+let name_error e msg = Error [NameError, e.startpos, e.endpos, msg]
+
+let label_already_defined e =
+  name_error e (sprintf "Label %s already defined" e.item)
+
+let not_defined e =
+  name_error e (sprintf "%s not defined" e.item)
 
 let check_var good_name good_vars bad_vars v =
   if List.mem v.item good_vars then v
@@ -75,10 +81,15 @@ let type_ins globals locals labels ins =
         Jmp (check_label labels s)
   }
 
-let rec get_labels = function
-  | [] -> []
-  | {item = Untyped.Label s} :: ins -> s :: get_labels ins
-  | _ :: ins -> get_labels ins
+let get_labels =
+  let rec get_labels acc = function
+    | [] -> acc
+    | {item = Untyped.Label s} :: ins ->
+        if List.mem s acc
+        then raise (label_already_defined s)
+        else get_labels (s :: acc) ins
+    | _ :: ins -> get_labels acc ins
+  in get_labels []
 
 let type_thread globals thread =
   let open UntypedProgram in {
