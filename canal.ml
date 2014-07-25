@@ -17,11 +17,17 @@ let str_option = function
   | Some x -> string_of_int x
 
 let print_vars =
-  print_list
-    (fun (t, vs) ->
-      print_list
-        (fun (x, v) ->
-          printf "%s_%d → %s" x t (str_option v)) vs)
+  let rec aux t = function
+    | [] -> ()
+    | vars :: next ->
+        print_list
+          (fun (x, v) ->
+            printf "%s_%d → %s" x t (str_option v)) vars;
+        begin match next with
+          | [] -> ()
+          | _ -> printf "; "; aux (succ t) next
+        end
+  in aux 0
 
 let print_point {Marked.regs; vars; marks} =
   print_list (fun (r, v) -> printf "%s → %s" r (str_option v)) regs;
@@ -30,19 +36,21 @@ let print_point {Marked.regs; vars; marks} =
   print_newline();
   print_list print_mark marks
 
-let rec print_points = function
-  | [] -> ()
-  | p :: ps -> print_point p; print_newline (); print_newline(); print_points ps
+let rec print_points =
+  Marked.S.iter
+    (fun p ->
+      print_point p; print_newline (); print_newline())
 
-
-let print_hashtbl =
-  Hashtbl.iter
-    (fun s p ->
-      print_string "############\n";
-      print_list print_int s;
-      print_string " :\n\n";
-      print_points p;
-      print_newline ())
+let print_hashtbl d =
+  Hashtbl.fold (fun k v li -> (k, v) :: li) d []
+  |> List.sort Pervasives.compare
+  |> List.iter
+      (fun (s, p) ->
+        print_string "############\n";
+        print_list print_int s;
+        print_string " :\n\n";
+        print_points p;
+        print_newline ())
 
 let () =
   try

@@ -1,3 +1,4 @@
+open Printf
 open Syntax
 open Syntax.Typed
 open Syntax.TypedProgram
@@ -8,9 +9,13 @@ type mark =
 
 type point = {
   regs : (string * int option) list;
-  vars : (int * (string * int option) list) list;
+  vars : (string * int option) list list;
   marks : mark list;
 }
+
+module S = Set.Make (struct type t = point let compare = compare end)
+
+let smap f s = S.fold (fun x e -> S.add (f x) e) s S.empty
 
 let set_assoc k v =
   List.map
@@ -18,7 +23,7 @@ let set_assoc k v =
 
 let get_reg point r = List.assoc r point.regs
 
-let get_var point t x = List.assoc x (List.assoc t point.vars)
+let get_var point t x = List.assoc x (List.nth point.vars t)
 
 let get_value point = function
   | Int n -> Some n.item
@@ -49,17 +54,16 @@ let set_reg point r n = {
 
 let set_var point t x n = {
   point with vars =
-    List.map
-      (fun (t', vars') ->
-        t', if t' = t then set_assoc x n vars' else vars')
+    List.mapi
+      (fun t' vars' ->
+        if t' = t then set_assoc x n vars' else vars')
       point.vars
 }
 
 let set_all_vars point x n = {
   point with vars =
     List.map
-      (fun (t', vars') ->
-        t', set_assoc x n vars')
+      (fun vars' -> set_assoc x n vars')
       point.vars
 }
 
@@ -71,27 +75,40 @@ let set_mark point n mark =
   in { point with marks = set_mark point.marks n}
 
 let neg_marked t =
-  List.filter (fun p -> get_mark p t = MNeg)
+  S.filter (fun p -> get_mark p t = MNeg)
+
+let flush p t =
+  set_mark
+  (List.fold_left
+     (fun p (x, n) -> set_all_vars p x n)
+     p (List.nth p.vars t))
+    t MNeg
+
+let all_flushes p =
+  List.mapi (fun i m -> if m = MNeg then p else flush p i) p.marks
 
 let transfer domain t = function
   | Read (r, x) ->
-      List.map
-        (fun p -> set_reg p r.item (get_var p t x.item)) domain
+      let domain = smap
+        (fun p -> set_reg p r.item (get_var p t x.item)) domain in
+      S.fold
+        (fun p d -> List.fold_right S.add (all_flushes p) d)
+        domain domain
   | Write (x, v) ->
-      let domain = List.map
+      let domain = smap
         (fun p -> set_var p t x.item (get_value p v.item)) domain in
       let new_points = neg_marked t domain in
-      let domain = List.map (fun p -> set_mark p t MPos) domain in
+      let domain = smap (fun p -> set_mark p t MPos) domain in
       let new_points =
-        List.map
+        smap
           (fun p ->
             set_all_vars p x.item (get_value p v.item)) new_points in
-      domain @ new_points
+      S.union domain new_points
   | RegOp (r, e) ->
-      List.map
+      smap
         (fun p -> set_reg p r.item (get_expr p e.item)) domain
   | Cmp (r, v1, v2) ->
-      List.map
+      smap
         (fun p -> set_reg p r.item (
           let v1 = get_value p v1.item in
           let v2 = get_value p v2.item in
@@ -117,7 +134,7 @@ let initial_point program = {
        program.threads);
   vars =
     (let vars = initial_vars program in
-    List.mapi (fun n _ -> n, vars) program.threads);
+     List.map (fun _ -> vars) program.threads);
   marks = List.map (fun _ -> MNeg) program.threads;
 }
 
@@ -131,7 +148,7 @@ let init_domain program =
   let n_threads = List.length program.threads in
   let n_ins = List.map (fun t -> List.length t.ins) program.threads in
   let result = Hashtbl.create (List.fold_left ( * ) 1 n_ins) in
-  Hashtbl.add result (repeat n_threads 0) [initial_point program];
+  Hashtbl.add result (repeat n_threads 0) (S.singleton (initial_point program));
   result
 
 let rec state_pred = function
@@ -141,13 +158,17 @@ let rec state_pred = function
 let nth_ins program t i =
   List.nth (List.nth program.threads t).ins i
 
-let rec print_list = function
-  | [] -> ()
-  | t :: q -> print_int t; print_string "; "; print_list q
-
 let analyse program =
 
   let result = init_domain program in
+
+  let analyse_from_pred t s =
+    if List.mem (-1) s then S.empty
+    else
+      let i = List.nth s t in
+      transfer
+        (Hashtbl.find result s) t
+        (nth_ins program t i).item in
 
   let rec analyse_state s =
     let pred = state_pred s in
@@ -157,22 +178,9 @@ let analyse program =
           try ignore (Hashtbl.find result s') with
               Not_found -> analyse_state s')
       pred;
-    Hashtbl.add result s
-         (
-           (List.fold_left ( @ ) []
-                (List.mapi
-                   (fun t s' ->
-                     if List.mem (-1) s' then []
-                     else
-                       let i = List.nth s' t in
-                       transfer
-                         (Hashtbl.find result s')
-                         t
-                         (nth_ins program t i).item
-                   )
-                   pred
-                )
-           )
-         )
-  in analyse_state (List.map (fun t -> List.length t.ins) program.threads);
+    List.mapi analyse_from_pred pred
+    |> List.fold_left S.union S.empty
+    |> Hashtbl.add result s in
+
+  analyse_state (List.map (fun t -> List.length t.ins) program.threads);
   result
