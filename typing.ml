@@ -98,8 +98,21 @@ let type_thread globals thread =
       (type_ins globals thread.locals (get_labels thread.ins)) thread.ins
   }
 
+let rec type_threads globals locals = function
+  (* TODO better handling of a local already defined *)
+    | [] -> []
+    | t :: ts ->
+        let t = type_thread globals t in
+        List.iter
+          (fun v ->
+            if List.mem v locals
+            then failwith (sprintf "Local %s used at least twice" v))
+          t.TypedProgram.locals;
+        t :: type_threads globals (t.TypedProgram.locals @ locals) ts
+
+
 let type_program prog =
   let open UntypedProgram in {
     TypedProgram.initial = prog.initial;
-    threads = List.map (type_thread (List.map fst prog.initial)) prog.threads;
+    threads = type_threads (List.map fst prog.initial) [] prog.threads;
   }
