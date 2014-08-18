@@ -8,9 +8,9 @@ let rec print_list p = function
   | [x] -> p x
   | x :: xs -> p x; print_string "; "; print_list p xs
 
-let print_mark = function
-  | OldMarked.MPos -> print_string "●"
-  | OldMarked.MNeg -> print_string "○"
+let str_mark = function
+  | Marked.MPos -> "●"
+  | Marked.MNeg -> "○"
 
 let str_option = function
   | None -> "∅"
@@ -21,23 +21,23 @@ let print_vars =
     | [] -> ()
     | vars :: next ->
         print_list
-          (fun (x, v) ->
-            printf "%s_%d → %s" x t (str_option v)) vars;
+          (fun (x, (v, m)) ->
+            printf "%s_%d → %s %s" x t (str_option v) (str_mark m))
+          vars;
         begin match next with
           | [] -> ()
           | _ -> printf "; "; aux (succ t) next
         end
   in aux 0
 
-let print_point {OldMarked.regs; vars; marks} =
+let print_point {Marked.regs; vars} =
   print_list (fun (r, v) -> printf "%s → %s" r (str_option v)) regs;
   print_newline ();
   print_vars vars;
-  print_newline();
-  print_list print_mark marks
+  print_newline ()
 
 let rec print_points =
-  OldMarked.S.iter
+  Marked.S.iter
     (fun p ->
       print_point p; print_newline (); print_newline())
 
@@ -56,7 +56,7 @@ let () =
   try
     let program = Parser.program Lexer.lexer (Lexing.from_channel prgm_file) in
     let program = Typing.type_program program in
-    let result = OldMarked.analyse program in
+    let result = Marked.analyse program in
     print_hashtbl result
   with
     | Error li -> List.iter (fun e -> print_endline (msg_of_error e ^ "\n")) li

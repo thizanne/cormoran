@@ -84,7 +84,8 @@ let neg_marked t x =
   S.filter (fun p -> get_mark p t x = MNeg)
 
 let flush p t x =
-    let n = get_var p t x in {
+    let n = get_var p t x in
+    set_mark {
       p with vars =
         List.map
           (fun vt ->
@@ -92,7 +93,7 @@ let flush p t x =
             then set_assoc x (n, MNeg) vt
             else vt)
           p.vars
-    }
+    } t x MNeg
 
 let rec insert x = function
   | [] -> [[x]]
@@ -106,7 +107,7 @@ let rec all_perm = function
       let xs = all_perm xs in
       List.fold_left ( @ ) xs @@ List.map (insert x) xs
 
-let threads_mpos p t x =
+let threads_mpos p x =
   let rec aux n = function
     | [] -> []
     | vn :: vars ->
@@ -115,35 +116,29 @@ let threads_mpos p t x =
         else aux (succ n) vars
   in aux 0 p.vars
 
-let threads_to_flush p t x =
-  match get_mark p t x with
-    | MPos -> [[]]
-    | MNeg -> all_perm @@ threads_mpos p t x
+let threads_to_flush p x =
+  all_perm @@ threads_mpos p x
 
 let flush_many p ns x =
   List.fold_left (fun p n -> flush p n x) p ns
 
-let flush_after_read p t x =
-  List.map (fun ts -> flush_many p ts x) (threads_to_flush p t x)
+let flush_after_mop p x =
+  List.map (fun ts -> flush_many p ts x) (threads_to_flush p x)
+
+let all_flushes_after_mop domain x =
+  let points = S.fold (fun p li -> flush_after_mop p x.item :: li) domain [] in
+  let points = List.fold_left ( @ ) [] points in
+  List.fold_right S.add points S.empty
 
 let transfer domain t = function
   | Read (r, x) ->
       let domain = smap
         (fun p -> set_reg p r.item (get_var p t x.item)) domain in
-      let points = S.fold
-        (fun p li -> flush_after_read p t x.item :: li) domain [] in
-      let points = List.fold_left ( @ ) [] points in
-      List.fold_right S.add points S.empty
+      all_flushes_after_mop domain x
   | Write (x, v) ->
       let domain = smap
-        (fun p -> set_var p t x.item (get_value p v.item)) domain in
-      let new_points = neg_marked t domain in
-      let domain = smap (fun p -> set_mark p t MPos) domain in
-      let new_points =
-        smap
-          (fun p ->
-            set_all_vars p x.item (get_value p v.item)) new_points in
-      S.union domain new_points
+        (fun p -> set_var_mark p t x.item (get_value p v.item) MPos) domain in
+      all_flushes_after_mop domain x
   | RegOp (r, e) ->
       smap
         (fun p -> set_reg p r.item (get_expr p e.item)) domain
