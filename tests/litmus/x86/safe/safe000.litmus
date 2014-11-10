@@ -1,0 +1,15 @@
+X86 safe000
+"PosRW Rfe PodRW Rfe PodRW Rfe"
+Cycle=Rfe PosRW Rfe PodRW Rfe PodRW
+Relax=
+Safe=Rfe PosRW PodRW
+Prefetch=0:x=F,0:x=W,1:x=F,1:y=W,2:y=F,2:x=W
+Com=Rf Rf Rf
+Orig=PosRW Rfe PodRW Rfe PodRW Rfe
+{
+}
+ P0          | P1          | P2          ;
+ MOV EAX,[x] | MOV EAX,[x] | MOV EAX,[y] ;
+ MOV [x],$2  | MOV [y],$1  | MOV [x],$1  ;
+exists
+(x=2 /\ 0:EAX=1 /\ 1:EAX=2 /\ 2:EAX=1)
