@@ -1,3 +1,4 @@
+open Util
 open Printf
 open Syntax
 open Syntax.Typed
@@ -13,6 +14,12 @@ type point = {
 }
 
 module S = Set.Make (struct type t = point let compare = compare end)
+
+type t = S.t
+
+let empty = S.empty
+
+let union = S.union
 
 let smap f s = S.fold (fun x e -> S.add (f x) e) s S.empty
 
@@ -170,7 +177,8 @@ let initial_vars program =
   List.map (fun (x, v) -> x, (Some v, MNeg)) program.initial
 
 let initial_point program = {
-  regs = List.fold_left ( @ ) []
+  regs =
+    List.fold_left ( @ ) []
       (List.map
          (fun t -> List.map (fun r -> r, None) t.locals)
          program.threads);
@@ -179,49 +187,37 @@ let initial_point program = {
      List.map (fun _ -> vars) program.threads);
 }
 
-let repeat n v =
-  let rec aux acc n =
-    if n = 0 then acc
-    else aux (v :: acc) (pred n)
-  in aux [] n
+let init program = S.singleton (initial_point program)
 
-let init_domain program =
-  let n_threads = List.length program.threads in
-  let n_ins = List.map (fun t -> List.length t.ins) program.threads in
-  let result = Hashtbl.create (List.fold_left ( * ) 1 n_ins) in
-  Hashtbl.add result (repeat n_threads 0) (S.singleton (initial_point program));
-  result
+let str_mark = function
+  | MPos -> "●"
+  | MNeg -> "○"
 
-let rec state_pred = function
-  | [] -> []
-  | i :: is -> ((pred i) :: is) :: List.map (fun s -> i :: s) (state_pred is)
+let str_option = function
+  | None -> "∅"
+  | Some x -> string_of_int x
 
-let nth_ins program t i =
-  List.nth (List.nth program.threads t).ins i
+let print_vars =
+  let rec aux t = function
+    | [] -> ()
+    | vars :: next ->
+      print_list
+        (fun (x, (v, m)) ->
+           printf "%s_%d → %s %s" x t (str_option v) (str_mark m))
+        vars;
+      begin match next with
+        | [] -> ()
+        | _ -> printf "; "; aux (succ t) next
+      end
+  in aux 0
 
-let analyse program =
+let print_point {regs; vars} =
+  print_list (fun (r, v) -> printf "%s → %s" r (str_option v)) regs;
+  print_newline ();
+  print_vars vars;
+  print_newline ()
 
-  let result = init_domain program in
-
-  let analyse_from_pred t s =
-    if List.mem (-1) s then S.empty
-    else
-      let i = List.nth s t in
-      transfer
-        (Hashtbl.find result s) t
-        (nth_ins program t i).item in
-
-  let rec analyse_state s =
-    let pred = state_pred s in
-    List.iter
-      (fun s' ->
-         if not (List.mem (-1) s') then
-           try ignore (Hashtbl.find result s') with
-             Not_found -> analyse_state s')
-      pred;
-    List.mapi analyse_from_pred pred
-    |> List.fold_left S.union S.empty
-    |> Hashtbl.add result s in
-
-  analyse_state (List.map (fun t -> List.length t.ins) program.threads);
-  result
+let print =
+  S.iter
+    (fun p ->
+       print_point p; print_newline (); print_newline())

@@ -49,6 +49,9 @@ struct
     initial : (string * int) list;
     threads : thread list;
   }
+
+  let nth_ins program t i =
+    List.nth (List.nth program.threads t).ins i
 end
 
 module UntypedProgram = Program (Untyped)
