@@ -42,6 +42,17 @@ let get_var point t x =
 let get_mark point t x =
   snd @@ get_var_mark point t x
 
+let get_mem_var point x =
+  let rec aux = function
+    | [] -> failwith "get_mem_var"
+    | t :: ts ->
+      begin match List.assoc x t with
+        | value, MNeg -> value
+        | _, MPos -> aux ts
+        | exception Not_found -> aux ts
+      end in
+  aux point.vars
+
 let get_value point = function
   | Int n -> Some n.item
   | Var r -> get_reg point r.item
@@ -219,3 +230,24 @@ let print =
   S.iter
     (fun p ->
        print_point p; print_newline (); print_newline())
+
+let point_sat_cond (var, value) p =
+  try
+    begin try
+        List.assoc var p.regs = Some value
+      with
+      | Not_found ->
+        p.vars
+        |> List.map (fun vars -> fst @@ List.assoc var vars)
+        |> List.exists (( = ) (Some value))
+    end
+  with
+  | Not_found -> failwith "point_sat_cond"
+
+let point_sat cond p =
+  List.for_all
+    (fun c -> point_sat_cond c p)
+    cond
+
+let satisfies cond domain =
+  S.exists (fun p -> point_sat cond p) domain
