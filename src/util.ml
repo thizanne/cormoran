@@ -8,3 +8,10 @@ let rec print_list p = function
   | [] -> ()
   | [x] -> p x
   | x :: xs -> p x; print_string "; "; print_list p xs
+
+let rec ( -- ) init final =
+  if init > final then []
+  else init :: (succ init -- final)
+
+let ( --^ ) init final =
+  init -- pred final
