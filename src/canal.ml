@@ -21,6 +21,7 @@ let analyse file =
         ParserLitmus.program LexerLitmus.lexer lexbuf
       end
       else Parser.program Lexer.lexer lexbuf |> Typing.type_program in
+  printf "Analysing file %s...\n" file;
     let module Analyser = Interleaving.Make (Marked) in
     let result = Analyser.analyse program in
     Analyser.print result
