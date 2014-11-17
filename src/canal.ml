@@ -7,6 +7,11 @@ let speclist = [
   "--litmus", Arg.Set litmus, "Use litmus syntax";
 ]
 
+let speclist =
+  speclist
+  |> List.map (fun (a, b, c) -> (a, b, " " ^ c))
+  |> Arg.align
+
 let analyse file =
   try
     let lexbuf = Lexing.from_channel @@ open_in file in
