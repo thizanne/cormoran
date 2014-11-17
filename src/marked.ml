@@ -165,10 +165,8 @@ let transfer domain t = function
   | Mfence ->
     S.filter
       (fun p ->
-         List.for_all
-           (List.for_all
-              (fun (_, (_, m)) -> m = MNeg))
-           p.vars)
+         List.for_all (fun (_, (_, m)) -> m = MNeg) @@
+         List.nth p.vars t)
       domain
   | Label _ -> domain
   | Jnz (_, _) | Jz (_, _) | Jmp _ -> failwith "Jumps not implemented"
