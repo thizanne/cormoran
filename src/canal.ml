@@ -2,9 +2,11 @@ open Error
 open Printf
 
 let litmus = ref false
+let cond_check = ref true
 
 let speclist = [
   "--litmus", Arg.Set litmus, "Use litmus syntax";
+  "--no-cond", Arg.Clear cond_check, "Litmus: don't check final condition";
 ]
 
 let speclist =
@@ -12,19 +14,32 @@ let speclist =
   |> List.map (fun (a, b, c) -> (a, b, " " ^ c))
   |> Arg.align
 
+let last_point program =
+  let open Syntax.TypedProgram in
+  List.map
+    (fun t -> List.length t.ins)
+    program.threads
+
 let analyse file =
+  printf "Analysing file %s...\n" file;
   try
     let lexbuf = Lexing.from_channel @@ open_in file in
-    let program =
+    let program, cond =
       if !litmus then begin
         LexerLitmus.drop_prelude lexbuf;
         ParserLitmus.program LexerLitmus.lexer lexbuf
       end
-      else Parser.program Lexer.lexer lexbuf |> Typing.type_program in
-  printf "Analysing file %s...\n" file;
+      else Parser.program Lexer.lexer lexbuf
+           |> Typing.type_program,
+           [] in
     let module Analyser = Interleaving.Make (Marked) in
     let result = Analyser.analyse program in
-    Analyser.print result
+    if !litmus && !cond_check then
+      if Marked.satisfies cond @@
+        Hashtbl.find result (last_point program)
+      then print_endline "Condition satisfied"
+      else print_endline "Condition not satisfied"
+    else Analyser.print result
   with
   | Error li -> List.iter (fun e -> print_endline (msg_of_error e ^ "\n")) li
 
