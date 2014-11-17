@@ -67,7 +67,7 @@
 %token <int> Int
 %token <string> Reg
 
-%start <Syntax.TypedProgram.t> program
+%start <Syntax.TypedProgram.t * Condition.t> program
 
 %%
 
@@ -75,10 +75,13 @@
 | x = X { {Syntax.item = x; startpos = $startpos; endpos = $endpos} }
 
 program :
-| init = init_dec c = code e = exists Eof {
-    { Program.initial = globals init c; threads = c }
+| init = init_dec c = code cond = exists Eof {
+    { Program.initial = globals init c; threads = c },
+    cond
   }
-| error { raise (Error.Error [Error.SyntaxError, $startpos, $endpos, ""]) }
+| error {
+  raise (Error.Error [Error.SyntaxError, $startpos, $endpos, "program"])
+  }
 
 init_dec :
   (* Due to a hack with LexerLitmus.drop_prelude, LCurly is actually
@@ -115,11 +118,11 @@ value :
 | r = loc(Reg) { Syntax.Var r }
 
 exists :
-| Exists LPar separated_list(And, equality) RPar {}
+| Exists LPar eqs = separated_list(And, equality) RPar { eqs }
 
 equality :
-| var Equals Int {}
+| v = var Equals x = Int { (v, x) }
 
 var :
-| Reg {}
-| Var {}
+| r = Reg { r }
+| v = Var { v }
