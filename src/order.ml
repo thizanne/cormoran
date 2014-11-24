@@ -134,45 +134,61 @@ let threads_mpos p x =
       else aux (succ n) vars
   in aux 0 p.vars
 
-let rec x_is_only_mpos x = function
-  | [] -> true
-  | (y, (_, MNeg)) :: ys ->
-    x_is_only_mpos x ys
-  | (y, (_, MPos)) :: ys ->
-    x = y && x_is_only_mpos x ys
+let threads_x_older d p x =
+  let rec aux n =
+    if n = List.length (p.vars)
+    then []
+    else if S.exists (( = ) (flush p n x)) d && get_mark p n x = MPos
+    then n :: aux (succ n)
+    else aux (succ n)
+  in aux 0
 
-let threads_x_only_mpos p x =
-  let rec aux n = function
-    | [] -> []
-    | vn :: vars ->
-      if x_is_only_mpos x vn
-      then n :: aux (succ n) vars
-      else aux (succ n) vars
-  in aux 0 p.vars
-
-let threads_to_flush p x =
-  all_perm @@ threads_x_only_mpos p x
+let threads_to_flush d p x =
+  all_perm @@ threads_x_older d p x
 
 let flush_many p ns x =
   List.fold_left (fun p n -> flush p n x) p ns
 
-let flush_after_mop p x =
-  List.map (fun ts -> flush_many p ts x) (threads_to_flush p x)
+let flush_after_mop d p x =
+  List.map (fun ts -> flush_many p ts x) (threads_to_flush d p x)
 
 let all_flushes_after_mop domain x =
-  let points = S.fold (fun p li -> flush_after_mop p x.item :: li) domain [] in
+  let points = S.fold (fun p li -> flush_after_mop domain p x.item :: li) domain [] in
   let points = List.fold_left ( @ ) [] points in
   List.fold_right S.add points S.empty
 
+let empty_buffer p t =
+  List.nth p.vars t
+  |> List.for_all (fun (_, (_, m)) -> m = MNeg)
+
 let transfer domain t = function
   | Read (r, x) ->
-    let domain = smap
-        (fun p -> set_reg p r.item (get_var p t x.item)) domain in
-    all_flushes_after_mop domain x
+    let domain =
+      domain
+      |> S.elements
+      |> List.map (fun p -> threads_x_older domain p x.item, p)
+      |> List.map (fun (ns, p) -> all_perm ns, p)
+      |> List.map (fun (ns, p) -> ns, set_reg p r.item (get_var p t x.item))
+      |> List.map
+        (fun (ns, p) -> List.map (fun nss -> flush_many p nss x.item) ns)
+      |> List.fold_left ( @ ) []
+    in
+    List.fold_right S.add domain S.empty
   | Write (x, v) ->
-    let domain = smap
-        (fun p -> set_var_mark p t x.item (get_value p v.item) MPos) domain in
-    all_flushes_after_mop domain x
+    let domain =
+      domain
+      |> S.elements
+      |> List.map (fun p ->
+          (let ts = threads_x_older domain p x.item in
+           if empty_buffer p t then t :: ts else ts),
+          p)
+      |> List.map (fun (ns, p) -> all_perm ns, p)
+      |> List.map (fun (ns, p) -> ns, set_var_mark p t x.item (get_value p v.item) MPos)
+      |> List.map
+        (fun (ns, p) -> List.map (fun nss -> flush_many p nss x.item) ns)
+      |> List.fold_left ( @ ) []
+    in
+    List.fold_right S.add domain S.empty
   | RegOp (r, e) ->
     smap
       (fun p -> set_reg p r.item (get_expr p e.item)) domain
@@ -260,7 +276,13 @@ let point_sat_cond (var, value) p =
   with
   | Not_found -> failwith "point_sat_cond"
 
+let is_totally_flushed p =
+  List.for_all
+    (List.for_all (fun (_, (_, m)) -> m = MNeg))
+    p.vars
+
 let point_sat cond p =
+  is_totally_flushed p &&
   List.for_all
     (fun c -> point_sat_cond c p)
     cond
