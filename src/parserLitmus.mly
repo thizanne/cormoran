@@ -61,7 +61,7 @@
 %}
 
 %token LCurly RCurly LPar RPar
-%token Colon Comma Semi Pipe And Equals Mov MFence Exists
+%token (* Colon *) Comma Semi Pipe And Equals Mov MFence Exists
 %token Eof
 %token <string> Var
 %token <int> Int

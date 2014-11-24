@@ -22,7 +22,7 @@ and lexer = parse
   | empty+ { lexer lexbuf }
   | "{" { LCurly }
   | "}" { RCurly }
-  | ":" { Colon }
+  (*  | ":" { Colon } *)
   | "," { Comma }
   | ";" { proc := 0; Semi }
   | "|" { incr proc; Pipe }
