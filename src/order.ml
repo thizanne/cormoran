@@ -134,8 +134,24 @@ let threads_mpos p x =
       else aux (succ n) vars
   in aux 0 p.vars
 
+let rec x_is_only_mpos x = function
+  | [] -> true
+  | (y, (_, MNeg)) :: ys ->
+    x_is_only_mpos x ys
+  | (y, (_, MPos)) :: ys ->
+    x = y && x_is_only_mpos x ys
+
+let threads_x_only_mpos p x =
+  let rec aux n = function
+    | [] -> []
+    | vn :: vars ->
+      if x_is_only_mpos x vn
+      then n :: aux (succ n) vars
+      else aux (succ n) vars
+  in aux 0 p.vars
+
 let threads_to_flush p x =
-  all_perm @@ threads_mpos p x
+  all_perm @@ threads_x_only_mpos p x
 
 let flush_many p ns x =
   List.fold_left (fun p n -> flush p n x) p ns
