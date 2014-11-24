@@ -3,11 +3,20 @@ open Printf
 
 let litmus = ref false
 let cond_check = ref true
+let use_mark = ref false
 
 let speclist = [
   "--litmus", Arg.Set litmus, "Use litmus syntax";
+  "--mark", Arg.Set use_mark, "Use the marked points domain";
   "--no-cond", Arg.Clear cond_check, "Litmus: don't check final condition";
 ]
+
+module D =
+  (val
+    if !use_mark
+    then (module Mark)
+    else (module Order)
+    : Domain.Domain)
 
 let speclist =
   speclist
@@ -32,10 +41,10 @@ let analyse file =
       else Parser.program Lexer.lexer lexbuf
            |> Typing.type_program,
            [] in
-    let module Analyser = Interleaving.Make (Mark) in
+    let module Analyser = Interleaving.Make (D) in
     let result = Analyser.analyse program in
     if !litmus && !cond_check then
-      if Mark.satisfies cond @@
+      if D.satisfies cond @@
         Hashtbl.find result (last_point program)
       then print_endline "Condition satisfied"
       else print_endline "Condition not satisfied"
