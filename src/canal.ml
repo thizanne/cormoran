@@ -11,13 +11,6 @@ let speclist = [
   "--no-cond", Arg.Clear cond_check, "Litmus: don't check final condition";
 ]
 
-module D =
-  (val
-    if !use_mark
-    then (module Mark)
-    else (module Order)
-    : Domain.Domain)
-
 let speclist =
   speclist
   |> List.map (fun (a, b, c) -> (a, b, " " ^ c))
@@ -41,6 +34,12 @@ let analyse file =
       else Parser.program Lexer.lexer lexbuf
            |> Typing.type_program,
            [] in
+    let module D =
+      (val
+        if !use_mark
+        then (module Mark)
+        else (module Order)
+        : Domain.Domain) in
     let module Analyser = Interleaving.Make (D) in
     let result = Analyser.analyse program in
     if !litmus && !cond_check then
