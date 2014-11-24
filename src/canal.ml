@@ -32,10 +32,10 @@ let analyse file =
       else Parser.program Lexer.lexer lexbuf
            |> Typing.type_program,
            [] in
-    let module Analyser = Interleaving.Make (Marked) in
+    let module Analyser = Interleaving.Make (Mark) in
     let result = Analyser.analyse program in
     if !litmus && !cond_check then
-      if Marked.satisfies cond @@
+      if Mark.satisfies cond @@
         Hashtbl.find result (last_point program)
       then print_endline "Condition satisfied"
       else print_endline "Condition not satisfied"
