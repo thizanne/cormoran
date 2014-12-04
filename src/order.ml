@@ -149,14 +149,6 @@ let threads_to_flush d p x =
 let flush_many p ns x =
   List.fold_left (fun p n -> flush p n x) p ns
 
-let flush_after_mop d p x =
-  List.map (fun ts -> flush_many p ts x) (threads_to_flush d p x)
-
-let all_flushes_after_mop domain x =
-  let points = S.fold (fun p li -> flush_after_mop domain p x.item :: li) domain [] in
-  let points = List.fold_left ( @ ) [] points in
-  List.fold_right S.add points S.empty
-
 let empty_buffer p t =
   List.nth p.vars t
   |> List.for_all (fun (_, (_, m)) -> m = MNeg)
