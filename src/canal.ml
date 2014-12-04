@@ -38,7 +38,7 @@ let analyse file =
       (val
         if !use_mark
         then (module Mark)
-        else (module NewMark)
+        else (module Order)
         : Domain.Domain) in
     let module Analyser = Interleaving.Make (D) in
     let result = Analyser.analyse program in
