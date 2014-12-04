@@ -28,6 +28,16 @@ let rec print_list p = function
   | [x] -> p x
   | x :: xs -> p x; print_string "; "; print_list p xs
 
+let rec last = function
+  | [] -> raise Not_found
+  | [x] -> x
+  | _ :: xs -> last xs
+
+let rec first = function
+  | [] -> failwith "first"
+  | [x] -> []
+  | x :: xs -> x :: first xs
+
 let rec ( -- ) init final =
   if init > final then []
   else init :: (succ init -- final)
