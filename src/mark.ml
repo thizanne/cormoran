@@ -23,13 +23,6 @@ let union = S.union
 
 let smap f s = S.fold (fun x e -> S.add (f x) e) s S.empty
 
-let set_assoc k v li =
-  List.map
-    (fun (k', v') -> k', if k' = k then v else v') li
-
-let set_nth n v li =
-  List.mapi (fun i x -> if i = n then v else x) li
-
 let get_reg point r =
   List.assoc r point.regs
 
@@ -56,13 +49,6 @@ let get_mem_var point x =
 let get_value point = function
   | Int n -> Some n.item
   | Var r -> get_reg point r.item
-
-let fun_of_op op x y = match op with
-  | '+' -> Some (x + y)
-  | '-' -> Some (x - y)
-  | '*' -> Some (x * y)
-  | '/' -> if y = 0 then None else Some (x / y)
-  | _ -> failwith "fun_of_op"
 
 let rec get_expr point = function
   | Val v -> get_value point v.item
@@ -113,18 +99,6 @@ let flush p t x =
                p.vars
   } t x MNeg
 
-let rec insert x = function
-  | [] -> [[x]]
-  | y :: ys ->
-    (x :: y :: ys) ::
-    List.map (fun yy -> y :: yy) (insert x ys)
-
-let rec all_perm = function
-  | [] -> [[]]
-  | x :: xs ->
-    let xs = all_perm xs in
-    List.fold_left ( @ ) xs @@ List.map (insert x) xs
-
 let threads_mpos p x =
   let rec aux n = function
     | [] -> []
@@ -135,7 +109,7 @@ let threads_mpos p x =
   in aux 0 p.vars
 
 let threads_to_flush p x =
-  all_perm @@ threads_mpos p x
+  ordered_parts @@ threads_mpos p x
 
 let flush_many p ns x =
   List.fold_left (fun p n -> flush p n x) p ns
@@ -202,17 +176,13 @@ let str_mark = function
   | MPos -> "●"
   | MNeg -> "○"
 
-let str_option = function
-  | None -> "∅"
-  | Some x -> string_of_int x
-
 let print_vars =
   let rec aux t = function
     | [] -> ()
     | vars :: next ->
       print_list
         (fun (x, (v, m)) ->
-           printf "%s_%d → %s %s" x t (str_option v) (str_mark m))
+           printf "%s_%d → %s %s" x t (str_int_option v) (str_mark m))
         vars;
       begin match next with
         | [] -> ()
@@ -221,7 +191,7 @@ let print_vars =
   in aux 0
 
 let print_point {regs; vars} =
-  print_list (fun (r, v) -> printf "%s → %s" r (str_option v)) regs;
+  print_list (fun (r, v) -> printf "%s → %s" r (str_int_option v)) regs;
   print_newline ();
   print_vars vars;
   print_newline ()

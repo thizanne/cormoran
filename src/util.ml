@@ -1,3 +1,22 @@
+(*
+  Option
+*)
+
+let str_int_option = function
+  | None -> "∅"
+  | Some x -> string_of_int x
+
+(*
+  List
+*)
+
+let set_assoc k v li =
+  List.map
+    (fun (k', v') -> k', if k' = k then v else v') li
+
+let set_nth n v li =
+  List.mapi (fun i x -> if i = n then v else x) li
+
 let repeat n v =
   let rec aux acc n =
     if n = 0 then acc
@@ -15,3 +34,27 @@ let rec ( -- ) init final =
 
 let ( --^ ) init final =
   init -- pred final
+
+let rec inser_all_pos x = function
+  | [] -> [[x]]
+  | y :: ys ->
+    (x :: y :: ys) ::
+    List.map (fun yy -> y :: yy) (inser_all_pos x ys)
+
+let rec ordered_parts = function
+  | [] -> [[]]
+  | x :: xs ->
+    let xs = ordered_parts xs in
+    List.fold_left ( @ ) xs @@
+    List.map (inser_all_pos x) xs
+
+(*
+  Misc
+*)
+
+let fun_of_op op x y = match op with
+  | '+' -> Some (x + y)
+  | '-' -> Some (x - y)
+  | '*' -> Some (x * y)
+  | '/' -> if y = 0 then None else Some (x / y)
+  | _ -> failwith "fun_of_op"
