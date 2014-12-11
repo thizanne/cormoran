@@ -83,7 +83,7 @@ let flush p t =
     vars =
       List.map2
         (fun rt vt ->
-           if List.mem x rt
+           if not (List.mem x rt)
            then set_assoc x n vt
            else vt)
         p.buf p.vars;
