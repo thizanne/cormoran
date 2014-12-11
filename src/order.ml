@@ -121,8 +121,9 @@ let rec all_combi = function
 
 let flush_after_mop p x =
   p.buf
-  |> List.filter (fun buf -> try last buf = x with Not_found -> false)
-  |> List.mapi (fun i buf -> repeat (List.length buf) i)
+  |> List.mapi (fun i buf -> i, buf)
+  |> List.filter (fun (_i, buf) -> try last buf = x with Not_found -> false)
+  |> List.map (fun (i, buf) -> repeat (List.length buf) i)
   |> all_combi
   |> List.map (List.fold_left flush p)
 
