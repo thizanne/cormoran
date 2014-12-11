@@ -220,7 +220,11 @@ let point_sat_cond (var, value) p =
   with
   | Not_found -> failwith "point_sat_cond"
 
+let is_totally_flushed p =
+  List.for_all (( = ) []) p.buf
+
 let point_sat cond p =
+  is_totally_flushed p &&
   List.for_all
     (fun c -> point_sat_cond c p)
     cond
