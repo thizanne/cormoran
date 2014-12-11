@@ -187,10 +187,15 @@ let init program = S.singleton (initial_point program)
 let print_var (x, v) =
   printf "%s → %s" x (str_int_option v)
 
+let print_buf buf =
+  print_string "[";
+  print_list print_string buf;
+  print_endline "]"
+
 let print_point {regs; vars; buf} =
   print_list print_var regs;
   print_newline ();
-  print_list (print_list print_string) buf;
+  List.iter print_buf buf;
   print_newline ();
   print_list (print_list print_var) vars;
   print_newline ()
