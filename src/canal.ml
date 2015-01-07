@@ -3,12 +3,18 @@ open Printf
 
 let litmus = ref false
 let cond_check = ref true
-let use_mark = ref false
+let domain = ref "order"
 
 let speclist = [
   "--litmus", Arg.Set litmus, "Use litmus syntax";
-  "--mark", Arg.Set use_mark, "Use the marked points domain";
+  "--domain", Arg.Set_string domain, "Use the marked points domain";
   "--no-cond", Arg.Clear cond_check, "Litmus: don't check final condition";
+]
+
+let domains : (string * (module Domain.Domain)) list = [
+  "order", (module Order);
+  "mark", (module Mark);
+  "concrete", (module Concrete);
 ]
 
 let speclist =
@@ -34,12 +40,7 @@ let analyse file =
       else Parser.program Lexer.lexer lexbuf
            |> Typing.type_program,
            [] in
-    let module D =
-      (val
-        if !use_mark
-        then (module Mark)
-        else (module Order)
-        : Domain.Domain) in
+    let module D = (val List.assoc !domain domains) in
     let module Analyser = Interleaving.Make (D) in
     let result = Analyser.analyse program in
     if !litmus && !cond_check then
