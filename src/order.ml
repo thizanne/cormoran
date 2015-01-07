@@ -43,7 +43,6 @@ let set_var point t x v = {
     set_nth t (x :: List.nth point.buf t) point.buf;
 }
 
-
 let rec get_expr point = function
   | Val v -> get_value point v.item
   | Op (op, e1, e2) ->
