@@ -78,7 +78,6 @@ let flush s t =
     mem = set_assoc x v s.mem;
     buf =
       set_nth t (first @@ List.nth s.buf t) s.buf;
-
   }
 
 let rec inser_all_first_pos x = function
@@ -190,7 +189,10 @@ let is_totally_flushed p =
   List.for_all (( = ) []) p.buf
 
 let state_sat_cond (var, value) s =
-  List.assoc var s.mem = Some value
+  try
+    List.assoc var s.mem = Some value
+  with Not_found ->
+    List.assoc var s.regs = Some value
 
 let state_sat cond s =
   is_totally_flushed s &&
