@@ -148,7 +148,7 @@ let transfer domain t = function
                else 0)
            | _, _ -> None))
       domain
-  | Mfence ->
+  | MFence ->
     S.filter
       (fun p ->
          List.for_all (fun (_, (_, m)) -> m = MNeg) @@

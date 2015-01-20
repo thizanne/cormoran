@@ -145,7 +145,7 @@ let transfer domain t = function
                else 0)
            | _, _ -> None))
       domain
-  | Mfence -> S.filter (fun p -> is_empty_buffer p t) domain
+  | MFence -> S.filter (fun p -> is_empty_buffer p t) domain
   | Label _ -> domain
   | Jnz (_, _) | Jz (_, _) | Jmp _ -> failwith "Jumps not implemented"
 

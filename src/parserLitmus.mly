@@ -103,7 +103,7 @@ line :
 | ins = separated_nonempty_list(Pipe, loc(instruction)?) Semi { ins }
 
 instruction :
-| MFence { Typed.Mfence }
+| MFence { Typed.MFence }
 | Mov d = loc(Reg) Comma v = loc(expr) {
     Typed.RegOp (d, v)
   }

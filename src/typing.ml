@@ -72,7 +72,7 @@ let type_ins globals locals labels ins =
         Cmp (check_local globals locals r,
              type_value globals locals v1,
              type_value globals locals v2)
-      | Untyped.Mfence -> Mfence
+      | Untyped.MFence -> MFence
       | Untyped.Label s -> Label s
       | Untyped.Jnz (r, s) ->
         Jnz (check_local globals locals r, (check_label labels s))

@@ -18,7 +18,7 @@ struct
     | Pass
     | Affect of string loc * expression loc
     | Cmp of string loc * value loc * value loc
-    | Mfence
+    | MFence
     | Label of string loc
     | Jnz of string loc * string loc
     | Jz of string loc * string loc
@@ -33,7 +33,7 @@ struct
     | Write of string loc * value loc
     | RegOp of string loc * expression loc
     | Cmp of string loc * value loc * value loc
-    | Mfence
+    | MFence
     | Label of string loc
     | Jnz of string loc * string loc
     | Jz of string loc * string loc
