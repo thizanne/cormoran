@@ -6,7 +6,7 @@
 
 %token Plus Minus Times Divide
 %token Label Local Comma Equal Semicolon Sharp
-%token Cmp Jnz Jz Jmp MFence Affect
+%token Cmp Jnz Jz Jmp MFence Affect Pass
 %token <int> Int
 %token <string> Id
 %token Eof
@@ -47,6 +47,7 @@ instructions :
 instruction :
 | r = loc(Id) Affect e = loc(expression) { Untyped.Affect (r, e) }
 | Cmp r = loc(Id) v1 = loc(value) v2 = loc(value) { Untyped.Cmp (r, v1, v2) }
+| Pass { Untyped.Pass }
 | MFence { Untyped.Mfence }
 | Label lbl = loc(Id) { Untyped.Label lbl }
 | Jnz r = loc(Id) lbl = loc(Id) { Untyped.Jnz (r, lbl) }

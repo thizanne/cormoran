@@ -123,6 +123,7 @@ let all_flushes_after_mop domain x =
   List.fold_right S.add points S.empty
 
 let transfer domain t = function
+  | Pass -> domain
   | Read (r, x) ->
     let domain = smap
         (fun p -> set_reg p r.item (get_var p t x.item)) domain in

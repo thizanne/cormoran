@@ -47,6 +47,7 @@ let rec type_expr globals locals e =
 
 let type_ins globals locals labels ins =
   let open Typed in {ins with item = match ins.item with
+      | Untyped.Pass -> Pass
       | Untyped.Affect (x, e) ->
         if List.mem x.item globals
         then

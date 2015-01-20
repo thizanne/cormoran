@@ -15,6 +15,7 @@ type expression =
 module Untyped =
 struct
   type t  =
+    | Pass
     | Affect of string loc * expression loc
     | Cmp of string loc * value loc * value loc
     | Mfence
@@ -27,6 +28,7 @@ end
 module Typed =
 struct
   type t =
+    | Pass
     | Read of string loc * string loc
     | Write of string loc * value loc
     | RegOp of string loc * expression loc

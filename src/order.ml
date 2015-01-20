@@ -127,6 +127,7 @@ let flush_after_mop p x =
   |> List.map (List.fold_left flush p)
 
 let transfer domain t = function
+  | Pass -> domain
   | Read (r, x) ->
     let domain =
       domain

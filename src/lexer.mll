@@ -28,6 +28,7 @@ rule lexer = parse
   | "jmp" { Jmp }
   | "label" { Label }
   | "local" { Local }
+  | "pass" { Pass }
   | "mfence" { MFence }
   | digits+ as n { Int (int_of_string n) }
   | alpha (alpha | digits | "_")* as x { Id x }
