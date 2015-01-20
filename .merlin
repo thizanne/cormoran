@@ -2,3 +2,5 @@ B _build
 B _build/src
 
 S src
+
+PKG ocamlgraph
