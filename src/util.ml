@@ -17,6 +17,13 @@ let set_assoc k v li =
 let set_nth n v li =
   List.mapi (fun i x -> if i = n then v else x) li
 
+let rec incr_nth n = function
+  | [] -> failwith "incr_nth"
+  | x :: xs ->
+    if n = 0
+    then succ x :: xs
+    else x :: incr_nth (pred n) xs
+
 let repeat n v =
   let rec aux acc n =
     if n = 0 then acc
