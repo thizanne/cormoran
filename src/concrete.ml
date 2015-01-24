@@ -154,13 +154,13 @@ let initial_vars program =
 
 let initial_state program = {
   regs =
-    List.fold_left ( @ ) []
-      (List.map
+    Array.fold_left ( @ ) []
+      (Array.map
          (fun t -> List.map (fun r -> r, None) t.locals)
          program.threads);
   mem = initial_vars program;
   buf =
-    List.map (fun _ -> []) program.threads;
+    repeat (Array.length program.threads) [];
 }
 
 let init program = S.singleton (initial_state program)

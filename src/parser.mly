@@ -25,7 +25,7 @@
 
 program :
 | mem = shared_decs Sharp t = separated_nonempty_list(Sharp, thread)  Eof
-    { {Program.initial = mem; threads = t} }
+    { {Program.initial = mem; threads = Array.of_list t} }
 | error { raise (Error.Error [Error.SyntaxError, $startpos, $endpos, ""]) }
 
 shared_decs :
@@ -35,8 +35,8 @@ shared_dec :
 | i = Id Equal n = Int { i, n }
 
 thread :
-| ins = instructions { {Program.locals = []; ins} }
-| loc = local_dec Semicolon ins = instructions { {Program.locals = loc; ins } }
+| ins = instructions { {Program.locals = []; ins = Array.of_list ins} }
+| loc = local_dec Semicolon ins = instructions { {Program.locals = loc; ins = Array.of_list ins} }
 
 local_dec :
 | Local locals = separated_list(Comma, Id) { locals }

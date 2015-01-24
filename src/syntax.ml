@@ -44,16 +44,16 @@ module Program (Ins : sig type t end) =
 struct
   type thread = {
     locals : string list;
-    ins : Ins.t loc list;
+    ins : Ins.t loc array;
   }
 
   type t = {
     initial : (string * int) list;
-    threads : thread list;
+    threads : thread array;
   }
 
   let nth_ins program t i =
-    List.nth (List.nth program.threads t).ins i
+    program.threads.(t).ins.(i)
 end
 
 module UntypedProgram = Program (Untyped)

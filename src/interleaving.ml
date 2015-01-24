@@ -12,9 +12,9 @@ module Make (D : Domain.Domain) = struct
       List.map (fun s -> i :: s) (state_pred is)
 
   let init_result program =
-    let n_threads = List.length program.threads in
-    let n_ins = List.map (fun t -> List.length t.ins) program.threads in
-    let result = Hashtbl.create (List.fold_left ( * ) 1 n_ins) in
+    let n_threads = Array.length program.threads in
+    let n_ins = Array.map (fun t -> Array.length t.ins) program.threads in
+    let result = Hashtbl.create (Array.fold_left ( * ) 1 n_ins) in
     Hashtbl.add result (repeat n_threads 0) (D.init program);
     result
 
@@ -42,7 +42,7 @@ module Make (D : Domain.Domain) = struct
       |> List.fold_left D.union D.empty
       |> Hashtbl.add result s in
 
-    analyse_state (List.map (fun t -> List.length t.ins) program.threads);
+    analyse_state (Array.map (fun t -> Array.length t.ins) program.threads |> Array.to_list);
     result
 
   let print result =

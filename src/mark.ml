@@ -162,13 +162,13 @@ let initial_vars program =
 
 let initial_point program = {
   regs =
-    List.fold_left ( @ ) []
-      (List.map
+    Array.fold_left ( @ ) []
+      (Array.map
          (fun t -> List.map (fun r -> r, None) t.locals)
          program.threads);
   vars =
     (let vars = initial_vars program in
-     List.map (fun _ -> vars) program.threads);
+     List.map (fun _ -> vars) (Array.to_list program.threads));
 }
 
 let init program = S.singleton (initial_point program)

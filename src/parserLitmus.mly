@@ -4,7 +4,7 @@
  module Typed = Syntax.Typed
 
  let rec transform = function
-   | [] -> failwith "transform1"
+   | [] -> failwith "transform"
    | [x] ->
      List.map
        (function Some i -> [i] | None -> []) x
@@ -47,16 +47,22 @@
     let open Syntax in
     let open Typed in
     let open TypedProgram in
-    let rec global_thread acc = function
-      | [] -> acc
-      | x :: xs -> begin match x.item with
-          | Read (_, v)
-          | Write (v, _) -> global_thread (inser2 v.item acc) xs
-          | _ -> global_thread acc xs
-        end in
+
+    let global_thread acc ins =
+      Array.fold_left
+        (fun acc ins ->
+           match ins.item with
+           | Read (_, v)
+           | Write (v, _) -> inser2 v.item acc
+           | _ -> acc
+        ) acc ins
+    in
+
     let rec aux acc = function
       | [] -> List.sort Pervasives.compare acc
-      | t :: ts -> aux (global_thread acc t.ins) ts in
+      | t :: ts -> aux (global_thread acc t.ins) ts
+    in
+
     aux (List.sort Pervasives.compare acc) threads
 %}
 
@@ -76,7 +82,7 @@
 
 program :
 | init = init_dec c = code cond = exists Eof {
-    { Program.initial = globals init c; threads = c },
+    { Program.initial = globals init c; threads = Array.of_list c },
     cond
   }
 | error {
@@ -95,7 +101,7 @@ code :
 | lines = line+ {
       let threads = transform lines in
       List.map
-        (fun t -> { Program.locals = locals t; ins = t })
+        (fun t -> { Program.locals = locals t; ins = Array.of_list t })
         threads
     }
 

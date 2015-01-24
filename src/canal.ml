@@ -24,9 +24,10 @@ let speclist =
 
 let last_point program =
   let open Syntax.TypedProgram in
-  List.map
-    (fun t -> List.length t.ins)
+  Array.map
+    (fun t -> Array.length t.ins)
     program.threads
+  |> Array.to_list
 
 let analyse file =
   printf "Analysing file %s...\n" file;

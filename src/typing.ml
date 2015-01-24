@@ -83,19 +83,18 @@ let type_ins globals locals labels ins =
     }
 
 let get_labels =
-  let rec get_labels acc = function
-    | [] -> acc
-    | {item = Untyped.Label s} :: ins ->
-      if List.mem s acc
-      then raise (label_already_defined s)
-      else get_labels (s :: acc) ins
-    | _ :: ins -> get_labels acc ins
-  in get_labels []
+  Array.fold_left
+    (fun lbls ins -> match ins.item with
+       | Untyped.Label s ->
+         if List.mem s lbls
+         then raise (label_already_defined s)
+         else s :: lbls
+       | _ -> lbls) []
 
 let type_thread globals thread =
   let open UntypedProgram in {
     TypedProgram.locals = thread.locals;
-    ins = List.map
+    ins = Array.map
         (type_ins globals thread.locals (get_labels thread.ins)) thread.ins
   }
 
@@ -115,5 +114,10 @@ let rec type_threads globals locals = function
 let type_program prog =
   let open UntypedProgram in {
     TypedProgram.initial = prog.initial;
-    threads = type_threads (List.map fst prog.initial) [] prog.threads;
+    threads =
+      (* TODO : double array <-> list conversion sucks *)
+      prog.threads
+      |> Array.to_list
+      |> type_threads (List.map fst prog.initial) []
+      |> Array.of_list;
   }
