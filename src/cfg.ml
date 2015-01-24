@@ -63,16 +63,16 @@ let connect_vertex lbls g pos t ins =
     G.add_edge_e (G.add_edge_e g edge_1) edge_2
 
 let init prog =
-  let map_cons_n n lis =
-    List.map (fun li -> n :: li) lis
+
+  let rec all_pos = function
+    | [] -> [[]]
+    | thread :: threads ->
+      let pos = all_pos threads in
+      List.mapi
+        (fun k _ -> List.map (fun t -> k :: t) pos)
+        thread.ins
+      |> List.fold_left ( @ ) []
   in
 
-  let add_thread_pos li lis =
-    List.mapi (fun i _ -> map_cons_n i lis) li.ins
-    |> List.fold_left ( @ ) []
-  in
-
-  let pos prog =
-    List.fold_right add_thread_pos prog.threads [[]]
-
-  in List.fold_left G.add_vertex G.empty @@ pos prog
+  all_pos prog.threads
+  |> List.fold_left G.add_vertex G.empty
