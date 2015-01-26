@@ -71,7 +71,7 @@ let init prog =
       List.mapi
         (fun k _ -> List.map (fun t -> k :: t) pos)
         thread.ins
-      |> List.fold_left ( @ ) []
+      |> List.flatten
   in
 
   all_pos prog.threads

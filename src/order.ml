@@ -115,7 +115,7 @@ let rec all_combi = function
   | (t :: ts) :: bufs ->
     let ps = all_combi (ts :: bufs) in
     ps @
-    List.fold_left ( @ ) []
+    List.flatten
       (List.map (inser_all_first_pos t) ps)
 
 let flush_after_mop p x =
@@ -134,7 +134,7 @@ let transfer domain t = function
       |> S.elements
       |> List.map (fun p -> set_reg p r.item (get_var p t x.item))
       |> List.map (fun p -> flush_after_mop p x.item)
-      |> List.fold_left ( @ ) []
+      |> List.flatten
     in
     List.fold_right S.add domain S.empty
   | Write (x, v) ->
@@ -143,7 +143,7 @@ let transfer domain t = function
       |> S.elements
       |> List.map (fun p -> set_var p t x.item (get_value p v.item))
       |> List.map (fun p -> flush_after_mop p x.item)
-      |> List.fold_left ( @ ) []
+      |> List.flatten
     in
     List.fold_right S.add domain S.empty
   | RegOp (r, e)  ->

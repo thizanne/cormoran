@@ -62,8 +62,8 @@ let rec ordered_parts = function
   | [] -> [[]]
   | x :: xs ->
     let xs = ordered_parts xs in
-    List.fold_left ( @ ) xs @@
-    List.map (inser_all_pos x) xs
+    List.flatten @@
+    xs :: List.map (inser_all_pos x) xs
 
 (*
   Misc
