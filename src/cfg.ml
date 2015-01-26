@@ -1,3 +1,4 @@
+open Batteries
 open Util
 module S = Syntax
 module T = Syntax.Typed
@@ -21,20 +22,27 @@ end
 module G = Graph.Persistent.Digraph.ConcreteLabeled (V) (E)
 
 let label_positions { threads; _ } =
+  (* Return the list of lists of (label, position) for each thread *)
   let open Syntax in
-  let rec aux acc i = function
-    | [] -> acc
-    | {item = T.Label { item = s }} :: xs ->
-      aux ((s, i) :: acc) (succ i) xs
-    | _ :: xs -> aux acc (succ i) xs
-  in List.map (fun t -> aux [] 0 t.ins) threads
+  let lbl_pos_t =
+    Array.fold_lefti
+      (fun acc i ins ->
+         match ins.item with
+         | T.Label { item = s } ->
+           (s, i) :: acc
+         | _ -> acc)
+      []
+  in Array.map (fun t -> lbl_pos_t t.ins) threads
 
 let dual_jump = function
   | T.Jz (r, lbl) -> T.Jnz (r, lbl)
   | T.Jnz (r, lbl) -> T.Jz (r, lbl)
   | _ -> failwith "dual_jump"
 
-let connect_vertex lbls g pos t ins =
+let add_ins_edges lbls g pos t ins =
+  (* Adds in g the edges corresponding to the execution in position
+     pos of the instruction ins by the t-th thread, given the positions of
+     the labels of this thread *)
   let open Syntax in
   let open Syntax.Typed in
   match ins with
@@ -62,17 +70,35 @@ let connect_vertex lbls g pos t ins =
     let edge_2 = G.E.create pos ins succ_pos_2 in
     G.add_edge_e (G.add_edge_e g edge_1) edge_2
 
+let add_pos_edges lbls g pos prog =
+  (* Adds in the not-yet-complete CFG g of the program prog all the
+     edges whose origin is vertex labelled with the position pos *)
+  List.fold_lefti
+    (fun g i p ->
+       add_ins_edges lbls.(i) g pos i
+         (nth_ins prog i p).S.item)
+    g pos
+
 let init prog =
-
-  let rec all_pos = function
-    | [] -> [[]]
-    | thread :: threads ->
-      let pos = all_pos threads in
-      List.mapi
-        (fun k _ -> List.map (fun t -> k :: t) pos)
-        thread.ins
-      |> List.flatten
-  in
-
-  all_pos prog.threads
+  (* Builds the graph containing the vertices of the CFG of prog, with
+     no edge *)
+  Array.fold_right
+    (fun thread pos ->
+       Array.mapi
+         (fun i _ -> List.map (fun t -> i :: t) pos)
+         thread.ins
+       |> Array.fold_left ( @ ) [])
+    prog.threads [[]]
   |> List.fold_left G.add_vertex G.empty
+
+let make prog =
+  (* Builds the CFG of prog *)
+  (* TODO This could be efficiently regrouped with init to treat
+     positions in one pass *)
+  let g = init prog in
+  let lbls = label_positions prog in
+  G.fold_vertex
+    (fun pos g ->
+       add_pos_edges lbls g pos prog)
+    g g
+
