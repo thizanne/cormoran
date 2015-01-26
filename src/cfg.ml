@@ -102,3 +102,14 @@ let make prog =
        add_pos_edges lbls g pos prog)
     g g
 
+module Dot = Graph.Graphviz.Dot (
+  struct
+    include G
+    let edge_attributes (a, e, b) = []
+    let default_edge_attributes _ = []
+    let get_subgraph _ = None
+    let vertex_attributes _ = [`Shape `Box]
+    let vertex_name = string_of_int_list
+    let default_vertex_attributes _ = []
+    let graph_attributes _ = []
+  end)
