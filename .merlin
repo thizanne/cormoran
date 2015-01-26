@@ -3,4 +3,5 @@ B _build/src
 
 S src
 
+PKG batteries
 PKG ocamlgraph
