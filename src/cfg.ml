@@ -3,6 +3,7 @@ open Util
 module S = Syntax
 module T = Syntax.Typed
 open Syntax.TypedProgram
+open Printf
 
 module V =
 struct
@@ -102,14 +103,64 @@ let make prog =
        add_pos_edges lbls g pos prog)
     g g
 
+let edge_label e =
+  let open Syntax.Typed in
+  let open Syntax in
+
+  let str_value v =
+    match v with
+    | Int x -> string_of_int x.item
+    | Var r -> r.item
+  in
+
+  let rec str_exp e =
+    match e with
+    | Val v -> str_value v.item
+    | Op (op, e1, e2) ->
+      sprintf "%s %c %s" (str_exp e1.item) op.item (str_exp e2.item)
+  in
+
+  match e with
+  | Pass -> ""
+  | Label lbl -> ""
+  | MFence -> "MFence"
+  | Jmp _ -> ""
+  | Jnz (r, _) ->
+    sprintf "%s <> 0" r.item
+  | Jz (r, _) ->
+    sprintf "%s = 0" r.item
+  | Read (r, x) ->
+    sprintf "%s ← %s" r.item x.item
+  | Write (x, v) ->
+    sprintf "%s ← %s" x.item (str_value v.item)
+  | RegOp (r, e) ->
+    sprintf "%s ← %s" r.item (str_exp e.item)
+  | Cmp (r, v1, v2) ->
+    sprintf "%s ← %s <?> %s" r.item (str_value v1.item) (str_value v2.item)
+
+
 module Dot = Graph.Graphviz.Dot (
   struct
     include G
-    let edge_attributes (a, e, b) = []
+
+    let vertex_attributes _ = [
+      `Shape `Box;
+      `Fillcolor 0xdddddd;
+      `Style `Filled;
+      `Style `Rounded;
+    ]
+
+    let edge_attributes (_, e, _) = [
+      `Label (edge_label e);
+      `Fontsize 12;
+      `Arrowsize 0.5;
+      `Minlen 2;
+    ]
+
     let default_edge_attributes _ = []
     let get_subgraph _ = None
-    let vertex_attributes _ = [`Shape `Box]
-    let vertex_name = string_of_int_list
+    let vertex_name v =
+      "\"" ^ string_of_pos v ^ "\""
     let default_vertex_attributes _ = []
     let graph_attributes _ = []
   end)
