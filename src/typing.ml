@@ -27,7 +27,7 @@ let check_global globals locals = check_var "shared" globals locals
 let check_local globals locals = check_var "register" locals globals
 
 let check_label labels lbl =
-  if List.mem lbl labels then lbl
+  if List.mem lbl.item labels then lbl
   else raise (not_defined lbl)
 
 let type_value globals locals v = match v.item with
@@ -86,9 +86,9 @@ let get_labels =
   Array.fold_left
     (fun lbls ins -> match ins.item with
        | Untyped.Label s ->
-         if List.mem s lbls
+         if List.mem s.item lbls
          then raise (label_already_defined s)
-         else s :: lbls
+         else s.item :: lbls
        | _ -> lbls) []
 
 let type_thread globals thread =
