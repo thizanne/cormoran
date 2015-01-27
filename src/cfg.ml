@@ -76,18 +76,26 @@ let add_pos_edges lbls g pos prog =
      edges whose origin is vertex labelled with the position pos *)
   List.fold_lefti
     (fun g i p ->
-       add_ins_edges lbls.(i) g pos i
-         (nth_ins prog i p).S.item)
+       try
+         add_ins_edges lbls.(i) g pos i
+           (nth_ins prog i p).S.item
+       with
+       (* We already are at the end of a thread *)
+         Invalid_argument "index out of bounds" -> g)
     g pos
 
 let init prog =
   (* Builds the graph containing the vertices of the CFG of prog, with
      no edge *)
+
+  (* TODO: append ... [|ins.(0)|] is used to add a final
+     position. This works but is ugly. *)
   Array.fold_right
     (fun thread pos ->
        Array.mapi
-         (fun i _ -> List.map (fun t -> i :: t) pos)
-         thread.ins
+         (fun i _ ->
+            List.map (fun t -> i :: t) pos)
+         (Array.append thread.ins [|thread.ins.(0)|])
        |> Array.fold_left ( @ ) [])
     prog.threads [[]]
   |> List.fold_left G.add_vertex G.empty
@@ -154,7 +162,6 @@ module Dot = Graph.Graphviz.Dot (
       `Label (edge_label e);
       `Fontsize 12;
       `Arrowsize 0.5;
-      `Minlen 2;
     ]
 
     let default_edge_attributes _ = []
