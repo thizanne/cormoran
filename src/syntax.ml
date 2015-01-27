@@ -35,7 +35,7 @@ struct
     | Cmp of string loc * value loc * value loc
     | MFence
     | Label of string loc
-    | Jnz of string loc * string loc
+    | Jnz of string loc * string loc (* register, label *)
     | Jz of string loc * string loc
     | Jmp of string loc
 end
