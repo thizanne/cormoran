@@ -1,13 +1,13 @@
 open Error
 open Printf
 
-let litmus = ref false
+let use_litmus = ref false
 let cond_check = ref true
 let domain = ref "order"
 
 let speclist = [
-  "--litmus", Arg.Set litmus, "Use litmus syntax";
-  "--domain", Arg.Set_string domain, "Use the marked points domain";
+  "--litmus", Arg.Set use_litmus, "Use litmus syntax";
+  "--domain", Arg.Set_string domain, "Domain: order (default), mark, concrete";
   "--no-cond", Arg.Clear cond_check, "Litmus: don't check final condition";
 ]
 
@@ -33,18 +33,11 @@ let analyse file =
   printf "Analysing file %s...\n" file;
   try
     let lexbuf = Lexing.from_channel @@ open_in file in
-    let program, cond =
-      if !litmus then begin
-        LexerLitmus.drop_prelude lexbuf;
-        ParserLitmus.program LexerLitmus.lexer lexbuf
-      end
-      else Parser.program Lexer.lexer lexbuf
-           |> Typing.type_program,
-           [] in
+    let program, cond = Parse.parse use_litmus lexbuf in
     let module D = (val List.assoc !domain domains) in
     let module Analyser = Interleaving.Make (D) in
     let result = Analyser.analyse program in
-    if !litmus && !cond_check then
+    if !use_litmus && !cond_check then
       if D.satisfies cond @@
         Hashtbl.find result (last_point program)
       then print_endline "Condition satisfied"
