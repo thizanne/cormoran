@@ -6,11 +6,11 @@ local r0, r1;
 flag_0 := 1;
 
 turn := 1;
-label gate0;
+label gate;
 r0 := flag_1;
 r1 := turn;
 r0 := r0 * r1;
-jnz r0 gate0;
+jnz r0 gate;
 
 /* Critical section ... */
 
@@ -22,11 +22,11 @@ local s0, s1;
 flag_1 := 1;
 
 turn := 0;
-label gate1;
+label gate;
 s0 := flag_0;
 s1 := turn;
 s0 := s0 * s1;
-jz s0 gate1;
+jz s0 gate;
 
 /* Critical section ... */
 
