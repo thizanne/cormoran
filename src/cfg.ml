@@ -15,9 +15,9 @@ end
 
 module E =
 struct
-  type t = S.Typed.t
+  type t = int * S.Typed.t
   let compare = Pervasives.compare
-  let default = S.Typed.Pass
+  let default = -1, S.Typed.Pass
 end
 
 module G = Graph.Persistent.Digraph.ConcreteLabeled (V) (E)
@@ -55,20 +55,20 @@ let add_ins_edges lbls g pos t ins =
   | MFence
   | Label _ ->
     let succ_pos = incr_nth t pos in
-    let edge = G.E.create pos ins succ_pos in
+    let edge = G.E.create pos (t, ins) succ_pos in
     G.add_edge_e g edge
   | Jmp lbl ->
     let succ_pos =
       set_nth t (List.assoc lbl.item lbls) pos in
-    let edge = G.E.create pos ins succ_pos in
+    let edge = G.E.create pos (t, ins) succ_pos in
     G.add_edge_e g edge
   | Jz (r, lbl)
   | Jnz (r, lbl) ->
     let succ_pos_1 = incr_nth t pos in
     let succ_pos_2 =
       set_nth t (List.assoc lbl.item lbls) pos in
-    let edge_1 = G.E.create pos (dual_jump ins) succ_pos_1 in
-    let edge_2 = G.E.create pos ins succ_pos_2 in
+    let edge_1 = G.E.create pos (t, dual_jump ins) succ_pos_1 in
+    let edge_2 = G.E.create pos (t, ins) succ_pos_2 in
     G.add_edge_e (G.add_edge_e g edge_1) edge_2
 
 let add_pos_edges lbls g pos prog =
@@ -111,7 +111,7 @@ let make prog =
        add_pos_edges lbls g pos prog)
     g g
 
-let edge_label e =
+let edge_label (t, ins) =
   let open Syntax.Typed in
   let open Syntax in
 
@@ -128,24 +128,25 @@ let edge_label e =
       sprintf "%s %c %s" (str_exp e1.item) op.item (str_exp e2.item)
   in
 
-  match e with
-  | Pass -> ""
-  | Label lbl -> ""
-  | MFence -> "MFence"
-  | Jmp _ -> ""
-  | Jnz (r, _) ->
-    sprintf "%s <> 0" r.item
-  | Jz (r, _) ->
-    sprintf "%s = 0" r.item
-  | Read (r, x) ->
-    sprintf "%s ← %s" r.item x.item
-  | Write (x, v) ->
-    sprintf "%s ← %s" x.item (str_value v.item)
-  | RegOp (r, e) ->
-    sprintf "%s ← %s" r.item (str_exp e.item)
-  | Cmp (r, v1, v2) ->
-    sprintf "%s ← %s <?> %s" r.item (str_value v1.item) (str_value v2.item)
-
+  sprintf "<<B>%d</B>:%s>" t
+    begin match ins with
+      | Pass -> "<I>id</I>"
+      | Label lbl -> "<I>id</I>"
+      | MFence -> "MFence"
+      | Jmp _ -> ""
+      | Jnz (r, _) ->
+        sprintf "%s <> 0" r.item
+      | Jz (r, _) ->
+        sprintf "%s = 0" r.item
+      | Read (r, x) ->
+        sprintf "%s ← %s" r.item x.item
+      | Write (x, v) ->
+        sprintf "%s ← %s" x.item (str_value v.item)
+      | RegOp (r, e) ->
+        sprintf "%s ← %s" r.item (str_exp e.item)
+      | Cmp (r, v1, v2) ->
+        sprintf "%s ← %s <?> %s" r.item (str_value v1.item) (str_value v2.item)
+    end
 
 module Dot = Graph.Graphviz.Dot (
   struct
