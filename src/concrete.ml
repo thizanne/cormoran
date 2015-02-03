@@ -165,26 +165,22 @@ let initial_state program = {
 
 let init program = S.singleton (initial_state program)
 
-let print_var (x, v) =
-  printf "%s → %s" x (str_int_option v)
+let str_var (x, v) =
+  sprintf "%s → %s" x (str_int_option v)
 
-let print_buf buf =
-  print_string "[";
-  print_list print_var buf;
-  print_endline "]"
+let str_buf buf =
+  "[" ^ string_of_list str_var buf ^ "]"
 
-let print_point {regs; mem; buf} =
-  print_list print_var regs;
-  print_newline ();
-  List.iter print_buf buf;
-  print_newline ();
-  print_list print_var mem;
-  print_newline ()
+let str_point {regs; mem; buf} =
+  string_of_list str_var regs ^ "\n" ^
+  string_of_list ~sep:"\n" str_buf buf ^ "\n" ^
+  string_of_list str_var mem ^ "\n"
 
-let print =
-  S.iter
-    (fun p ->
-       print_point p; print_newline (); print_newline())
+let to_string d =
+  S.fold
+    (fun p acc ->
+       str_point p ^ "\n\n" ^ acc)
+    d ""
 
 let is_totally_flushed p =
   List.for_all (( = ) []) p.buf

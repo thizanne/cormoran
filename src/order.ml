@@ -185,26 +185,30 @@ let initial_point program = {
 
 let init program = S.singleton (initial_point program)
 
-let print_var (x, v) =
-  printf "%s → %s" x (str_int_option v)
+let str_var (x, v) =
+  sprintf "%s → %s" x (str_int_option v)
 
-let print_buf buf =
-  print_string "[";
-  print_list print_string buf;
-  print_endline "]"
+let str_buf =
+  let str_buf buf =
+    "[" ^ string_of_list (fun x -> x) buf ^ "]"
+  in
+  string_of_list ~sep:"\n" str_buf
 
-let print_point {regs; vars; buf} =
-  print_list print_var regs;
-  print_newline ();
-  List.iter print_buf buf;
-  print_newline ();
-  print_list (print_list print_var) vars;
-  print_newline ()
+let str_point {regs; vars; buf} =
+  string_of_list str_var regs ^ "\n" ^
+  str_buf buf ^ "\n" ^
+  string_of_list (string_of_list str_var) vars ^ "\n"
 
-let print =
-  S.iter
-    (fun p ->
-       print_point p; print_newline (); print_newline())
+let str_point {regs; vars; buf} =
+  string_of_list str_var regs ^ "\n" ^
+  str_buf buf ^ "\n" ^
+  string_of_list (string_of_list str_var) vars ^ "\n"
+
+let to_string d =
+  S.fold
+    (fun p acc ->
+       str_point p ^ "\n\n" ^ acc)
+    d ""
 
 let point_sat_cond (var, value) p =
   try

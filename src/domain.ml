@@ -8,5 +8,5 @@ module type Domain = sig
 
   val satisfies : Condition.t -> t -> bool
 
-  val print : t -> unit
+  val to_string : t -> string
 end

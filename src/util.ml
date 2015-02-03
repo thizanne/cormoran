@@ -30,10 +30,13 @@ let repeat n v =
     else aux (v :: acc) (pred n)
   in aux [] n
 
-let rec string_of_pos = function
+let rec string_of_list ?(sep="; ") string_of_elem = function
   | [] -> ""
-  | [x] -> string_of_int x
-  | x :: xs -> string_of_int x ^ ", " ^ string_of_pos xs
+  | [x] -> string_of_elem x
+  | x :: xs ->
+    string_of_elem x ^ sep ^ string_of_list ~sep string_of_elem xs
+
+let string_of_pos = string_of_list string_of_int
 
 let string_of_int_list li =
   "[" ^ string_of_pos li ^ "]"

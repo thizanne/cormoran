@@ -173,34 +173,36 @@ let initial_point program = {
 
 let init program = S.singleton (initial_point program)
 
+let str_reg (r, v) =
+  sprintf "%s → %s" r (str_int_option v)
+
 let str_mark = function
   | MPos -> "●"
   | MNeg -> "○"
 
-let print_vars =
+let str_var t (x, (v, m)) =
+  sprintf "%s_%d → %s%s" x t (str_int_option v) (str_mark m)
+
+let str_vars =
   let rec aux t = function
-    | [] -> ()
+    | [] -> ""
     | vars :: next ->
-      print_list
-        (fun (x, (v, m)) ->
-           printf "%s_%d → %s %s" x t (str_int_option v) (str_mark m))
-        vars;
+      string_of_list (str_var t) vars ^
       begin match next with
-        | [] -> ()
-        | _ -> printf "; "; aux (succ t) next
+        | [] -> ""
+        | _ -> "; " ^ aux (succ t) next
       end
   in aux 0
 
-let print_point {regs; vars} =
-  print_list (fun (r, v) -> printf "%s → %s" r (str_int_option v)) regs;
-  print_newline ();
-  print_vars vars;
-  print_newline ()
+let str_point {regs; vars} =
+  string_of_list str_reg regs ^ "\n" ^
+  str_vars vars ^ "\n"
 
-let print =
-  S.iter
-    (fun p ->
-       print_point p; print_newline (); print_newline())
+let to_string d =
+  S.fold
+    (fun p acc ->
+       str_point p ^ "\n\n" ^ acc)
+    d ""
 
 let point_sat_cond (var, value) p =
   try

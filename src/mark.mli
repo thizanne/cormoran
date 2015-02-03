@@ -7,4 +7,4 @@ val union : t -> t -> t
 
 val satisfies : Condition.t -> t -> bool
 
-val print : t -> unit
+val to_string : t -> string

@@ -53,7 +53,7 @@ module Make (D : Domain.Domain) = struct
          print_string "############\n";
          print_list print_int s;
          print_string " :\n\n";
-         D.print p;
+         print_string @@ D.to_string p;
          print_newline ())
 
 end
