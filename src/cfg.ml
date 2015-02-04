@@ -128,14 +128,14 @@ let edge_label (t, ins) =
       sprintf "%s %c %s" (str_exp e1.item) op.item (str_exp e2.item)
   in
 
-  sprintf "<<B>%d</B>:%s>" t
+  sprintf "<B>%d</B>:%s" t
     begin match ins with
       | Pass -> "<I>id</I>"
       | Label lbl -> "<I>id</I>"
       | MFence -> "MFence"
       | Jmp _ -> ""
       | Jnz (r, _) ->
-        sprintf "%s <> 0" r.item
+        sprintf "%s ≠ 0" r.item
       | Jz (r, _) ->
         sprintf "%s = 0" r.item
       | Read (r, x) ->
@@ -160,7 +160,7 @@ module Dot = Graph.Graphviz.Dot (
     ]
 
     let edge_attributes (_, e, _) = [
-      `Label (edge_label e);
+      `HtmlLabel (edge_label e);
       `Fontsize 12;
       `Arrowsize 0.5;
     ]
