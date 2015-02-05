@@ -24,9 +24,12 @@ let set_reg state r n = {
   state with regs = set_assoc r n state.regs
 }
 
+let get_reg s r =
+  List.assoc r s.regs
+
 let get_value s v = match v with
   | Int n -> Some n.item
-  | Var r -> List.assoc r.item s.regs
+  | Var r -> get_reg s r.item
 
 let get_var state t x =
   try
@@ -147,7 +150,9 @@ let transfer domain t = function
       domain
   | MFence -> S.filter (fun p -> is_empty_buffer p t) domain
   | Label _ -> domain
-  | Jnz (_, _) | Jz (_, _) | Jmp _ -> failwith "Jumps not implemented"
+  | Jmp _ -> domain
+  | Jnz (r, _) -> S.filter (fun p -> get_reg p r.item <> Some 0) domain
+  | Jz (r, _) -> S.filter (fun p -> get_reg p r.item = Some 0) domain
 
 let initial_vars program =
   List.map (fun (x, v) -> x, Some v) program.initial

@@ -164,7 +164,9 @@ let transfer domain t = function
       domain
   | MFence -> S.filter (fun p -> is_empty_buffer p t) domain
   | Label _ -> domain
-  | Jnz (_, _) | Jz (_, _) | Jmp _ -> failwith "Jumps not implemented"
+  | Jmp _ -> domain
+  | Jnz (r, _) -> S.filter (fun p -> get_reg p r.item <> Some 0) domain
+  | Jz (r, _) -> S.filter (fun p -> get_reg p r.item = Some 0) domain
 
 let initial_vars program =
     List.map (fun (x, v) -> x, Some v) program.initial
