@@ -7,7 +7,7 @@ open Printf
 
 module V =
 struct
-  type t = int list
+  type t = Syntax.position
   let compare = Pervasives.compare
   let hash = Hashtbl.hash
   let equal = ( = )

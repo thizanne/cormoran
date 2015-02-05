@@ -4,6 +4,8 @@ type 'a loc = {
   endpos : Lexing.position;
 }
 
+type position = int list
+
 type value =
   | Int of int loc
   | Var of string loc
