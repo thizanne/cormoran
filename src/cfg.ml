@@ -135,7 +135,7 @@ let edge_label {E.thread; ins} =
       sprintf "%s %c %s" (str_exp e1.item) op.item (str_exp e2.item)
   in
 
-  sprintf "<B>%d</B>:%s" t
+  sprintf "%d:%s" thread
     begin match ins with
       | Pass -> "<I>id</I>"
       | Label lbl -> "<I>id</I>"
@@ -155,15 +155,23 @@ let edge_label {E.thread; ins} =
         sprintf "%s ← %s <?> %s" r.item (str_value v1.item) (str_value v2.item)
     end
 
-module Dot = Graph.Graphviz.Dot (
+module Dot (R : Analysis.Result) = Graph.Graphviz.Dot (
   struct
     include G
 
-    let vertex_attributes _ = [
+    let vertex_attributes v = [
       `Shape `Box;
       `Fillcolor 0xdddddd;
       `Style `Filled;
       `Style `Rounded;
+      `HtmlLabel (
+        sprintf "<TABLE BORDER=\"0\">
+                 <TR><TD BORDER=\"0\">%s</TD></TR>
+                 <TR><TD BORDER=\"1\" BGCOLOR=\"white\">%s</TD></TR>
+                 </TABLE>"
+          (string_of_pos v)
+          (R.Domain.to_string @@ R.data v)
+      )
     ]
 
     let edge_attributes (_, e, _) = [

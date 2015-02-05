@@ -15,12 +15,19 @@ let speclist =
   |> Arg.align
 *)
 
+module TopDummyResult = struct
+  module Domain = Top
+  let data _ = Top.empty
+end
+
+module Dot = Cfg.Dot (TopDummyResult)
+
 let print_cfg file =
   try
     let lexbuf = Lexing.from_channel @@ open_in file in
     let program, _cond = Parse.parse use_litmus lexbuf in
     let g = Cfg.make program in
-    Cfg.Dot.output_graph stdout g
+    Dot.output_graph stdout g
   with
   | Error li -> List.iter (fun e -> print_endline (msg_of_error e ^ "\n")) li
 
