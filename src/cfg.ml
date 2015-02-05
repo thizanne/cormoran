@@ -15,9 +15,15 @@ end
 
 module E =
 struct
-  type t = int * S.Typed.t
+  type t = {
+    thread : int;
+    ins : S.Typed.t;
+  }
   let compare = Pervasives.compare
-  let default = -1, S.Typed.Pass
+  let default = {
+    thread = -1;
+    ins = S.Typed.Pass;
+  }
 end
 
 module G = Graph.Persistent.Digraph.ConcreteLabeled (V) (E)
@@ -40,12 +46,13 @@ let dual_jump = function
   | T.Jnz (r, lbl) -> T.Jz (r, lbl)
   | _ -> failwith "dual_jump"
 
-let add_ins_edges lbls g pos t ins =
+let add_ins_edges lbls g pos thread ins =
   (* Adds in g the edges corresponding to the execution in position
      pos of the instruction ins by the t-th thread, given the positions of
      the labels of this thread *)
   let open Syntax in
   let open Syntax.Typed in
+  let open E in
   match ins with
   | Pass
   | Read _
@@ -54,21 +61,21 @@ let add_ins_edges lbls g pos t ins =
   | Cmp _
   | MFence
   | Label _ ->
-    let succ_pos = incr_nth t pos in
-    let edge = G.E.create pos (t, ins) succ_pos in
+    let succ_pos = incr_nth thread pos in
+    let edge = G.E.create pos {thread; ins} succ_pos in
     G.add_edge_e g edge
   | Jmp lbl ->
     let succ_pos =
-      set_nth t (List.assoc lbl.item lbls) pos in
-    let edge = G.E.create pos (t, ins) succ_pos in
+      set_nth thread (List.assoc lbl.item lbls) pos in
+    let edge = G.E.create pos {thread; ins} succ_pos in
     G.add_edge_e g edge
   | Jz (r, lbl)
   | Jnz (r, lbl) ->
-    let succ_pos_1 = incr_nth t pos in
+    let succ_pos_1 = incr_nth thread pos in
     let succ_pos_2 =
-      set_nth t (List.assoc lbl.item lbls) pos in
-    let edge_1 = G.E.create pos (t, dual_jump ins) succ_pos_1 in
-    let edge_2 = G.E.create pos (t, ins) succ_pos_2 in
+      set_nth thread (List.assoc lbl.item lbls) pos in
+    let edge_1 = G.E.create pos {thread; ins = dual_jump ins} succ_pos_1 in
+    let edge_2 = G.E.create pos {thread; ins} succ_pos_2 in
     G.add_edge_e (G.add_edge_e g edge_1) edge_2
 
 let add_pos_edges lbls g pos prog =
@@ -111,7 +118,7 @@ let make prog =
        add_pos_edges lbls g pos prog)
     g g
 
-let edge_label (t, ins) =
+let edge_label {E.thread; ins} =
   let open Syntax.Typed in
   let open Syntax in
 
