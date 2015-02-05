@@ -159,20 +159,27 @@ module Dot (R : Analysis.Result) = Graph.Graphviz.Dot (
   struct
     include G
 
-    let vertex_attributes v = [
-      `Shape `Box;
-      `Fillcolor 0xdddddd;
-      `Style `Filled;
-      `Style `Rounded;
-      `HtmlLabel (
-        sprintf "<TABLE BORDER=\"0\">
+    let vertex_attributes v =
+      let label v =
+        v
+        |> R.data
+        |> R.Domain.to_string
+        |> String.replace_chars
+          (function '\n' -> "<BR/>" | c -> String.make 1 c)
+      in [
+        `Shape `Box;
+        `Fillcolor 0xdddddd;
+        `Style `Filled;
+        `Style `Rounded;
+        `HtmlLabel (
+          sprintf "<TABLE BORDER=\"0\">
                  <TR><TD BORDER=\"0\">%s</TD></TR>
                  <TR><TD BORDER=\"1\" BGCOLOR=\"white\">%s</TD></TR>
                  </TABLE>"
-          (string_of_pos v)
-          (R.Domain.to_string @@ R.data v)
-      )
-    ]
+            (string_of_pos v)
+            (label v)
+        )
+      ]
 
     let edge_attributes (_, e, _) = [
       `HtmlLabel (edge_label e);
