@@ -18,11 +18,11 @@ module Make (D : Domain.Domain) = struct
     Hashtbl.add result (repeat n_threads 0) (D.init program);
     result
 
-  let analyse program =
+  let analyze program =
 
     let result = init_result program in
 
-    let analyse_from_pred t s =
+    let analyze_from_pred t s =
       if List.mem (-1) s then D.empty
       else
         let i = List.nth s t in
@@ -30,19 +30,19 @@ module Make (D : Domain.Domain) = struct
           (Hashtbl.find result s) t
           (nth_ins program t i).item in
 
-    let rec analyse_state s =
+    let rec analyze_state s =
       let pred = state_pred s in
       List.iter
         (fun s' ->
            if not (List.mem (-1) s') then
              try ignore (Hashtbl.find result s') with
-               Not_found -> analyse_state s')
+               Not_found -> analyze_state s')
         pred;
-      List.mapi analyse_from_pred pred
+      List.mapi analyze_from_pred pred
       |> List.fold_left D.union D.empty
       |> Hashtbl.add result s in
 
-    analyse_state (Array.map (fun t -> Array.length t.ins) program.threads |> Array.to_list);
+    analyze_state (Array.map (fun t -> Array.length t.ins) program.threads |> Array.to_list);
     result
 
   let print result =

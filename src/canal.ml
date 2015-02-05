@@ -29,22 +29,22 @@ let last_point program =
     program.threads
   |> Array.to_list
 
-let analyse file =
+let analyze file =
   printf "Analysing file %s...\n" file;
   try
     let lexbuf = Lexing.from_channel @@ open_in file in
     let program, cond = Parse.parse use_litmus lexbuf in
     let module D = (val List.assoc !domain domains) in
-    let module Analyser = Linear.Make (D) in
-    let result = Analyser.analyse program in
+    let module Analyzer = Linear.Make (D) in
+    let result = Analyzer.analyze program in
     if !use_litmus && !cond_check then
       if D.satisfies cond @@
         Hashtbl.find result (last_point program)
       then print_endline "Condition satisfied"
       else print_endline "Condition not satisfied"
-    else Analyser.print result
+    else Analyzer.print result
   with
   | Error li -> List.iter (fun e -> print_endline (msg_of_error e ^ "\n")) li
 
 let () =
-  Arg.parse speclist analyse "Analyse a program. Options available:"
+  Arg.parse speclist analyze "Analyze a program. Options available:"
