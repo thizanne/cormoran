@@ -4,7 +4,7 @@ let empty = Top
 
 let init _ = Top
 
-let transfer _ _ Top = Top
+let transfer Top _ _ = Top
 
 let union Top Top = Top
 
