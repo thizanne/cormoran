@@ -5,3 +5,4 @@ S src
 
 PKG batteries
 PKG ocamlgraph
+PKG ppx_deriving.std
