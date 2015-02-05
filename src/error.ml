@@ -5,6 +5,7 @@ type t =
   | SyntaxError
   | TypeError
   | NameError
+  | NotImplementedError
       [@@deriving show]
 
 exception Error of (t * Lexing.position * Lexing.position * string) list
