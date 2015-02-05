@@ -6,15 +6,17 @@ let cond_check = ref true
 let domain = ref "order"
 
 let speclist = [
-  "--litmus", Arg.Set use_litmus, "Use litmus syntax";
-  "--domain", Arg.Set_string domain, "Domain: order (default), mark, concrete";
-  "--no-cond", Arg.Clear cond_check, "Litmus: don't check final condition";
-]
+  "--litmus",
+  Arg.Set use_litmus,
+  "Use litmus syntax";
 
-let domains : (string * (module Domain.Domain)) list = [
-  "order", (module Order);
-  "mark", (module Mark);
-  "concrete", (module Concrete);
+  "--domain",
+  Arg.Set_string domain,
+  "Domain: order (default), mark, concrete, top";
+
+  "--no-cond",
+  Arg.Clear cond_check,
+  "Litmus: don't check final condition";
 ]
 
 let speclist =
@@ -22,16 +24,23 @@ let speclist =
   |> List.map (fun (a, b, c) -> (a, b, " " ^ c))
   |> Arg.align
 
-module D = (val List.assoc !domain domains)
+let domains : (string * (module Domain.Domain)) list = [
+  "top", (module Top);
+  "order", (module Order);
+  "mark", (module Mark);
+  "concrete", (module Concrete);
+]
 
 let print_cfg file =
   try
     let lexbuf = Lexing.from_channel @@ open_in file in
     let program, _cond = Parse.parse use_litmus lexbuf in
     let g = Cfg.make program in
-    let module Analyze = Interleaving.Make (D) in
-    let _data = Analyze.analyze (fun _ -> D.init program) g in
-    Cfg.Dot.output_graph stdout g
+    let module D = (val List.assoc !domain domains) in
+    let module Analysis = Interleaving.Make (D) in
+    let module Result = (val Analysis.make_result program) in
+    let module Dot = Cfg.Dot (Result) in
+    Dot.output_graph stdout g
   with
   | Error li -> List.iter (fun e -> print_endline (msg_of_error e ^ "\n")) li
 

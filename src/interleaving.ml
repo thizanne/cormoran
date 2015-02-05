@@ -12,9 +12,9 @@ module Make (D : Domain.Domain) = struct
           D.transfer d thread ins
       end)
 
-  let make_result g =
+  let make_result p =
     (module struct
        module Domain = D
-       let data = Fixpoint.analyze (fun _ -> D.empty) g
+       let data = Fixpoint.analyze (fun _ -> D.init p) (Cfg.make p)
      end : Analysis.Result)
   end
