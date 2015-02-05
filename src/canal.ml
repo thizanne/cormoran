@@ -35,7 +35,7 @@ let analyse file =
     let lexbuf = Lexing.from_channel @@ open_in file in
     let program, cond = Parse.parse use_litmus lexbuf in
     let module D = (val List.assoc !domain domains) in
-    let module Analyser = Interleaving.Make (D) in
+    let module Analyser = Linear.Make (D) in
     let result = Analyser.analyse program in
     if !use_litmus && !cond_check then
       if D.satisfies cond @@
