@@ -15,12 +15,7 @@ let speclist =
   |> Arg.align
 *)
 
-module TopDummyResult = struct
-  module Domain = Top
-  let data _ = Top.empty
-end
-
-module Dot = Cfg.Dot (TopDummyResult)
+module Dot = Cfg.Dot (Analysis.EmptyResult (Top))
 
 let print_cfg file =
   try
