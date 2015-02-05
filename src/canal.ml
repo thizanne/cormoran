@@ -12,6 +12,7 @@ let speclist = [
 ]
 
 let domains : (string * (module Domain.Domain)) list = [
+  "top", (module Top);
   "order", (module Order);
   "mark", (module Mark);
   "concrete", (module Concrete);
