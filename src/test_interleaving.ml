@@ -38,7 +38,8 @@ let print_cfg file =
     let g = Cfg.make program in
     let module D = (val List.assoc !domain domains) in
     let module Analysis = Interleaving.Make (D) in
-    let module Result = (val Analysis.make_result program) in
+    let analyze = Analysis.analyze (fun _ -> D.init program) (Cfg.make program) in
+    let module Result = struct module Domain = D let data = analyze end in
     let module Dot = Cfg.Dot (Result) in
     Dot.output_graph stdout g
   with
