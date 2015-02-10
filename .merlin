@@ -6,3 +6,16 @@ S src
 PKG batteries
 PKG ocamlgraph
 PKG ppx_deriving.std
+
+PKG apron
+PKG apron.apron
+PKG apron.boxD
+PKG apron.boxMPFR
+PKG apron.boxMPQ
+PKG apron.octD
+PKG apron.octMPQ
+PKG apron.polkaMPQ
+PKG apron.polkaRll
+PKG apron.t1pD
+PKG apron.t1pMPFR
+PKG apron.t1pMPQ

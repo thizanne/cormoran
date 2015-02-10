@@ -1,3 +1,16 @@
 true: use_menhir
 true: package(ocamlgraph),package(batteries),package(ppx_deriving.std)
 <src>: include
+
+true: package(apron)
+true: package(apron.apron)
+true: package(apron.boxD)
+true: package(apron.boxMPFR)
+true: package(apron.boxMPQ)
+true: package(apron.octD)
+true: package(apron.octMPQ)
+true: package(apron.polkaMPQ)
+true: package(apron.polkaRll)
+true: package(apron.t1pD)
+true: package(apron.t1pMPFR)
+true: package(apron.t1pMPQ)
