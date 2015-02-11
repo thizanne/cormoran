@@ -10,6 +10,10 @@ type value =
   | Int of int loc
   | Var of string loc
 
+let string_of_value = function
+  | Int n -> string_of_int n.item
+  | Var v -> v.item
+
 type expression =
   | Val of value loc
   | Op of char loc * expression loc * expression loc
