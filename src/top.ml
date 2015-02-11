@@ -1,12 +1,12 @@
 type t = Top
 
-let empty = Top
+let bottom = Top
 
 let init _ = Top
 
 let transfer Top _ _ = Top
 
-let union Top Top = Top
+let join Top Top = Top
 
 let satisfies _ Top = true
 

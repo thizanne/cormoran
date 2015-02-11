@@ -5,5 +5,5 @@ end
 
 module EmptyResult (D : Domain.Domain) : Result = struct
   module Domain = D
-  let data _ = D.empty
+  let data _ = D.bottom
 end

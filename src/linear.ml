@@ -23,7 +23,7 @@ module Make (D : Domain.Domain) = struct
     let result = init_result program in
 
     let analyze_from_pred t s =
-      if List.mem (-1) s then D.empty
+      if List.mem (-1) s then D.bottom
       else
         let i = List.nth s t in
         D.transfer
@@ -39,7 +39,7 @@ module Make (D : Domain.Domain) = struct
                Not_found -> analyze_state s')
         pred;
       List.mapi analyze_from_pred pred
-      |> List.fold_left D.union D.empty
+      |> List.fold_left D.join D.bottom
       |> Hashtbl.add result s in
 
     analyze_state (Array.map (fun t -> Array.length t.ins) program.threads |> Array.to_list);

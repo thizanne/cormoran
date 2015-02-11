@@ -17,9 +17,9 @@ module S = Set.Make (struct type t = point let compare = compare end)
 
 type t = S.t
 
-let empty = S.empty
+let bottom = S.empty
 
-let union = S.union
+let join = S.union
 
 let smap f s = S.fold (fun x e -> S.add (f x) e) s S.empty
 
