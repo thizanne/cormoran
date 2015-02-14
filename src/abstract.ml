@@ -14,13 +14,13 @@ module Bufs : sig
   val compare : t -> t -> int
   val nb_threads : t -> int
   val nth : t -> int -> buf
-  val add : t -> int -> Var.t -> t
+  val add : t -> int -> Symbol.t -> t
   val flush : t -> int -> t
-  val all_flush_list : t -> Var.t -> (int * Var.t) list list
+  val all_flush_list : t -> Symbol.t -> (int * Symbol.t) list list
 end
 =
 struct
-  type buf = Var.t Deque.t
+  type buf = Symbol.t Deque.t
 
   type t = buf list (* TODO: change list to persistent arrays *)
 
