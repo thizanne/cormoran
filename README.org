@@ -1,0 +1,3 @@
+* Canal
+
+Static analyser for a toy concurrent language with the TSO weak memory model.
