@@ -1,5 +1,6 @@
 open Apron
 open Batteries
+open Error
 open Format
 open Syntax
 open Syntax.Typed
@@ -22,6 +23,7 @@ module Bufs : sig
   val init : Syntax.TypedProgram.t -> t
   val flush : t -> int -> t
   val all_flush_list : t -> Symbol.t -> int list list
+  val print : 'a BatIO.output -> t -> unit
 end
 =
 struct
@@ -71,6 +73,9 @@ struct
         | _ -> None)
     |> List.n_cartesian_product
     |> List.sort_uniq Pervasives.compare
+
+  let print output =
+    List.print (Deque.print Symbol.print) output
 
 end
 
@@ -259,3 +264,18 @@ let join =
        | None, _ -> abstr2
        | _, None -> abstr1
        | Some abstr1, Some abstr2 -> Some (Abstract1.join man abstr1 abstr2))
+
+let satisfies t =
+  raise (Error [
+    NotImplementedError,
+    Lexing.dummy_pos, Lexing.dummy_pos,
+    "Constraint satisfaction is not implemented on domain Abstract"
+  ])
+
+let poly_print output =
+  Abstract1.print (Format.formatter_of_output output)
+
+let to_string d =
+  let output = IO.output_string () in
+  let () = M.print Bufs.print poly_print output d in
+  IO.close_out output
