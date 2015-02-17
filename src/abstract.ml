@@ -41,7 +41,10 @@ struct
 
   type t = buf list (* TODO: change list to persistent arrays *)
 
-  let compare = compare
+  let compare = List.compare
+      (fun dq1 dq2 ->
+         Enum.compare Symbol.compare
+           (Deque.enum dq1) (Deque.enum dq2))
 
   let nb_threads = List.length
 
@@ -88,6 +91,14 @@ type t = Polka.loose Polka.t Abstract1.t M.t
 
 let bottom = M.empty
 
+let poly_print output abstr =
+  let fmt = Format.formatter_of_output output in
+  Abstract1.print fmt abstr;
+  Format.pp_print_flush fmt ()
+
+let print output =
+  M.print Bufs.print poly_print output
+
 let man = Polka.manager_alloc_loose ()
 
 (* TODO: The construction of the name of a shared variable is ad-hoc,
@@ -125,26 +136,25 @@ let rec texpr env = function
         Texpr1.Int Texpr1.Zero
 
 let init prog =
-  let open Enum in
-  let threads = 0 --^ Array.length prog.threads in
+  let threads = Enum.(0 --^ Array.length prog.threads) in
   let shared = (* Enumeration of (x, value of x) initial shared vars *)
     List.enum prog.initial
-    |> concat_map
+    |> Enum.concat_map
       (fun (x, v) -> map (fun t -> shared_var x t, v) threads) in
   let local = (* Enumeration of all thread-local vars *)
     Array.enum prog.threads
-    |> map (fun th -> List.enum th.locals)
-    |> flatten
-    |> map local_var in
+    |> Enum.map (fun th -> List.enum th.locals)
+    |> Enum.flatten
+    |> Enum.map local_var in
   let env = Environment.make
-      (Array.of_enum @@ append (map fst shared) local)
+      (Array.of_enum @@ Enum.append (map fst shared) local)
       [||] (* No real variables *) in
   let abstr =
     fold
-      (fun acc (x, n) ->
-         Abstract1.assign_texpr man acc x (texpr_int env n) None)
-      (Abstract1.bottom man env) shared
-  in M.singleton (Bufs.init prog) abstr
+      (fun acc (x_t, n) ->
+         Abstract1.assign_texpr man acc x_t (texpr_int env n) None)
+      (Abstract1.top man env) shared in
+  M.singleton (Bufs.init prog) abstr
 
 let flush t bufs abstr d =
   (* Updates the abstract domain d to take into account the flush of
@@ -217,20 +227,18 @@ let transfer d t ins =
     let affect n abstr =
       Abstract1.assign_texpr man abstr (local_var r0.item)
         (texpr_int env n) None in
-    begin
-      Tcons1.array_set suparray 0 (tcons '>');
-      Tcons1.array_set infarray 0 (tcons '<');
-      Tcons1.array_set eqarray 0 (tcons '=');
-      M.map
-        (fun abstr -> Abstract1.join_array man [|
-             Abstract1.meet_tcons_array man abstr suparray
-             |> affect 1;
-             Abstract1.meet_tcons_array man abstr infarray
-             |> affect (-1);
-             Abstract1.meet_tcons_array man abstr eqarray
-             |> affect 0;
-           |]) d
-    end
+    Tcons1.array_set suparray 0 (tcons '>');
+    Tcons1.array_set infarray 0 (tcons '<');
+    Tcons1.array_set eqarray 0 (tcons '=');
+    M.map
+      (fun abstr -> Abstract1.join_array man [|
+           Abstract1.meet_tcons_array man abstr suparray
+           |> affect 1;
+           Abstract1.meet_tcons_array man abstr infarray
+           |> affect (-1);
+           Abstract1.meet_tcons_array man abstr eqarray
+           |> affect 0;
+         |]) d
   | Jnz (r, _)
   | Jz (r, _) ->
     let earray = Tcons1.array_make env 1 in
@@ -271,9 +279,3 @@ let satisfies t =
     Lexing.dummy_pos, Lexing.dummy_pos,
     "Constraint satisfaction is not implemented on domain Abstract"
   ])
-
-let poly_print output =
-  Abstract1.print (Format.formatter_of_output output)
-
-let print output =
-  M.print Bufs.print poly_print output
