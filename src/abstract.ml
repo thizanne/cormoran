@@ -275,7 +275,5 @@ let satisfies t =
 let poly_print output =
   Abstract1.print (Format.formatter_of_output output)
 
-let to_string d =
-  let output = IO.output_string () in
-  let () = M.print Bufs.print poly_print output d in
-  IO.close_out output
+let print output =
+  M.print Bufs.print poly_print output

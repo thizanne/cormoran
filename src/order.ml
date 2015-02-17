@@ -1,3 +1,4 @@
+open Batteries
 open Util
 open Printf
 open Syntax
@@ -211,6 +212,9 @@ let to_string d =
     (fun p acc ->
        str_point p ^ "\n\n" ^ acc)
     d ""
+
+let print output d =
+  IO.nwrite output (to_string d)
 
 let point_sat_cond (var, value) p =
   try

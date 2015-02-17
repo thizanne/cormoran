@@ -161,9 +161,9 @@ module Dot (R : Analysis.Result) = Graph.Graphviz.Dot (
 
     let vertex_attributes v =
       let label v =
-        v
-        |> R.data
-        |> R.Domain.to_string
+        let out = IO.output_string () in
+        let () = R.Domain.print out @@ R.data v in
+        IO.close_out out
         |> String.replace_chars
           (function '\n' -> "<BR/>" | c -> String.make 1 c)
       in [

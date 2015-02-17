@@ -1,3 +1,4 @@
+open Batteries
 open Util
 open Syntax
 open Syntax.Typed
@@ -53,7 +54,7 @@ module Make (D : Domain.Domain) = struct
          print_string "############\n";
          print_list print_int s;
          print_string " :\n\n";
-         print_string @@ D.to_string p;
+         D.print IO.stdout p;
          print_newline ())
 
 end

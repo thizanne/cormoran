@@ -1,3 +1,5 @@
+open Batteries
+
 type t = Top
 
 let bottom = Top
@@ -10,4 +12,4 @@ let join Top Top = Top
 
 let satisfies _ Top = true
 
-let to_string Top = "()"
+let print output Top = Unit.print output ()

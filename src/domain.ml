@@ -1,3 +1,5 @@
+open Batteries
+
 module type Domain = sig
   type t
 
@@ -8,5 +10,5 @@ module type Domain = sig
 
   val satisfies : Constraint.t -> t -> bool
 
-  val to_string : t -> string
+  val print : 'a IO.output -> t -> unit
 end
