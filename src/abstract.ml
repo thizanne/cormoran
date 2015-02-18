@@ -65,17 +65,24 @@ struct
 
   let all_flush_list bufs x =
     (* TODO can probably be done better *)
+    let rec all_tl = function
+      | [] -> []
+      | [] :: xs -> all_tl xs
+      | (x :: xs) :: xss -> xs :: all_tl (xs :: xss) in
+
     let t_list t buf =
       (* ~= List.make (Deque.length buf) t, if Deque.length existed *)
-      Deque.fold_left (fun acc x -> t :: acc) [] buf
-    in
+      Deque.fold_left (fun acc x -> t :: acc) [] buf in
+
     bufs
-    |> List.filteri_map (fun t buf ->
-        match Deque.rear buf with
-        | Some (_, y) when y = x -> Some (t_list t buf)
-        | _ -> None)
+    |> List.filteri_map
+      (fun t buf ->
+         match Deque.rear buf with
+         | Some (_, y) when y = x -> Some (t_list t buf)
+         | _ -> None)
     |> List.n_cartesian_product
-    |> List.sort_uniq Pervasives.compare
+    |> all_tl
+    |> List.sort_uniq (List.compare Int.compare)
 
   let print output =
     List.print (Deque.print Symbol.print) output
@@ -136,21 +143,23 @@ let rec texpr env = function
         Texpr1.Int Texpr1.Zero
 
 let init prog =
-  let threads = Enum.(0 --^ Array.length prog.threads) in
+  let open LazyList in
+  let threads = init (Array.length prog.threads) (fun x -> x) in
   let shared = (* Enumeration of (x, value of x) initial shared vars *)
-    List.enum prog.initial
-    |> Enum.concat_map
-      (fun (x, v) -> map (fun t -> shared_var x t, v) threads) in
-  let local = (* Enumeration of all thread-local vars *)
-    Array.enum prog.threads
-    |> Enum.map (fun th -> List.enum th.locals)
-    |> Enum.flatten
-    |> Enum.map local_var in
+    of_list prog.initial
+    |> map
+      (fun (x, v) -> map (fun t -> shared_var x t, v) threads)
+    |> concat in
+  let local = (* LazyListeration of all thread-local vars *)
+    of_array prog.threads
+    |> map (fun th -> of_list th.locals)
+    |> concat
+    |> map local_var in
   let env = Environment.make
-      (Array.of_enum @@ Enum.append (map fst shared) local)
+      (to_array @@ append (map fst shared) local)
       [||] (* No real variables *) in
   let abstr =
-    fold
+    fold_left
       (fun acc (x_t, n) ->
          Abstract1.assign_texpr man acc x_t (texpr_int env n) None)
       (Abstract1.top man env) shared in
@@ -164,6 +173,7 @@ let flush t bufs abstr d =
   let x = Bufs.last (Bufs.nth bufs t) in
   (* Assign the value of x_t to every x_i in the numerical domain
      abstr *)
+  (* FIXME: only affect the x_i absent in their buffer *)
   let var_array = (* [|x_0; x_1; ...|] as Var.t *)
     Array.init (Bufs.nb_threads bufs) (shared_var x) in
   let texpr_array = (* [|x_t; x_t; ...|] as Texpr1.t *)
@@ -175,7 +185,7 @@ let flush t bufs abstr d =
   M.modify_def
     abstr
     (Bufs.flush bufs t)
-    (fun abstr' -> Abstract1.join man abstr' abstr)
+    (Abstract1.join man abstr)
     d
 
 let flush_mop x t bufs abstr d =
@@ -193,9 +203,7 @@ let flush_mop x t bufs abstr d =
 let close_after_mop x t d =
   (* Compute the flush closure of the domain d after a memory
      operation on the shared variable x *)
-  let d' = M.filter
-      (fun bufs _ -> Bufs.is_last (Bufs.nth bufs t) x) d in
-  M.fold (flush_mop x t) d' d
+  M.fold (flush_mop x t) d d
 
 let transfer d t ins =
   let op_of_jump = function
