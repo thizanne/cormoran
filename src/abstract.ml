@@ -20,10 +20,11 @@ module Bufs : sig
   val compare : t -> t -> int
   val nb_threads : t -> int
   val nth : t -> int -> buf
-  val add : t -> int -> Symbol.t -> t
+  val write : t -> int -> Symbol.t -> t
   val init : Syntax.TypedProgram.t -> t
   val flush : t -> int -> t
   val all_flush_list : t -> Symbol.t -> int list list
+  val get_no_var : t -> Symbol.t -> int list
   val print : 'a BatIO.output -> t -> unit
 end
 =
@@ -40,6 +41,15 @@ struct
     try last buf = x
     with Not_found -> false
 
+  let is_absent buf x =
+    Deque.find (( = ) x) buf = None
+
+  let move_to_head x buf =
+    Deque.fold_left
+      (fun acc y -> if x = y then acc else Deque.snoc acc y)
+      (Deque.of_list [x])
+      buf
+
   type t = buf list (* TODO: change list to persistent arrays *)
 
   let compare = List.compare
@@ -51,9 +61,8 @@ struct
 
   let nth = List.at
 
-  let rec add bufs t var =
-    (* FIXME: remove previous x from this buffer (check soundness) *)
-    List.modify_at t (Deque.cons var) bufs
+  let rec write bufs t var =
+    List.modify_at t (move_to_head var) bufs
 
   let init prog =
     List.init (Array.length prog.threads) (fun _ -> Deque.empty)
@@ -81,6 +90,12 @@ struct
     |> List.concat
     |> ordered_parts
     |> List.sort_uniq (List.compare Int.compare)
+
+  let get_no_var bufs x =
+    List.filteri_map
+      (fun t buf ->
+         if is_absent buf x then Some t
+         else None) bufs
 
   let print output =
     List.print (Deque.print Symbol.print) output
@@ -163,6 +178,9 @@ let init prog =
       (Abstract1.top man env) shared in
   M.singleton (Bufs.init prog) abstr
 
+let add_join bufs abstr d =
+  M.modify_def abstr bufs (Abstract1.join man abstr) d
+
 let flush t bufs abstr d =
   (* Updates the abstract domain d to take into account the flush of
      the oldest entry of the t-th buffer from the numerical domain
@@ -170,21 +188,18 @@ let flush t bufs abstr d =
   let env = Abstract1.env abstr in
   let x = Bufs.last (Bufs.nth bufs t) in
   (* Assign the value of x_t to every x_i in the numerical domain
-     abstr *)
-  (* FIXME: only affect the x_i absent in their buffer *)
+     abstr where x_i is not present in buffer i *)
   let var_array = (* [|x_0; x_1; ...|] as Var.t *)
-    Array.init (Bufs.nb_threads bufs) (shared_var x) in
+    Bufs.get_no_var bufs x
+    |> List.map (shared_var x)
+    |> Array.of_list in
   let texpr_array = (* [|x_t; x_t; ...|] as Texpr1.t *)
-    Array.make (Bufs.nb_threads bufs) (texpr_shared env x t) in
+    Array.make (Array.length var_array) (texpr_shared env x t) in
   let abstr =
     Abstract1.assign_texpr_array man abstr var_array texpr_array None in
 
   (* Make the joins *)
-  M.modify_def
-    abstr
-    (Bufs.flush bufs t)
-    (Abstract1.join man abstr)
-    d
+  add_join (Bufs.flush bufs t) abstr d
 
 let flush_mop x t bufs abstr d =
   (* Updates the abstract domain d to take into account every possible
@@ -204,9 +219,10 @@ let close_after_mop x t d =
   M.fold (flush_mop x t) d d
 
 let transfer d t ins =
-  let op_of_jump = function
-    | Jnz _ -> "!="
-    | Jz _ -> "="
+  let constyp_of_jump = function
+     (* TODO: check if union with < and > is more precise than DISEQ *)
+    | Jnz _ -> Lincons0.DISEQ
+    | Jz _ -> Lincons0.EQ
     | _ -> failwith "op_of_jump"
   in
 
@@ -249,8 +265,7 @@ let transfer d t ins =
   | Jz (r, _) ->
     let earray = Tcons1.array_make env 1 in
     let () =
-      sprintf "%s %s 0" r.item (op_of_jump ins)
-      |> Parser.tcons1_of_string env
+      Tcons1.make (Texpr1.var env (local_var r.item)) (constyp_of_jump ins)
       |> Tcons1.array_set earray 0 in
     M.map
       (fun abstr -> Abstract1.meet_tcons_array man abstr earray)
@@ -268,8 +283,8 @@ let transfer d t ins =
     |> M.map (* x_t = v *)
       (fun abstr -> Abstract1.assign_texpr man abstr var_xt texpr_v None)
     |> M.Labels.fold (* Add x to the t-th buffer *)
-      ~f:(fun ~key ~data acc ->
-          M.add (Bufs.add key t x.item) data acc) ~init:M.empty
+      ~f:(fun ~key:bufs ~data:abstr acc ->
+          add_join (Bufs.write bufs t x.item) abstr acc) ~init:M.empty
     |> close_after_mop x.item t (* Close by partial flush *)
 
 let join =
