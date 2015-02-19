@@ -180,7 +180,7 @@ module Dot (R : Analysis.Result) = Graph.Graphviz.Dot (
 <TABLE BORDER=\"0\" ALIGN=\"CENTER\">
 <TR><TD BORDER=\"0\">%s</TD></TR>
 <TR><TD BORDER=\"1\" BGCOLOR=\"white\">
-<FONT POINT-SIZE=\"12\">%s</FONT>
+<FONT POINT-SIZE=\"12\"> %s </FONT>
 </TD>
 </TR>
 </TABLE>"
