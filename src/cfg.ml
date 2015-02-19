@@ -165,17 +165,25 @@ module Dot (R : Analysis.Result) = Graph.Graphviz.Dot (
         let () = R.Domain.print out @@ R.data v in
         IO.close_out out
         |> String.replace_chars
-          (function '\n' -> "<BR/>" | c -> String.make 1 c)
+          (function
+            | '\n' -> "<BR/>"
+            | '>' -> "&gt;"
+            | '<' -> "&lt;"
+            | c -> String.make 1 c)
       in [
         `Shape `Box;
         `Fillcolor 0xdddddd;
         `Style `Filled;
         `Style `Rounded;
         `HtmlLabel (
-          sprintf "<TABLE BORDER=\"0\">
-                 <TR><TD BORDER=\"0\">%s</TD></TR>
-                 <TR><TD BORDER=\"1\" BGCOLOR=\"white\">%s</TD></TR>
-                 </TABLE>"
+          sprintf "
+<TABLE BORDER=\"0\" ALIGN=\"CENTER\">
+<TR><TD BORDER=\"0\">%s</TD></TR>
+<TR><TD BORDER=\"1\" BGCOLOR=\"white\">
+<FONT POINT-SIZE=\"12\">%s</FONT>
+</TD>
+</TR>
+</TABLE>"
             (string_of_pos v)
             (label v)
         )
