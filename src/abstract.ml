@@ -5,6 +5,7 @@ open Format
 open Syntax
 open Syntax.Typed
 open Syntax.TypedProgram
+open Util
 
 (* A buffer is abstracted by a Deque giving the order of the more
    recent entries of each variable in this buffer.
@@ -51,6 +52,7 @@ struct
   let nth = List.at
 
   let rec add bufs t var =
+    (* FIXME: remove previous x from this buffer (check soundness) *)
     List.modify_at t (Deque.cons var) bufs
 
   let init prog =
@@ -65,14 +67,10 @@ struct
 
   let all_flush_list bufs x =
     (* TODO can probably be done better *)
-    let rec all_tl = function
-      | [] -> []
-      | [] :: xs -> all_tl xs
-      | (x :: xs) :: xss -> xs :: all_tl (xs :: xss) in
-
     let t_list t buf =
       (* ~= List.make (Deque.length buf) t, if Deque.length existed *)
-      Deque.fold_left (fun acc x -> t :: acc) [] buf in
+      Deque.fold_left (fun acc x -> t :: acc) [] buf
+    in
 
     bufs
     |> List.filteri_map
@@ -80,8 +78,8 @@ struct
          match Deque.rear buf with
          | Some (_, y) when y = x -> Some (t_list t buf)
          | _ -> None)
-    |> List.n_cartesian_product
-    |> all_tl
+    |> List.concat
+    |> ordered_parts
     |> List.sort_uniq (List.compare Int.compare)
 
   let print output =
@@ -104,7 +102,7 @@ let poly_print output abstr =
   Format.pp_print_flush fmt ()
 
 let print output =
-  M.print Bufs.print poly_print output
+  M.print ~first:"" ~last:"" Bufs.print poly_print output
 
 let man = Polka.manager_alloc_loose ()
 
@@ -267,11 +265,11 @@ let transfer d t ins =
     let var_xt = shared_var x.item t in
     let texpr_v = texpr_val env v.item in
     d
-    |> M.map (* x_t = r *)
+    |> M.map (* x_t = v *)
       (fun abstr -> Abstract1.assign_texpr man abstr var_xt texpr_v None)
-    |> M.fold (* Add x to the t-th buffer *)
-      (fun bufs abstr acc ->
-         M.add (Bufs.add bufs t x.item) abstr acc) M.empty
+    |> M.Labels.fold (* Add x to the t-th buffer *)
+      ~f:(fun ~key ~data acc ->
+          M.add (Bufs.add key t x.item) data acc) ~init:M.empty
     |> close_after_mop x.item t (* Close by partial flush *)
 
 let join =
