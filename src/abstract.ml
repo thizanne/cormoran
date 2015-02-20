@@ -148,12 +148,12 @@ let texpr_val env = function
   | Var v -> Texpr1.var env (local_var v.item)
 
 let rec texpr env = function
-    | Val v -> texpr_val env v.item
-    | Op (op, e1, e2) ->
-      Texpr1.binop
-        (binop op.item)
-        (texpr env e1.item) (texpr env e2.item)
-        Texpr1.Int Texpr1.Zero
+  | Val v -> texpr_val env v.item
+  | Op (op, e1, e2) ->
+    Texpr1.binop
+      (binop op.item)
+      (texpr env e1.item) (texpr env e2.item)
+      Texpr1.Int Texpr1.Zero
 
 let init prog =
   let open LazyList in
