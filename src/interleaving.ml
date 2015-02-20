@@ -14,4 +14,11 @@ module Make (D : Domain.Domain) = struct
 
   include Fixpoint
 
+  let make_analyze program =
+    analyze
+      (fun pos ->
+         if pos = Syntax.TypedProgram.initial_position program
+         then D.init program
+         else D.bottom)
+      (Cfg.make program)
   end
