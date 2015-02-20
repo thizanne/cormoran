@@ -145,6 +145,12 @@ let binop c =
   let open Texpr0 in
   List.assoc c ['+', Add; '-', Sub; '*', Mul; '/', Div]
 
+let texpr_local env r =
+  Texpr1.var env (local_var r)
+
+let texpr_neg env r =
+  Texpr1.unop Texpr1.Neg (texpr_local env r) Texpr1.Int Texpr1.Zero
+
 let texpr_shared env x t =
   Texpr1.var env (shared_var x t)
 
@@ -224,19 +230,18 @@ let close_after_mop x t d =
   M.fold (flush_mop x t) d d
 
 let transfer d t ins =
-  let constyp_of_jump = function
-     (* TODO: check if union with < and > is more precise than DISEQ *)
-    | Jnz _ -> Lincons0.DISEQ
-    | Jz _ -> Lincons0.EQ
-    | _ -> failwith "op_of_jump"
-  in
-
   let env = M.choose d |> snd |> Abstract1.env in
+
+  let tcons_array tcons =
+    let earray = Tcons1.array_make env 1 in
+    Tcons1.array_set earray 0 tcons;
+    earray
+  in
 
   match ins with
   | Pass
   | Label _
-  | Jmp _ -> d
+  | Jmp _ -> M.map (Abstract1.copy man) d
   | MFence ->
     M.filter (fun bufs _ -> Bufs.is_empty (Bufs.nth bufs t)) d
   | RegOp (r, e) ->
@@ -245,35 +250,33 @@ let transfer d t ins =
          Abstract1.assign_texpr man abstr (local_var r.item)
            (texpr env e.item) None) d
   | Cmp (r0, v1, v2) ->
-    let earray () = Tcons1.array_make env 1 in
-    let suparray, infarray, eqarray = earray (), earray(), earray() in
     let tcons op =
       sprintf "%s %c %s"
         (string_of_value v1.item) op (string_of_value v2.item)
       |> Parser.tcons1_of_string env in
-    let affect n abstr =
+    let affect_r0 n abstr =
       Abstract1.assign_texpr man abstr (local_var r0.item)
         (texpr_int env n) None in
-    Tcons1.array_set suparray 0 (tcons '>');
-    Tcons1.array_set infarray 0 (tcons '<');
-    Tcons1.array_set eqarray 0 (tcons '=');
+    let suparray = tcons_array @@ tcons '>' in
+    let infarray = tcons_array @@ tcons '<' in
+    let eqarray = tcons_array @@ tcons '=' in
     M.map
       (fun abstr -> Abstract1.join_array man [|
-           Abstract1.meet_tcons_array man abstr suparray
-           |> affect 1;
-           Abstract1.meet_tcons_array man abstr infarray
-           |> affect (-1);
-           Abstract1.meet_tcons_array man abstr eqarray
-           |> affect 0;
+           Abstract1.meet_tcons_array man abstr suparray |> affect_r0 1;
+           Abstract1.meet_tcons_array man abstr infarray |> affect_r0 (-1);
+           Abstract1.meet_tcons_array man abstr eqarray  |> affect_r0 0;
          |]) d
-  | Jnz (r, _)
   | Jz (r, _) ->
-    let earray = Tcons1.array_make env 1 in
-    let () =
-      Tcons1.make (Texpr1.var env (local_var r.item)) (constyp_of_jump ins)
-      |> Tcons1.array_set earray 0 in
+    let earray = tcons_array (Tcons1.make (texpr_local env r.item) Tcons1.EQ) in
+    M.map (fun abstr -> Abstract1.meet_tcons_array man abstr earray) d
+  | Jnz (r, _) ->
+    let earray_sup = tcons_array (Tcons1.make (texpr_local env r.item) Tcons1.SUP) in
+    let earray_inf = tcons_array (Tcons1.make (texpr_neg env r.item) Tcons1.SUP) in
     M.map
-      (fun abstr -> Abstract1.meet_tcons_array man abstr earray)
+      (fun abstr ->
+         Abstract1.join man
+           (Abstract1.meet_tcons_array man abstr earray_sup)
+           (Abstract1.meet_tcons_array man abstr earray_inf))
       d
   | Read (r, x) ->
     let var_r = local_var r.item in
