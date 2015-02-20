@@ -4,6 +4,8 @@ type t = Top
 
 let bottom = Top
 
+let equal Top Top = true
+
 let init _ = Top
 
 let transfer Top _ _ = Top

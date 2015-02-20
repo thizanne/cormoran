@@ -121,6 +121,11 @@ let print output =
 
 let man = Polka.manager_alloc_loose ()
 
+let equal d1 d2 =
+  M.equal (Abstract1.is_eq man)
+    (M.filterv (fun abstr -> not (Abstract1.is_bottom man abstr)) d1)
+    (M.filterv (fun abstr -> not (Abstract1.is_bottom man abstr)) d2)
+
 (* TODO: The construction of the name of a shared variable is ad-hoc,
    only appending the number of the thread to the name of the
    variable. This could be improved by a better management of

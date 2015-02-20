@@ -17,6 +17,8 @@ type t = S.t
 
 let bottom = S.empty
 
+let equal = S.equal
+
 let join = S.union
 
 let smap f s = S.fold (fun x e -> S.add (f x) e) s S.empty

@@ -6,7 +6,7 @@ module Make (D : Domain.Domain) = struct
         type g = Cfg.G.t
         type data = D.t
         let direction = Graph.Fixpoint.Forward
-        let equal = ( = )
+        let equal = D.equal
         let join = D.join
         let analyze (_, {Cfg.E.thread; ins}, _) d =
           D.transfer d thread ins
