@@ -1,0 +1,12 @@
+x = 0
+
+#
+local r1, r2, r3;
+r1 := 0;
+r2 := 1;
+cmp r3 r1 r2;
+x := r3
+
+#
+local r4;
+r4 := x
