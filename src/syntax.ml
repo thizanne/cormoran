@@ -1,3 +1,5 @@
+open Batteries
+
 type 'a loc = {
   item : 'a;
   startpos : Lexing.position;
@@ -60,6 +62,9 @@ struct
 
   let nth_ins program t i =
     program.threads.(t).ins.(i)
+
+  let initial_position program =
+    List.make (Array.length program.threads) 0
 end
 
 module UntypedProgram = Program (Untyped)
