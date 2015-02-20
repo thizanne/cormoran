@@ -137,8 +137,8 @@ let edge_label {E.thread; ins} =
 
   sprintf "%d:%s" thread
     begin match ins with
-      | Pass -> "<I>id</I>"
-      | Label lbl -> "<I>id</I>"
+      | Pass -> "<id>"
+      | Label lbl -> "<id>"
       | MFence -> "MFence"
       | Jmp _ -> ""
       | Jnz (r, _) ->
@@ -190,7 +190,7 @@ module Dot (R : Analysis.Result) = Graph.Graphviz.Dot (
       ]
 
     let edge_attributes (_, e, _) = [
-      `HtmlLabel (edge_label e);
+      `Label (edge_label e);
       `Fontsize 12;
       `Arrowsize 0.5;
     ]
