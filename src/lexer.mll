@@ -23,6 +23,7 @@ rule lexer = parse
   | "=" { Equal }
   | ":=" { Affect }
   | ";" { Semicolon }
+  | "cmp" { Cmp }
   | "jnz" { Jnz }
   | "jz" { Jz }
   | "jmp" { Jmp }
