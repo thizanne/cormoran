@@ -230,10 +230,10 @@ let close_after_mop x t d =
   M.fold (flush_mop x t) d d
 
 let transfer d t ins =
-  let env = M.choose d |> snd |> Abstract1.env in
+  let get_env = Abstract1.env in
 
   let tcons_array tcons =
-    let earray = Tcons1.array_make env 1 in
+    let earray = Tcons1.array_make (Tcons1.get_env tcons) 1 in
     Tcons1.array_set earray 0 tcons;
     earray
   in
@@ -241,55 +241,65 @@ let transfer d t ins =
   match ins with
   | Pass
   | Label _
-  | Jmp _ -> M.map (Abstract1.copy man) d
+  | Jmp _ -> d
   | MFence ->
     M.filter (fun bufs _ -> Bufs.is_empty (Bufs.nth bufs t)) d
   | RegOp (r, e) ->
     M.map
       (fun abstr ->
          Abstract1.assign_texpr man abstr (local_var r.item)
-           (texpr env e.item) None) d
+           (texpr (get_env abstr) e.item) None) d
   | Cmp (r0, v1, v2) ->
-    let tcons op =
+    let tcons env op =
       sprintf "%s %c %s"
         (string_of_value v1.item) op (string_of_value v2.item)
       |> Parser.tcons1_of_string env in
     let affect_r0 n abstr =
       Abstract1.assign_texpr man abstr (local_var r0.item)
-        (texpr_int env n) None in
-    let suparray = tcons_array @@ tcons '>' in
-    let infarray = tcons_array @@ tcons '<' in
-    let eqarray = tcons_array @@ tcons '=' in
-    M.map
-      (fun abstr -> Abstract1.join_array man [|
-           Abstract1.meet_tcons_array man abstr suparray |> affect_r0 1;
-           Abstract1.meet_tcons_array man abstr infarray |> affect_r0 (-1);
-           Abstract1.meet_tcons_array man abstr eqarray  |> affect_r0 0;
-         |]) d
-  | Jz (r, _) ->
-    let earray = tcons_array (Tcons1.make (texpr_local env r.item) Tcons1.EQ) in
-    M.map (fun abstr -> Abstract1.meet_tcons_array man abstr earray) d
-  | Jnz (r, _) ->
-    let earray_sup = tcons_array (Tcons1.make (texpr_local env r.item) Tcons1.SUP) in
-    let earray_inf = tcons_array (Tcons1.make (texpr_neg env r.item) Tcons1.SUP) in
+        (texpr_int (get_env abstr) n) None in
+    let suparray env = tcons_array @@ tcons env '>' in
+    let infarray env = tcons_array @@ tcons env '<' in
+    let eqarray env = tcons_array @@ tcons env '=' in
     M.map
       (fun abstr ->
+         let env = get_env abstr in
+         Abstract1.join_array man [|
+           Abstract1.meet_tcons_array man abstr (suparray env) |> affect_r0 1;
+           Abstract1.meet_tcons_array man abstr (infarray env) |> affect_r0 (-1);
+           Abstract1.meet_tcons_array man abstr (eqarray env) |> affect_r0 0;
+         |]) d
+  | Jz (r, _) ->
+    let earray env = tcons_array (Tcons1.make (texpr_local env r.item) Tcons1.EQ) in
+    M.map
+      (fun abstr ->
+         Abstract1.meet_tcons_array man abstr @@ earray @@ get_env abstr) d
+  | Jnz (r, _) ->
+    let earray_sup env = tcons_array (Tcons1.make (texpr_local env r.item) Tcons1.SUP) in
+    let earray_inf env = tcons_array (Tcons1.make (texpr_neg env r.item) Tcons1.SUP) in
+    M.map
+      (fun abstr ->
+         let env = get_env abstr in
          Abstract1.join man
-           (Abstract1.meet_tcons_array man abstr earray_sup)
-           (Abstract1.meet_tcons_array man abstr earray_inf))
+           (Abstract1.meet_tcons_array man abstr (earray_sup env))
+           (Abstract1.meet_tcons_array man abstr (earray_inf env)))
       d
   | Read (r, x) ->
     let var_r = local_var r.item in
-    let texpr_x = Texpr1.var env (shared_var x.item t) in
+    let texpr_x env = Texpr1.var env (shared_var x.item t) in
     d
-    |> M.map (fun abstr -> Abstract1.assign_texpr man abstr var_r texpr_x None)
+    |> M.map
+      (fun abstr ->
+         Abstract1.assign_texpr man abstr var_r
+           (texpr_x @@ get_env abstr) None)
     |> close_after_mop x.item t
   | Write (x, v) ->
     let var_xt = shared_var x.item t in
-    let texpr_v = texpr_val env v.item in
+    let texpr_v env = texpr_val env v.item in
     d
     |> M.map (* x_t = v *)
-      (fun abstr -> Abstract1.assign_texpr man abstr var_xt texpr_v None)
+      (fun abstr ->
+         Abstract1.assign_texpr man abstr var_xt
+           (texpr_v @@ get_env abstr) None)
     |> M.Labels.fold (* Add x to the t-th buffer *)
       ~f:(fun ~key:bufs ~data:abstr acc ->
           add_join (Bufs.write bufs t x.item) abstr acc) ~init:M.empty
@@ -297,7 +307,7 @@ let transfer d t ins =
 
 let join =
   M.merge
-    (fun bufs abstr1 abstr2 -> match (abstr1, abstr2) with
+    (fun _bufs abstr1 abstr2 -> match (abstr1, abstr2) with
        | None, _ -> abstr2
        | _, None -> abstr1
        | Some abstr1, Some abstr2 -> Some (Abstract1.join man abstr1 abstr2))
