@@ -102,6 +102,8 @@ struct
 
 end
 
+let man = Polka.manager_alloc_loose ()
+
 (* An abstract domain is the map from buffer abstractions to
    a numerical domain *)
 
@@ -111,6 +113,9 @@ type t = Polka.loose Polka.t Abstract1.t M.t
 
 let bottom = M.empty
 
+let normalize =
+  M.filterv (fun abstr -> not (Abstract1.is_bottom man abstr))
+
 let poly_print output abstr =
   let fmt = Format.formatter_of_output output in
   Abstract1.print fmt abstr;
@@ -118,8 +123,6 @@ let poly_print output abstr =
 
 let print output =
   M.print ~first:"" ~last:"" Bufs.print poly_print output
-
-let man = Polka.manager_alloc_loose ()
 
 let equal d1 d2 =
   M.equal (Abstract1.is_eq man)
@@ -273,6 +276,7 @@ let transfer d t ins =
     M.map
       (fun abstr ->
          Abstract1.meet_tcons_array man abstr @@ earray @@ get_env abstr) d
+    |> normalize
   | Jnz (r, _) ->
     let earray_sup env = tcons_array (Tcons1.make (texpr_local env r.item) Tcons1.SUP) in
     let earray_inf env = tcons_array (Tcons1.make (texpr_neg env r.item) Tcons1.SUP) in
@@ -283,6 +287,7 @@ let transfer d t ins =
            (Abstract1.meet_tcons_array man abstr (earray_sup env))
            (Abstract1.meet_tcons_array man abstr (earray_inf env)))
       d
+    |> normalize
   | Read (r, x) ->
     let var_r = local_var r.item in
     let texpr_x env = Texpr1.var env (shared_var x.item t) in
