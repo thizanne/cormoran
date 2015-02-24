@@ -25,7 +25,7 @@ let speclist =
   |> Arg.align
 
 let domains : (string * (module Domain.Domain)) list = [
-  "abstract", (module Abstract.Make (Polyhedron));
+  "abstract", (module Abstract.Make (ApronAdapter.Polka));
   "top", (module Top);
   "order", (module Order);
   "mark", (module Mark);
