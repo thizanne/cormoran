@@ -73,7 +73,7 @@
 %token <int> Int
 %token <string> Reg
 
-%start <Syntax.TypedProgram.t * Constraint.t> program
+%start <Syntax.TypedProgram.t * (string * int) list> program
 
 %%
 

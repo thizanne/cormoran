@@ -109,217 +109,155 @@ let man = Polka.manager_alloc_loose ()
 
 module M = Map.Make (Bufs)
 
-type t = Polka.loose Polka.t Abstract1.t M.t
+module Make (Inner : Domain.Inner) = struct
+  (*  type t = Polka.loose Polka.t Abstract1.t M.t *)
 
-let bottom = M.empty
+  type t = Inner.t M.t
 
-let normalize =
-  M.filterv (fun abstr -> not (Abstract1.is_bottom man abstr))
+  let bottom = M.empty
 
-let poly_print output abstr =
-  let fmt = Format.formatter_of_output output in
-  Abstract1.print fmt abstr;
-  Format.pp_print_flush fmt ()
+  let normalize =
+    M.filterv (fun abstr -> not (Inner.is_bottom abstr))
 
-let print output =
-  M.print ~first:"" ~last:"" Bufs.print poly_print output
+  let print output =
+    M.print ~first:"" ~last:"" Bufs.print Inner.print output
 
-let equal d1 d2 =
-  M.equal (Abstract1.is_eq man)
-    (M.filterv (fun abstr -> not (Abstract1.is_bottom man abstr)) d1)
-    (M.filterv (fun abstr -> not (Abstract1.is_bottom man abstr)) d2)
+  let equal d1 d2 =
+    M.equal Inner.equal (normalize d1) (normalize d2)
 
-(* TODO: The construction of the name of a shared variable is ad-hoc,
-   only appending the number of the thread to the name of the
-   variable. This could be improved by a better management of
-   identifiers and a conflict check (especially with register
-   names). *)
+  (* TODO: The construction of the name of a shared variable is ad-hoc,
+     only appending the number of the thread to the name of the
+     variable. This could be improved by a better management of
+     identifiers and a conflict check (especially with register
+     names). *)
 
-let shared_var v t =
-  Var.of_string @@ sprintf "%s_%d" v t
+  let shared_var v t =
+    Var.of_string @@ sprintf "%s_%d" v t
 
-let local_var v =
-  Var.of_string v
+  let local_var v =
+    Var.of_string v
 
-let texpr_int env n =
-  Texpr1.cst env (Coeff.s_of_int n)
+  let init prog =
+    M.singleton (Bufs.init prog) (Inner.init prog)
 
-let binop c =
-  let open Texpr0 in
-  List.assoc c ['+', Add; '-', Sub; '*', Mul; '/', Div]
+  let add_join bufs abstr d =
+    M.modify_def abstr bufs (Inner.join abstr) d
 
-let texpr_local env r =
-  Texpr1.var env (local_var r)
+  let flush t bufs abstr d =
+    (* Updates the abstract domain d to take into account the flush of
+       the oldest entry of the t-th buffer from the numerical domain
+       abstr *)
+    let x = Bufs.last (Bufs.nth bufs t) in
+    (* Assign the value of x_t to every x_i in the numerical domain
+       abstr where x_i is not present in buffer i *)
+    let var_array = (* [|x_0; x_1; ...|] as Var.t *)
+      Bufs.get_no_var bufs x
+      |> List.map (Expression.shared_var x)
+      |> Array.of_list in
+    let texpr_array = (* [|x_t; x_t; ...|] as Texpr1.t *)
+      Array.make (Array.length var_array) (Expression.shared x t) in
+    let abstr =
+      Inner.assign_expr_array abstr var_array texpr_array in
 
-let texpr_neg env r =
-  Texpr1.unop Texpr1.Neg (texpr_local env r) Texpr1.Int Texpr1.Zero
+    (* Make the joins *)
+    add_join (Bufs.flush bufs t) abstr d
 
-let texpr_shared env x t =
-  Texpr1.var env (shared_var x t)
+  let flush_mop x t bufs abstr d =
+    (* Updates the abstract domain d to take into account every possible
+       combination of flush from the numerical domain abstr after a memory
+       operation on the variable x by the thread t *)
+    let to_flush = Bufs.all_flush_list bufs x in
+    List.fold_left
+      (fun acc ts ->
+         List.fold_left
+           (fun acc t -> flush t bufs abstr acc)
+           acc ts)
+      d to_flush
 
-let texpr_val env = function
-  | Int n -> texpr_int env n.item
-  | Var v -> Texpr1.var env (local_var v.item)
+  let close_after_mop x t d =
+    (* Compute the flush closure of the domain d after a memory
+       operation on the shared variable x *)
+    M.fold (flush_mop x t) d d
 
-let rec texpr env = function
-  | Val v -> texpr_val env v.item
-  | Op (op, e1, e2) ->
-    Texpr1.binop
-      (binop op.item)
-      (texpr env e1.item) (texpr env e2.item)
-      Texpr1.Int Texpr1.Zero
-
-let init prog =
-  let open LazyList in
-  let threads = init (Array.length prog.threads) (fun x -> x) in
-  let shared = (* Enumeration of (x, value of x) initial shared vars *)
-    of_list prog.initial
-    |> map
-      (fun (x, v) -> map (fun t -> shared_var x t, v) threads)
-    |> concat in
-  let local = (* LazyListeration of all thread-local vars *)
-    of_array prog.threads
-    |> map (fun th -> of_list th.locals)
-    |> concat
-    |> map local_var in
-  let env = Environment.make
-      (to_array @@ append (map fst shared) local)
-      [||] (* No real variables *) in
-  let abstr =
-    fold_left
-      (fun acc (x_t, n) ->
-         Abstract1.assign_texpr man acc x_t (texpr_int env n) None)
-      (Abstract1.top man env) shared in
-  M.singleton (Bufs.init prog) abstr
-
-let add_join bufs abstr d =
-  M.modify_def abstr bufs (Abstract1.join man abstr) d
-
-let flush t bufs abstr d =
-  (* Updates the abstract domain d to take into account the flush of
-     the oldest entry of the t-th buffer from the numerical domain
-     abstr *)
-  let env = Abstract1.env abstr in
-  let x = Bufs.last (Bufs.nth bufs t) in
-  (* Assign the value of x_t to every x_i in the numerical domain
-     abstr where x_i is not present in buffer i *)
-  let var_array = (* [|x_0; x_1; ...|] as Var.t *)
-    Bufs.get_no_var bufs x
-    |> List.map (shared_var x)
-    |> Array.of_list in
-  let texpr_array = (* [|x_t; x_t; ...|] as Texpr1.t *)
-    Array.make (Array.length var_array) (texpr_shared env x t) in
-  let abstr =
-    Abstract1.assign_texpr_array man abstr var_array texpr_array None in
-
-  (* Make the joins *)
-  add_join (Bufs.flush bufs t) abstr d
-
-let flush_mop x t bufs abstr d =
-  (* Updates the abstract domain d to take into account every possible
-     combination of flush from the numerical domain abstr after a memory
-     operation on the variable x by the thread t *)
-  let to_flush = Bufs.all_flush_list bufs x in
-  List.fold_left
-    (fun acc ts ->
-       List.fold_left
-         (fun acc t -> flush t bufs abstr acc)
-         acc ts)
-    d to_flush
-
-let close_after_mop x t d =
-  (* Compute the flush closure of the domain d after a memory
-     operation on the shared variable x *)
-  M.fold (flush_mop x t) d d
-
-let transfer d t ins =
-  let get_env = Abstract1.env in
-
-  let tcons_array tcons =
-    let earray = Tcons1.array_make (Tcons1.get_env tcons) 1 in
-    Tcons1.array_set earray 0 tcons;
-    earray
-  in
-
-  match ins with
-  | Pass
-  | Label _
-  | Jmp _ -> d
-  | MFence ->
-    M.filter (fun bufs _ -> Bufs.is_empty (Bufs.nth bufs t)) d
-  | RegOp (r, e) ->
-    M.map
-      (fun abstr ->
-         Abstract1.assign_texpr man abstr (local_var r.item)
-           (texpr (get_env abstr) e.item) None) d
-  | Cmp (r0, v1, v2) ->
-    let tcons env op =
-      sprintf "%s %c %s"
-        (string_of_value v1.item) op (string_of_value v2.item)
-      |> Parser.tcons1_of_string env in
-    let affect_r0 n abstr =
-      Abstract1.assign_texpr man abstr (local_var r0.item)
-        (texpr_int (get_env abstr) n) None in
-    let suparray env = tcons_array @@ tcons env '>' in
-    let infarray env = tcons_array @@ tcons env '<' in
-    let eqarray env = tcons_array @@ tcons env '=' in
-    M.map
-      (fun abstr ->
-         let env = get_env abstr in
-         Abstract1.join_array man [|
-           Abstract1.meet_tcons_array man abstr (suparray env) |> affect_r0 1;
-           Abstract1.meet_tcons_array man abstr (infarray env) |> affect_r0 (-1);
-           Abstract1.meet_tcons_array man abstr (eqarray env) |> affect_r0 0;
-         |]) d
-  | Jz (r, _) ->
-    let earray env = tcons_array (Tcons1.make (texpr_local env r.item) Tcons1.EQ) in
-    M.map
-      (fun abstr ->
-         Abstract1.meet_tcons_array man abstr @@ earray @@ get_env abstr) d
-    |> normalize
-  | Jnz (r, _) ->
-    let earray_sup env = tcons_array (Tcons1.make (texpr_local env r.item) Tcons1.SUP) in
-    let earray_inf env = tcons_array (Tcons1.make (texpr_neg env r.item) Tcons1.SUP) in
-    M.map
-      (fun abstr ->
-         let env = get_env abstr in
-         Abstract1.join man
-           (Abstract1.meet_tcons_array man abstr (earray_sup env))
-           (Abstract1.meet_tcons_array man abstr (earray_inf env)))
+  let transfer d t ins =
+    match ins with
+    | Pass
+    | Label _
+    | Jmp _ -> d
+    | MFence ->
+      M.filter (fun bufs _ -> Bufs.is_empty (Bufs.nth bufs t)) d
+    | RegOp (r, e) ->
+      M.map
+        (fun abstr ->
+           Inner.assign_expr abstr (Expression.local_var r.item)
+             (Expression.of_syntax e.item)) d
+    | Cmp (r0, v1, v2) ->
+      let cons typ = Constraint.make typ
+          (Expression.of_syntax_value v1.item)
+          (Expression.of_syntax_value v2.item) in
+      let affect_r0 n abstr =
+        Inner.assign_expr abstr (Expression.local_var r0.item) (Expression.int n) in
+      M.map
+        (fun abstr ->
+           Inner.join_array [|
+             Inner.meet_cons abstr (cons Constraint.Gt) |> affect_r0 1;
+             Inner.meet_cons abstr (cons Constraint.Lt) |> affect_r0 (-1);
+             Inner.meet_cons abstr (cons Constraint.Eq) |> affect_r0 0;
+           |]) d
+    | Jz (r, _) ->
+      M.map
+        (fun abstr ->
+           Inner.meet_cons abstr @@
+           Constraint.make Constraint.Eq
+             (Expression.local r.item)
+             (Expression.int 0))
+        d
+      |> normalize
+    | Jnz (r, _) ->
+      M.map
+        (fun abstr ->
+           Inner.join
+             (Inner.meet_cons abstr @@
+              Constraint.make Constraint.Gt
+                (Expression.local r.item)
+                (Expression.int 0))
+             (Inner.meet_cons abstr @@
+              Constraint.make Constraint.Lt
+                (Expression.local r.item)
+                (Expression.int 0)))
+        d
+      |> normalize
+    | Read (r, x) ->
       d
-    |> normalize
-  | Read (r, x) ->
-    let var_r = local_var r.item in
-    let texpr_x env = Texpr1.var env (shared_var x.item t) in
-    d
-    |> M.map
-      (fun abstr ->
-         Abstract1.assign_texpr man abstr var_r
-           (texpr_x @@ get_env abstr) None)
-    |> close_after_mop x.item t
-  | Write (x, v) ->
-    let var_xt = shared_var x.item t in
-    let texpr_v env = texpr_val env v.item in
-    d
-    |> M.map (* x_t = v *)
-      (fun abstr ->
-         Abstract1.assign_texpr man abstr var_xt
-           (texpr_v @@ get_env abstr) None)
-    |> M.Labels.fold (* Add x to the t-th buffer *)
-      ~f:(fun ~key:bufs ~data:abstr acc ->
-          add_join (Bufs.write bufs t x.item) abstr acc) ~init:M.empty
-    |> close_after_mop x.item t (* Close by partial flush *)
+      |> M.map
+        (fun abstr ->
+           Inner.assign_expr abstr
+             (Expression.local_var r.item)
+             (Expression.shared x.item t))
+      |> close_after_mop x.item t
+    | Write (x, v) ->
+      d
+      |> M.map (* x_t = v *)
+        (fun abstr ->
+           Inner.assign_expr abstr
+             (Expression.shared_var x.item t)
+             (Expression.of_syntax_value v.item))
+      |> M.Labels.fold (* Add x to the t-th buffer *)
+        ~f:(fun ~key:bufs ~data:abstr acc ->
+            add_join (Bufs.write bufs t x.item) abstr acc) ~init:M.empty
+      |> close_after_mop x.item t (* Close by partial flush *)
 
-let join =
-  M.merge
-    (fun _bufs abstr1 abstr2 -> match (abstr1, abstr2) with
-       | None, _ -> abstr2
-       | _, None -> abstr1
-       | Some abstr1, Some abstr2 -> Some (Abstract1.join man abstr1 abstr2))
+  let join =
+    M.merge
+      (fun _bufs abstr1 abstr2 -> match (abstr1, abstr2) with
+         | None, _ -> abstr2
+         | _, None -> abstr1
+         | Some abstr1, Some abstr2 -> Some (Inner.join abstr1 abstr2))
 
-let satisfies t =
-  raise (Error [
-    NotImplementedError,
-    Lexing.dummy_pos, Lexing.dummy_pos,
-    "Constraint satisfaction is not implemented on domain Abstract"
-  ])
+  let satisfies t =
+    raise (Error [
+        NotImplementedError,
+        Lexing.dummy_pos, Lexing.dummy_pos,
+        "Constraint satisfaction is not implemented on domain Abstract"
+      ])
+end
