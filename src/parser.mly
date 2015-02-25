@@ -42,6 +42,7 @@ local_dec :
 | Local locals = separated_list(Comma, Id) { locals }
 
 instructions :
+| ins = nonempty_list(terminated(loc(instruction), Semicolon)) { ins }
 | ins = separated_nonempty_list(Semicolon, loc(instruction)) { ins }
 
 instruction :
