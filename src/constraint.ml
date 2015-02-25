@@ -1,4 +1,5 @@
 open Apron
+open Batteries
 
 type typ =
   | Eq
@@ -7,6 +8,15 @@ type typ =
   | Le
   | Gt
   | Ge
+
+let fun_of_typ =
+  let open Int in function
+  | Eq -> ( = )
+  | Neq -> ( <> )
+  | Lt -> ( < )
+  | Le -> ( <= )
+  | Gt -> ( > )
+  | Ge  -> ( >= )
 
 type t = {
   typ : typ;

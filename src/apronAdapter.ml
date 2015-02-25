@@ -20,7 +20,7 @@ module Make (N : Numerical) : Domain.Inner = struct
     let open LazyList in
     let open Syntax.TypedProgram in
     let threads = init (Array.length program.threads) (fun x -> x) in
-    let shared = (* Enumeration of (x, value of x) initial shared vars *)
+    let shared = (* LazyList of (x_t, value of x) initial shared vars *)
       of_list program.initial
       |> map
         (fun (x, v) ->
@@ -28,7 +28,7 @@ module Make (N : Numerical) : Domain.Inner = struct
              (fun t -> Expression.apron_shared x t, v)
              threads)
       |> concat in
-    let local = (* LazyListeration of all thread-local vars *)
+    let local = (* LazyList of all thread-local vars *)
       of_array program.threads
       |> map (fun th -> of_list th.locals)
       |> concat

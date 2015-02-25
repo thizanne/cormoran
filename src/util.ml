@@ -1,3 +1,5 @@
+open Batteries
+
 (*
   Option
 *)
@@ -5,6 +7,10 @@
 let str_int_option = function
   | None -> "∅"
   | Some x -> string_of_int x
+
+let print_int_option output opt =
+  String.print output (str_int_option opt)
+
 
 (*
   List

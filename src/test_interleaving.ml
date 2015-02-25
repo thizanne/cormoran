@@ -27,7 +27,7 @@ let speclist =
 let domains : (string * (module Domain.Domain)) list = [
   "abstract", (module Abstract.Make (ApronAdapter.Polka));
   "top", (module Top);
-  "order", (module Order);
+  "order", (module Abstract.Make (InnerConcrete));
   "mark", (module Mark);
   "concrete", (module Concrete);
 ]

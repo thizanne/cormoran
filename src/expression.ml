@@ -1,4 +1,5 @@
 open Apron
+open Batteries
 open Printf
 
 type var =
@@ -20,6 +21,10 @@ let apron_local r =
 
 let apron_shared x t =
   to_apron_var (shared_var x t)
+
+let print_var output = function
+  | Local r -> String.print output r
+  | Shared (x, t) -> String.print output (sprintf "%s_%d" x t)
 
 type binop =
   | Add
@@ -73,6 +78,15 @@ let binop_of_char c =
     '*', Mul;
     '/', Div;
   ]
+
+let fun_of_unop = function
+  | Neg -> ( ~- )
+
+let fun_of_binop = function
+  | Add -> ( + )
+  | Sub -> ( - )
+  | Mul -> ( * )
+  | Div -> ( / )
 
 let of_syntax_value =
   let open Syntax in function

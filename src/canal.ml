@@ -13,7 +13,7 @@ let speclist = [
 
 let domains : (string * (module Domain.Domain)) list = [
   "top", (module Top);
-  "order", (module Order);
+  "order", (module Abstract.Make (InnerConcrete));
   "mark", (module Mark);
   "concrete", (module Concrete);
 ]
