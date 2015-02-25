@@ -120,7 +120,9 @@ module Make (Inner : Domain.Inner) = struct
     M.filterv (fun abstr -> not (Inner.is_bottom abstr))
 
   let print output =
-    M.print ~first:"" ~last:"" Bufs.print Inner.print output
+    M.print
+      ~first:"" ~last:"" ~kvsep:":\n" ~sep:"\n"
+      Bufs.print Inner.print output
 
   let equal d1 d2 =
     M.equal Inner.equal (normalize d1) (normalize d2)
