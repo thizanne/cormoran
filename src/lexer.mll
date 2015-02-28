@@ -15,6 +15,8 @@ rule lexer = parse
   | eof { Eof }
   | '\n' { Lexing.new_line lexbuf; lexer lexbuf }
   | empty+ { lexer lexbuf }
+  | "{" { LCurly }
+  | "}" { RCurly }
   | "+" { Plus }
   | "-" { Minus }
   | "*" { Times }
@@ -27,6 +29,7 @@ rule lexer = parse
   | "jnz" { Jnz }
   | "jz" { Jz }
   | "jmp" { Jmp }
+  | "while" { While }
   | "label" { Label }
   | "local" { Local }
   | "pass" { Pass }

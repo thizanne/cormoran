@@ -4,9 +4,10 @@
  module Untyped = Syntax.Untyped
 %}
 
+%token LCurly RCurly
 %token Plus Minus Times Divide
 %token Label Local Comma Equal Semicolon Sharp
-%token Cmp Jnz Jz Jmp MFence Affect Pass
+%token Cmp Jnz Jz Jmp MFence Affect Pass While
 %token <int> Int
 %token <string> Id
 %token Eof
