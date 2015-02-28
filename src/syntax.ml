@@ -6,6 +6,13 @@ type 'a loc = {
   endpos : Lexing.position;
 }
 
+let dummy_loc item = {
+  item;
+  startpos = Lexing.dummy_pos;
+  endpos = Lexing.dummy_pos;
+}
+
+
 type position = int list
 
 type value =
