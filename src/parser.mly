@@ -43,7 +43,25 @@ local_dec :
 | Local locals = separated_list(Comma, Id) { locals }
 
 instructions :
-| ins = nonempty_list(loc(instruction)) { ins }
+| ins = nonempty_list(block) { List.flatten ins }
+
+block :
+| ins = loc(instruction) { [ins] }
+| While r = loc(Id) LCurly body = block RCurly {
+    (* TODO: correct locations for While *)
+    let loc = Syntax.dummy_loc in
+    let lbl_begin = loc @@ Symbol.fresh_label () in
+    let lbl_end = loc @@ Symbol.fresh_label () in
+    [
+      loc @@ Untyped.Label lbl_begin;
+      loc @@ Untyped.Jz (r, lbl_end);
+    ] @
+    body @
+    [
+      loc @@ Untyped.Jmp lbl_begin;
+      loc @@ Untyped.Label lbl_end;
+    ]
+  }
 
 instruction :
 | r = loc(Id) Affect e = loc(expression) { Untyped.Affect (r, e) }
