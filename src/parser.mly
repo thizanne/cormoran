@@ -7,7 +7,7 @@
 %token LCurly RCurly
 %token Plus Minus Times Divide
 %token Label Local Comma Equal Semicolon Sharp
-%token Cmp Jnz Jz Jmp MFence Affect Pass While
+%token Cmp Jnz Jz Jmp MFence Affect Pass While If
 %token <int> Int
 %token <string> Id
 %token Eof
@@ -47,6 +47,12 @@ instructions :
 
 block :
 | ins = loc(instruction) { [ins] }
+| If r = loc(Id) LCurly body = block RCurly {
+    (* TODO: correct locations for If *)
+    let loc = Syntax.dummy_loc in
+    let lbl_end = loc @@ Symbol.fresh_label () in
+    [loc @@ Untyped.Jz (r, lbl_end)] @ body @ [loc @@ Untyped.Label lbl_end]
+  }
 | While r = loc(Id) LCurly body = block RCurly {
     (* TODO: correct locations for While *)
     let loc = Syntax.dummy_loc in

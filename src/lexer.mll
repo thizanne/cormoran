@@ -29,6 +29,7 @@ rule lexer = parse
   | "jnz" { Jnz }
   | "jz" { Jz }
   | "jmp" { Jmp }
+  | "If" { If }
   | "while" { While }
   | "label" { Label }
   | "local" { Local }
