@@ -24,15 +24,6 @@
 %inline loc(X) :
 | x = X { {Syntax.item = x; startpos = $startpos; endpos = $endpos} }
 
-flexible_list(sep, elem) :
-| { [] }
-| e = elem { [e] }
-| e = elem sep es = flexible_list(sep, elem) { e :: es }
-
-%inline flexible_nonempty_list(sep, elem) :
-| elems = nonempty_list(terminated(elem, sep)) { elems }
-| elems = separated_nonempty_list(sep, elem) { elems }
-
 program :
 | mem = shared_decs Sharp t = separated_nonempty_list(Sharp, thread)  Eof
     { {Program.initial = mem; threads = Array.of_list t} }
@@ -52,8 +43,7 @@ local_dec :
 | Local locals = separated_list(Comma, Id) { locals }
 
 instructions :
-| ins = nonempty_list(terminated(loc(instruction), Semicolon)) { ins }
-| ins = separated_nonempty_list(Semicolon, loc(instruction)) { ins }
+| ins = nonempty_list(loc(instruction)) { ins }
 
 instruction :
 | r = loc(Id) Affect e = loc(expression) { Untyped.Affect (r, e) }

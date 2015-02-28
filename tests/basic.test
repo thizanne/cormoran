@@ -2,10 +2,10 @@ x = 0, y = 0
 
 #
 local r1;
-x := 1;
+x := 1
 r1 := y
 
 #
 local r2;
-y := 1;
+y := 1
 r2 := x

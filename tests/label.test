@@ -1,5 +1,5 @@
 #
 local r0;
 
-label a;
+label a
 label b
