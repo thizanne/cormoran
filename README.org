@@ -1,3 +1,11 @@
 * Canal
 
-Static analyser for a toy concurrent language with the TSO weak memory model.
+Experimental static analyser for a toy concurrent language with the TSO weak memory model.
+
+* Dependencies
+
+- apron
+- batteries
+- menhir
+- ocamlgraph
+- ppx_deriving
