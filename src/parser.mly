@@ -49,7 +49,7 @@ thread :
   }
 
 body :
-| { Syntax.Pass }
+| { Syntax.Nothing }
 | ins = instruction { ins }
 | ins = loc(instruction) Semicolon seq = loc(body) {
     Syntax.Seq (ins, seq)

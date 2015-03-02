@@ -33,6 +33,7 @@ type expression =
       expression Location.loc
 
 type t  =
+  | Nothing
   | Pass
   | MFence
   | Label of Symbol.t Location.loc
