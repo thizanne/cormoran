@@ -15,8 +15,8 @@ let dummy = {
   endpos = Lexing.dummy_pos;
 }
 
-let mk startpos endpos =
-  { startpos; endpos }
+let mk item startpos endpos =
+  { item; loc = { startpos; endpos } }
 
 let mkloc item loc =
   { item; loc }
