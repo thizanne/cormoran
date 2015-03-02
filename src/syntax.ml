@@ -1,78 +1,66 @@
 open Batteries
 
-type 'a loc = {
-  item : 'a;
-  startpos : Lexing.position;
-  endpos : Lexing.position;
-}
-
-let dummy_loc item = {
-  item;
-  startpos = Lexing.dummy_pos;
-  endpos = Lexing.dummy_pos;
-}
-
-
 type position = int list
 
-type value =
-  | Int of int loc
-  | Var of string loc
+type unop =
+  | Neg
+  | Not
 
-let string_of_value = function
-  | Int n -> string_of_int n.item
-  | Var v -> v.item
+type binop =
+  | Add
+  | Sub
+  | Mul
+  | Div
+  | Eq
+  | Neq
+  | Lt
+  | Gt
+  | Le
+  | Ge
+  | And
+  | Or
 
 type expression =
-  | Val of value loc
-  | Op of char loc * expression loc * expression loc
+  | Bool of bool Location.loc
+  | Int of int Location.loc
+  | Var of Symbol.t Location.loc
+  | Unop of
+      unop Location.loc *
+      expression Location.loc
+  | Binop of
+      binop Location.loc *
+      expression Location.loc *
+      expression Location.loc
 
-module Untyped =
-struct
-  type t  =
-    | Pass
-    | Affect of string loc * expression loc
-    | Cmp of string loc * value loc * value loc
-    | MFence
-    | Label of string loc
-    | Jnz of string loc * string loc
-    | Jz of string loc * string loc
-    | Jmp of string loc
-end
+type t  =
+  | Pass
+  | MFence
+  | Label of Symbol.t Location.loc
+  | Goto of Symbol.t Location.loc
+  | Seq of
+      t Location.loc *
+      t Location.loc
+  | Assign of
+      Symbol.t Location.loc *
+      expression Location.loc
+  | If of
+      expression Location.loc * (* Condition *)
+      t Location.loc (* Body *)
+  | While of
+      expression Location.loc * (* Condition *)
+      t Location.loc (* Body *)
+  | For of
+      Symbol.t Location.loc * (* Indice symbol *)
+      expression Location.loc * (* From *)
+      expression Location.loc * (* To *)
+      t Location.loc (* Body *)
 
-module Typed =
-struct
-  type t =
-    | Pass
-    | Read of string loc * string loc
-    | Write of string loc * value loc
-    | RegOp of string loc * expression loc
-    | Cmp of string loc * value loc * value loc
-    | MFence
-    | Label of string loc
-    | Jnz of string loc * string loc (* register, label *)
-    | Jz of string loc * string loc
-    | Jmp of string loc
-end
+type thread = {
+  locals : Symbol.t list;
+  body : t;
+}
 
-module Program (Ins : sig type t end) =
-struct
-  type thread = {
-    locals : string list;
-    ins : Ins.t loc array;
-  }
-
-  type t = {
-    initial : (string * int) list;
-    threads : thread array;
-  }
-
-  let nth_ins program t i =
-    program.threads.(t).ins.(i)
-
-  let initial_position program =
-    List.make (Array.length program.threads) 0
-end
-
-module UntypedProgram = Program (Untyped)
-module TypedProgram = Program (Typed)
+type program = {
+  initial : (Symbol.t * int) list;
+  threads : thread list;
+}
