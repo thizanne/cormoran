@@ -1,15 +1,14 @@
 %{
  open Lexing
  let var_sym = Symbol.namespace ()
- let lbl_sym = Symbol.namespace ()
 %}
 
 %token LPar RPar LCurly RCurly
 %token Plus Minus Times Divide
 %token Eq Neq Gt Ge Lt Le
 %token Not Or And
-%token Label Comma Equal Semicolon Sharp
-%token Goto MFence Assign Pass While If For
+%token Comma Semicolon SharpLine
+%token MFence Assign Pass While If For
 %token <bool> Bool
 %token <int> Int
 %token <string> Id
@@ -30,7 +29,9 @@
 | x = X { Location.mk x $startpos $endpos }
 
 program :
-| mem = shared_decs Sharp t = separated_nonempty_list(Sharp, thread) Eof {
+| mem = shared_decs SharpLine
+    t = separated_nonempty_list(SharpLine, thread)
+    Eof {
     { Syntax.initial = mem; threads = t}
   }
 | error {
@@ -41,7 +42,7 @@ shared_decs :
 | vars = separated_list(Comma, shared_dec) { vars }
 
 shared_dec :
-| x = var Equal n = Int { x, n }
+| x = var Eq n = Int { x, n }
 
 thread :
 | body = body {
@@ -50,16 +51,17 @@ thread :
 
 body :
 | { Syntax.Nothing }
+| body = nonempty_body { body }
+
+nonempty_body :
 | ins = instruction { ins }
-| ins = loc(instruction) Semicolon seq = loc(body) {
+| ins = loc(instruction) seq = loc(nonempty_body) {
     Syntax.Seq (ins, seq)
   }
 
 instruction :
 | Pass { Syntax.Pass }
 | MFence { Syntax.MFence }
-| Label lbl = loc(label) { Syntax.Label lbl }
-| Goto lbl = loc(label) { Syntax.Goto lbl }
 | r = loc(var) Assign e = loc(expression) {
     Syntax.Assign (r, e)
   }
@@ -77,9 +79,6 @@ instruction :
 
 var :
 | x = Id { var_sym x }
-
-label :
-| lbl = Id { lbl_sym lbl }
 
 expression :
 | b = loc(Bool) { Syntax.Bool b }
