@@ -2,33 +2,52 @@ open Batteries
 
 type position = int list
 
-type unop =
+type arith_unop =
   | Neg
+
+type logic_unop =
   | Not
 
-type binop =
+type arith_binop =
   | Add
   | Sub
   | Mul
   | Div
+
+type arith_rel =
   | Eq
   | Neq
   | Lt
   | Gt
   | Le
   | Ge
+
+type logic_binop =
   | And
   | Or
 
 type expression =
-  | Bool of bool Location.loc
   | Int of int Location.loc
   | Var of Symbol.t Location.loc
-  | Unop of
-      unop Location.loc *
+  | ArithUnop of
+      arith_unop Location.loc *
       expression Location.loc
-  | Binop of
-      binop Location.loc *
+  | ArithBinop of
+      arith_binop Location.loc *
+      expression Location.loc *
+      expression Location.loc
+
+type condition =
+  | Bool of bool Location.loc
+  | LogicUnop of
+      logic_unop Location.loc *
+      condition Location.loc
+  | LogicBinop of
+      logic_binop Location.loc *
+      condition Location.loc *
+      condition Location.loc
+  | ArithRel of
+      arith_rel Location.loc *
       expression Location.loc *
       expression Location.loc
 
@@ -43,10 +62,10 @@ type t  =
       Symbol.t Location.loc *
       expression Location.loc
   | If of
-      expression Location.loc * (* Condition *)
+      condition Location.loc * (* Condition *)
       t Location.loc (* Body *)
   | While of
-      expression Location.loc * (* Condition *)
+      condition Location.loc * (* Condition *)
       t Location.loc (* Body *)
   | For of
       Symbol.t Location.loc * (* Indice symbol *)

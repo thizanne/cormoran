@@ -17,7 +17,6 @@
 %left Or
 %left And
 %nonassoc Not
-%left Eq Neq Gt Ge Lt Le
 %left Plus Minus
 %left Times Divide
 
@@ -65,10 +64,10 @@ instruction :
 | r = loc(var) Assign e = loc(expression) {
     Syntax.Assign (r, e)
   }
-| If cond = loc(expression) LCurly body = loc(body) RCurly {
+| If cond = loc(condition) LCurly body = loc(body) RCurly {
     Syntax.If (cond, body)
   }
-| While cond = loc(expression) LCurly body = loc(body) RCurly {
+| While cond = loc(condition) LCurly body = loc(body) RCurly {
     Syntax.While (cond, body)
   }
 | For i = loc(var) Semicolon
@@ -81,31 +80,49 @@ var :
 | x = Id { var_sym x }
 
 expression :
-| b = loc(Bool) { Syntax.Bool b }
 | n = loc(Int) { Syntax.Int n }
 | x = loc(var) { Syntax.Var x }
-| o = loc(unop) e = loc(expression) {
-    Syntax.Unop (o, e)
-  }
-| e1 = loc(expression) o = loc(binop) e2 = loc(expression) {
-    Syntax.Binop (o, e1, e2)
-  }
 | LPar e = expression RPar { e }
+| o = loc(arith_unop) e = loc(expression) {
+    Syntax.ArithUnop (o, e)
+  }
+| e1 = loc(expression) o = loc(arith_binop) e2 = loc(expression) {
+    Syntax.ArithBinop (o, e1, e2)
+  }
 
-%inline unop :
-| Not { Syntax.Not }
+condition :
+| b = loc(Bool) { Syntax.Bool b }
+| LPar c = condition RPar { c }
+| o = loc(logic_unop) c = loc(condition) {
+    Syntax.LogicUnop (o, c)
+  }
+| c1 = loc(condition) o = loc(logic_binop) c2 = loc(condition) {
+    Syntax.LogicBinop (o, c1, c2)
+  }
+| e1 = loc(expression) r = loc(arith_rel) e2 = loc(expression) {
+    Syntax.ArithRel (r, e1, e2)
+  }
+
+%inline arith_unop :
 | Minus { Syntax.Neg }
 
-%inline binop :
+%inline logic_unop :
+| Not { Syntax.Not }
+
+%inline arith_binop :
 | Plus { Syntax.Add }
 | Minus { Syntax.Sub }
 | Times { Syntax.Mul }
 | Divide { Syntax.Div }
+
+%inline arith_rel :
 | Eq { Syntax.Eq }
 | Neq { Syntax.Neq }
 | Lt { Syntax.Lt }
 | Gt { Syntax.Gt }
 | Le { Syntax.Le }
 | Ge { Syntax.Ge }
+
+%inline logic_binop :
 | And { Syntax.And }
 | Or { Syntax.Or }
