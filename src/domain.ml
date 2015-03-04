@@ -6,8 +6,8 @@ module type Domain = sig
   val bottom : t
   val equal : t -> t -> bool
 
-  val init : Syntax.TypedProgram.t -> t
-  val transfer : t -> int -> Syntax.Typed.t -> t
+  val init : Syntax.program -> t
+  val transfer : t -> Flow.Operation.t -> t
   val join : t -> t -> t
 
   val satisfies : (string * int) list -> t -> bool
@@ -22,7 +22,7 @@ module type Inner = sig
 
   val equal : t -> t -> bool
 
-  val init : Syntax.TypedProgram.t -> t
+  val init : Syntax.program -> t
 
   val join : t -> t -> t
   val meet : t -> t -> t
