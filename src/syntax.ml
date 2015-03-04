@@ -36,8 +36,6 @@ type t  =
   | Nothing
   | Pass
   | MFence
-  | Label of Symbol.t Location.loc
-  | Goto of Symbol.t Location.loc
   | Seq of
       t Location.loc *
       t Location.loc
