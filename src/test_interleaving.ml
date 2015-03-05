@@ -24,7 +24,7 @@ let speclist =
   |> List.map (fun (a, b, c) -> (a, b, " " ^ c))
   |> Arg.align
 
-let domains : (string * (module Domain.Domain)) list = [
+let domains : (string * (module Domain.Outer)) list = [
   "abstract", (module Abstract.Make (ApronAdapter.Polka));
   "top", (module Top);
   "order", (module Abstract.Make (InnerConcrete));

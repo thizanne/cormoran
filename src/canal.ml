@@ -11,7 +11,7 @@ let speclist = [
   "--no-cond", Arg.Clear cond_check, "Litmus: don't check final condition";
 ]
 
-let domains : (string * (module Domain.Domain)) list = [
+let domains : (string * (module Domain.Outer)) list = [
   "top", (module Top);
   "order", (module Abstract.Make (InnerConcrete));
   "mark", (module Mark);

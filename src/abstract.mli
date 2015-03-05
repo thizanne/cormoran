@@ -1,1 +1,1 @@
-module Make : functor (D : Domain.Inner) -> Domain.Domain
+module Make : functor (D : Domain.Inner) -> Domain.Outer

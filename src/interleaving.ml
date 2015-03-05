@@ -1,4 +1,4 @@
-module Make (D : Domain.Domain) = struct
+module Make (D : Domain.Outer) = struct
   module Fixpoint = Graph.Fixpoint.Make (Cfg.G)
       (struct
         type vertex = Cfg.G.vertex

@@ -1,6 +1,6 @@
 open Batteries
 
-module type Domain = sig
+module type Outer = sig
   type t
 
   val bottom : t
