@@ -1,3 +1,5 @@
+open Batteries
+
 let parse_litmus lexbuf =
   LexerLitmus.drop_prelude lexbuf;
   ParserLitmus.program LexerLitmus.lexer lexbuf

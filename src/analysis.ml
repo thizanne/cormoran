@@ -1,3 +1,5 @@
+open Batteries
+
 module type Result = sig
   module Domain : Domain.Outer
   val data : Syntax.position -> Domain.t

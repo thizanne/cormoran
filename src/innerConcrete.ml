@@ -1,5 +1,5 @@
-open Util
 open Batteries
+open Util
 open Syntax.TypedProgram
 
 module Point = struct

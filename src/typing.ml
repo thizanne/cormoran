@@ -1,3 +1,4 @@
+open Batteries
 open Printf
 open Syntax
 open Error

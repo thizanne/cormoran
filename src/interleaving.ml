@@ -1,3 +1,5 @@
+open Batteries
+
 module Make (D : Domain.Outer) = struct
   module Fixpoint = Graph.Fixpoint.Make (Cfg.G)
       (struct

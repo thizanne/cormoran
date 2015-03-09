@@ -1,3 +1,8 @@
+(*
+open Batteries doesn't work with [@@deriving show]
+see https://github.com/ocaml-batteries-team/batteries-included/issues/597
+*)
+
 open Printf
 
 type t =
