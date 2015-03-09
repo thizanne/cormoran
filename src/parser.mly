@@ -1,6 +1,6 @@
 %{
- open Lexing
- let var_sym = Symbol.namespace ()
+  open Lexing
+  let var_sym = Symbol.namespace ()
 %}
 
 %token LPar RPar LCurly RCurly
@@ -34,18 +34,23 @@ program :
     { Syntax.initial = mem; threads = t}
   }
 | error {
-    raise (Error.Error [Error.SyntaxError, $startpos, $endpos, ""])
+    let open Error in
+    let err_loc = { Location.startpos = $startpos; endpos = $endpos } in
+    raise @@ Error { error = SyntaxError; err_loc; err_msg = "" }
   }
 
 shared_decs :
-| vars = separated_list(Comma, shared_dec) { vars }
+| vars = separated_list(Comma, shared_dec) {
+    let open Batteries in
+    vars |> List.enum |> Symbol.Map.of_enum
+  }
 
 shared_dec :
 | x = var Eq n = Int { x, n }
 
 thread :
 | body = body {
-    { Syntax.locals = []; body }
+    { Syntax.locals = Symbol.Set.empty; body }
   }
 
 body :
