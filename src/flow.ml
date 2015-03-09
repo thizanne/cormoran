@@ -1,6 +1,4 @@
 open Batteries
-open Util
-module S = Syntax
 open Printf
 
 module State =
@@ -33,7 +31,7 @@ struct
   }
 end
 
-module G = Graph.Persistent.Digraph.ConcreteLabeled (V) (E)
+module G = Graph.Persistent.Digraph.ConcreteLabeled (State) (Operation)
 
 let label_positions { threads; _ } =
   (* Return the list of lists of (label, position) for each thread *)
