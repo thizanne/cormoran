@@ -74,11 +74,11 @@ type t  =
       t Location.loc (* Body *)
 
 type thread = {
-  locals : Symbol.t list;
+  locals : Symbol.Set.t;
   body : t;
 }
 
 type program = {
-  initial : (Symbol.t * int) list;
+  initial : int Symbol.Map.t;
   threads : thread list;
 }
