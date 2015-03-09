@@ -23,4 +23,5 @@ module Ord = struct
     Int.compare n1 n2
 end
 
-module Table = Map.Make (Ord)
+module Set = Set.Make (Ord)
+module Map = Map.Make (Ord)
