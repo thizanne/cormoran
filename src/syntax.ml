@@ -26,9 +26,15 @@ type logic_binop =
   | And
   | Or
 
+type var_type =
+  | Local
+  | Shared
+
 type expression =
   | Int of int Location.loc
-  | Var of Symbol.t Location.loc
+  | Var of
+      var_type ref *
+      Symbol.t Location.loc
   | ArithUnop of
       arith_unop Location.loc *
       expression Location.loc

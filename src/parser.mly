@@ -86,7 +86,7 @@ var :
 
 expression :
 | n = loc(Int) { Syntax.Int n }
-| x = loc(var) { Syntax.Var x }
+| x = loc(var) { Syntax.Var (ref Syntax.Shared, x) }
 | LPar e = expression RPar { e }
 | o = loc(arith_unop) e = loc(expression) {
     Syntax.ArithUnop (o, e)
