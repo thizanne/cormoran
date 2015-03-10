@@ -4,9 +4,6 @@ open Printf
 open Syntax
 open Error
 
-let undefined_var v =
-  name_error v @@ sprintf "Var %s is not defined" (Symbol.name v.item)
-
 type var_type =
   | Local
   | Shared
@@ -18,18 +15,29 @@ let add_local_if_absent x env =
       | Some typ -> Some typ)
     env
 
-let rec check_expression env = function
-  | Int _ -> ()
-  | Var v ->
-    if not @@ Symbol.Map.mem v.item env then
-      type_error v @@
-      sprintf "Var %s is not defined"
-        (Symbol.name v.item)
-  | ArithUnop (_, e) ->
-    check_expression env e.item
-  | ArithBinop (_, e1, e2) ->
-    check_expression env e1.item;
-    check_expression env e2.item
+let check_expression env shared_allowed expr =
+  let rec has_shared shared_allowed = function
+    | Int _ -> false
+    | Var v ->
+      begin match Symbol.Map.find v.item env with
+        | Local -> false
+        | Shared ->
+          if shared_allowed
+          then true
+          else type_error expr
+              "This expression has too many shared variables"
+        | exception Not_found ->
+          type_error v @@
+          sprintf "Var %s is not defined"
+            (Symbol.name v.item)
+      end
+    | ArithUnop (_, e) ->
+      has_shared shared_allowed e.item
+    | ArithBinop (_, e1, e2) ->
+      has_shared
+        (shared_allowed && (not (has_shared shared_allowed e1.item)))
+        e2.item
+  in ignore (has_shared shared_allowed expr.item)
 
 let rec check_condition env = function
   | Bool _ -> ()
@@ -39,8 +47,8 @@ let rec check_condition env = function
     check_condition env c1.item;
     check_condition env c2.item
   | ArithRel (_, e1, e2) ->
-    check_expression env e1.item;
-    check_expression env e2.item
+    check_expression env false e1;
+    check_expression env false e2
 
 let rec type_body env = function
   | Nothing
@@ -49,8 +57,15 @@ let rec type_body env = function
   | Seq (b1, b2) ->
     type_body (type_body env b1.item) b2.item
   | Assign (x, exp) ->
-    check_expression env exp.item;
-    add_local_if_absent x.item env
+    begin match Symbol.Map.Exceptionless.find x.item env with
+      | Some Local
+      | None ->
+        check_expression env true exp;
+        Symbol.Map.add x.item Local env
+      | Some Shared ->
+        check_expression env false exp;
+        env
+    end
   | If (cond, body) ->
     check_condition env cond.item;
     type_body env body.item
@@ -59,8 +74,8 @@ let rec type_body env = function
     type_body env body.item
   | For (i, exp_from, exp_to, body) ->
     let env_i = add_local_if_absent i.item env in
-    check_expression env_i exp_from.item;
-    check_expression env_i exp_to.item;
+    check_expression env_i false exp_from;
+    check_expression env_i false exp_to;
     type_body env_i body.item
 
 let type_thread shared_env { locals; body } =
