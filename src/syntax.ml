@@ -30,13 +30,14 @@ type var_type =
   | Local
   | Shared
 
+type var = {
+  mutable var_type : var_type;
+  var_name : Symbol.t;
+}
+
 type expression =
-  (* TODO: replace var_type ref with var_type, and make Typing rebuild
-     an AST instead of just setting the references *)
   | Int of int Location.loc
-  | Var of
-      var_type ref *
-      Symbol.t Location.loc
+  | Var of var Location.loc
   | ArithUnop of
       arith_unop Location.loc *
       expression Location.loc
@@ -67,8 +68,7 @@ type t  =
       t Location.loc *
       t Location.loc
   | Assign of
-      var_type ref *
-      Symbol.t Location.loc *
+      var Location.loc *
       expression Location.loc
   | If of
       condition Location.loc * (* Condition *)
@@ -77,7 +77,7 @@ type t  =
       condition Location.loc * (* Condition *)
       t Location.loc (* Body *)
   | For of
-      Symbol.t Location.loc * (* Indice symbol *)
+      var Location.loc * (* Indice *)
       expression Location.loc * (* From *)
       expression Location.loc * (* To *)
       t Location.loc (* Body *)

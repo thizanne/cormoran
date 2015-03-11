@@ -14,19 +14,19 @@ let add_local_if_absent x env =
 let check_expression env shared_allowed expr =
   let rec has_shared shared_allowed = function
     | Int _ -> false
-    | Var (var_type, v) ->
-      begin match Symbol.Map.find v.item env with
+    | Var v ->
+      begin match Symbol.Map.find v.item.var_name env with
         | Local ->
-          let () = var_type := Local in false
+          let () = v.item.var_type <- Local in false
         | Shared ->
           if shared_allowed
-          then let () = var_type := Shared in true
+          then let () = v.item.var_type <- Shared in true
           else type_error expr
               "This expression has too many shared variables"
         | exception Not_found ->
           type_error v @@
           sprintf "Var %s is not defined"
-            (Symbol.name v.item)
+            (Symbol.name v.item.var_name)
       end
     | ArithUnop (_, e) ->
       has_shared shared_allowed e.item
@@ -53,16 +53,16 @@ let rec type_body env = function
   | MFence -> env
   | Seq (b1, b2) ->
     type_body (type_body env b1.item) b2.item
-  | Assign (var_type, x, exp) ->
-    begin match Symbol.Map.Exceptionless.find x.item env with
+  | Assign ({ item = { var_type; var_name } as x; _ }, exp) ->
+    begin match Symbol.Map.Exceptionless.find var_name env with
       | Some Local
       | None ->
         check_expression env true exp;
-        var_type := Local;
-        Symbol.Map.add x.item Local env
+        x.var_type <- Local;
+        Symbol.Map.add var_name Local env
       | Some Shared ->
         check_expression env false exp;
-        var_type := Shared;
+        x.var_type <- Shared;
         env
     end
   | If (cond, body) ->
@@ -72,7 +72,7 @@ let rec type_body env = function
     check_condition env cond.item;
     type_body env body.item
   | For (i, exp_from, exp_to, body) ->
-    let env_i = add_local_if_absent i.item env in
+    let env_i = add_local_if_absent i.item.var_name env in
     check_expression env_i false exp_from;
     check_expression env_i false exp_to;
     type_body env_i body.item

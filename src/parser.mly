@@ -46,7 +46,7 @@ shared_decs :
   }
 
 shared_dec :
-| x = var Eq n = Int { x, n }
+| x = var_sym Eq n = Int { x, n }
 
 thread :
 | body = body {
@@ -66,8 +66,8 @@ nonempty_body :
 instruction :
 | Pass { Syntax.Pass }
 | MFence { Syntax.MFence }
-| r = loc(var) Assign e = loc(expression) {
-    Syntax.Assign (ref Syntax.Shared, r, e)
+| x = loc(var) Assign e = loc(expression) {
+    Syntax.Assign (x, e)
   }
 | If cond = loc(condition) LCurly body = loc(body) RCurly {
     Syntax.If (cond, body)
@@ -82,11 +82,16 @@ instruction :
   }
 
 var :
+| var_name = var_sym {
+    { Syntax.var_type = Syntax.Shared; var_name }
+  }
+
+var_sym :
 | x = Id { var_sym x }
 
 expression :
 | n = loc(Int) { Syntax.Int n }
-| x = loc(var) { Syntax.Var (ref Syntax.Shared, x) }
+| x = loc(var) { Syntax.Var x }
 | LPar e = expression RPar { e }
 | o = loc(arith_unop) e = loc(expression) {
     Syntax.ArithUnop (o, e)
