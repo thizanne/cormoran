@@ -14,10 +14,8 @@ struct
   type operation =
     | Identity
     | MFence
-    | Write of Symbol.t * Syntax.expression
-    | Read of Symbol.t * Symbol.t
-    | RegOp of Symbol.t * Syntax.expression
     | Filter of Syntax.condition
+    | Assign of Syntax.var * Syntax.expression
 
   type t = {
     thread : int;
@@ -25,6 +23,7 @@ struct
   }
 
   let compare = Pervasives.compare
+
   let default = {
     thread = -1;
     op = Identity;
