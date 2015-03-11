@@ -15,6 +15,9 @@ let namespace () =
 
 let name = snd
 
+let print output sym =
+  String.print output (name sym)
+
 module Ord = struct
   type symbol = t
   type t = symbol
