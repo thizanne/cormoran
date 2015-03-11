@@ -53,14 +53,16 @@ let rec type_body env = function
   | MFence -> env
   | Seq (b1, b2) ->
     type_body (type_body env b1.item) b2.item
-  | Assign (x, exp) ->
+  | Assign (var_type, x, exp) ->
     begin match Symbol.Map.Exceptionless.find x.item env with
       | Some Local
       | None ->
         check_expression env true exp;
+        var_type := Local;
         Symbol.Map.add x.item Local env
       | Some Shared ->
         check_expression env false exp;
+        var_type := Shared;
         env
     end
   | If (cond, body) ->

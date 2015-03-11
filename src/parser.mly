@@ -67,7 +67,7 @@ instruction :
 | Pass { Syntax.Pass }
 | MFence { Syntax.MFence }
 | r = loc(var) Assign e = loc(expression) {
-    Syntax.Assign (r, e)
+    Syntax.Assign (ref Syntax.Shared, r, e)
   }
 | If cond = loc(condition) LCurly body = loc(body) RCurly {
     Syntax.If (cond, body)

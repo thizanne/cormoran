@@ -31,6 +31,8 @@ type var_type =
   | Shared
 
 type expression =
+  (* TODO: replace var_type ref with var_type, and make Typing rebuild
+     an AST instead of just setting the references *)
   | Int of int Location.loc
   | Var of
       var_type ref *
@@ -65,6 +67,7 @@ type t  =
       t Location.loc *
       t Location.loc
   | Assign of
+      var_type ref *
       Symbol.t Location.loc *
       expression Location.loc
   | If of
