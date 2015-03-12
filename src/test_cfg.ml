@@ -1,5 +1,4 @@
 open Batteries
-open Error
 open Printf
 
 let use_litmus = ref false
@@ -16,16 +15,16 @@ let speclist =
   |> Arg.align
 *)
 
-module Dot = Cfg.Dot (Analysis.EmptyResult (Top))
+module Dot = ExportCfg.Dot (Analysis.EmptyResult (Top))
 
 let print_cfg file =
   try
     let lexbuf = Lexing.from_channel @@ open_in file in
     let program, _cond = Parse.parse use_litmus lexbuf in
-    let g = Cfg.make program in
-    Dot.output_graph stdout g
+    let g = Cfg.of_program program in
+    Dot.output_graph Legacy.stdout g
   with
-  | Error li -> List.iter (fun e -> print_endline (msg_of_error e ^ "\n")) li
+  | Error.Error e -> prerr_endline (Error.to_string e)
 
 let () =
   Arg.parse speclist print_cfg
