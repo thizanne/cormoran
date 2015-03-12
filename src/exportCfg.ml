@@ -14,9 +14,9 @@ let edge_label {Operation.thread; op} =
       String.print output "MFence"
     | Operation.Filter c ->
       PrintAst.print_condition output c
-    | Operation.Assign (x, _var_type, e) ->
+    | Operation.Assign (x, e) ->
       Printf.fprintf output "%a := %a"
-        Symbol.print x
+        Symbol.print x.Syntax.var_name
         PrintAst.print_expression e
   end;
   IO.close_out output

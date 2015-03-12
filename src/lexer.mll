@@ -52,11 +52,14 @@ and comment depth = parse
     else comment (depth - 1) lexbuf
   }
   | eof {
-    raise
-    (Error
-       [LexingError,
-        lexeme_start_p lexbuf, lexeme_start_p lexbuf,
-        "Non closed commentary"])
+    raise (Error {
+      error = LexingError;
+      err_loc = {
+        Location.startpos = lexeme_start_p lexbuf;
+        Location.endpos = lexeme_start_p lexbuf;
+      };
+      err_msg = "Non closed commentary";
+    })
   }
   | '\n' { new_line lexbuf; comment depth lexbuf }
   | _ { comment depth lexbuf }

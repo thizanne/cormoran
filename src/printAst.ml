@@ -60,8 +60,8 @@ let prio_print op op_prio item_prio print output item =
 let rec print_expression output = function
   | Int n ->
     Int.print output n.item
-  | Var (_var_type, x) ->
-    Symbol.print output x.item
+  | Var x ->
+    Symbol.print output x.item.var_name
   | ArithUnop (op, e) ->
     Printf.fprintf output "%s%a"
       (string_of_arith_unop op.item)
