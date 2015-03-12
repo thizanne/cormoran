@@ -1,6 +1,0 @@
-#
-local r0;
-
-r0 := 0
-label a
-jz r0 a
