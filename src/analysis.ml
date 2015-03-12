@@ -2,7 +2,7 @@ open Batteries
 
 module type Result = sig
   module Domain : Domain.Outer
-  val data : Syntax.position -> Domain.t
+  val data : Syntax.control_state -> Domain.t
 end
 
 module EmptyResult (D : Domain.Outer) : Result = struct

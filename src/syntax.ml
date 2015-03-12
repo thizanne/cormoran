@@ -1,6 +1,8 @@
 open Batteries
 
-type position = int list
+type control_label = int
+
+type control_state = control_label list
 
 type arith_unop =
   | Neg

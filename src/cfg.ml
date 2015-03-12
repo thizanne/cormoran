@@ -3,7 +3,7 @@ open Printf
 
 module State =
 struct
-  type t = Syntax.position
+  type t = Syntax.control_state
   let compare = Pervasives.compare
   let hash = Hashtbl.hash
   let equal = ( = )
