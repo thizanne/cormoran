@@ -1,19 +1,18 @@
 flag_0 = 0, flag_1 = 0, turn = 0
 
 #
-local r0, r1;
 
 flag_0 := 1
 mfence
-
 turn := 1
 mfence
 
-label gate
-r0 := flag_1
-r1 := turn
-r0 := r0 * r1
-jnz r0 gate
+f := flag_1
+t := turn
+while (f = 1 && t = 1) {
+    f := flag_1
+    t := turn
+}
 
 /* Critical section ... */
 
@@ -21,19 +20,17 @@ flag_0 := 0
 mfence
 
 #
-local s0, s1;
-
 flag_1 := 1
 mfence
-
 turn := 0
 mfence
 
-label gate
-s0 := flag_0
-s1 := turn
-s0 := s0 * s1
-jz s0 gate
+f := flag_0
+t := turn
+while (f = 1 && t = 0) {
+    f := flag_0
+    t := turn
+}
 
 /* Critical section ... */
 
