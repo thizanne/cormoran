@@ -1,7 +1,7 @@
 open Batteries
 open Printf
 open Util
-open Flow
+open Cfg
 
 let edge_label {Operation.thread; op} =
   let output = IO.output_string () in
@@ -23,7 +23,7 @@ let edge_label {Operation.thread; op} =
 
 module Dot (R : Analysis.Result) = Graph.Graphviz.Dot (
   struct
-    include Flow.G
+    include Cfg.G
 
     let vertex_attributes v =
       let label v =

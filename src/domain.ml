@@ -7,7 +7,7 @@ module type Outer = sig
   val equal : t -> t -> bool
 
   val init : Syntax.program -> t
-  val transfer : t -> Flow.Operation.t -> t
+  val transfer : t -> Cfg.Operation.t -> t
   val join : t -> t -> t
 
   (* This is only for compatibility reasons with some old code, and
