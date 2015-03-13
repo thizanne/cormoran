@@ -20,6 +20,15 @@ let str_int_option = function
 let print_int_option output opt =
   String.print output (str_int_option opt)
 
+let option_map2 f op1 op2 = match op1, op2 with
+  | None, _ -> None
+  | _, None -> None
+  | Some x, Some y -> Some (f x y)
+
+let option_bind2 f op1 op2 = match op1, op2 with
+  | None, _ -> None
+  | _, None -> None
+  | Some x, Some y -> f x y
 
 (*
   List

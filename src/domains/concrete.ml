@@ -1,38 +1,37 @@
 open Batteries
 open Util
 open Printf
+open Location
 open Syntax
-open Syntax.Typed
-open Syntax.TypedProgram
+
+module Op = Cfg.Operation
 
 type state = {
-  regs : (string * int option) list;
-  mem : (string * int option) list;
-  buf : (string * int option) list list;
+  regs : (Symbol.t * int option) list list;
+  mem : (Symbol.t * int option) list;
+  buf : (Symbol.t * int option) list list;
 }
 
-module S = Set.Make (struct type t = state let compare = compare end)
+module D = Set.Make (struct type t = state let compare = compare end)
 
-type t = S.t
+type t = D.t
 
-let bottom = S.empty
+let bottom = D.empty
 
-let equal = S.equal
+let equal = D.equal
 
-let join = S.union
+let join = D.union
 
-let smap f s = S.fold (fun x e -> S.add (f x) e) s S.empty
+let smap f s = D.fold (fun x e -> D.add (f x) e) s D.empty
 
-let set_reg state r n = {
-  state with regs = set_assoc r n state.regs
+let set_reg state t x v = {
+  state with
+  regs =
+    set_nth t ((x, v) :: List.nth state.regs t) state.regs
 }
 
-let get_reg s r =
-  List.assoc r s.regs
-
-let get_value s v = match v with
-  | Int n -> Some n.item
-  | Var r -> get_reg s r.item
+let get_reg s t r =
+  List.assoc r (List.nth s.regs t)
 
 let get_var state t x =
   try
@@ -45,16 +44,6 @@ let set_var state t x v = {
   buf =
     set_nth t ((x, v) :: List.nth state.buf t) state.buf
 }
-
-let rec get_expr state = function
-  | Val v -> get_value state v.item
-  | Op (op, e1, e2) ->
-    let e1 = get_expr state e1.item in
-    let e2 = get_expr state e2.item in
-    begin match (e1, e2) with
-      | Some v1, Some v2 -> (fun_of_op op.item) v1 v2
-      | _, _ -> None
-    end
 
 let nth_buf p t =
   List.nth p.buf t
@@ -75,7 +64,8 @@ let x_in_buf p t x =
 
 let threads_x_older p x =
   0 -- (List.length p.buf - 1)
-  |> List.filter (fun t -> is_older_in_buf p t x)
+  |> Enum.filter (fun t -> is_older_in_buf p t x)
+  |> List.of_enum
 
 let flush s t =
   let (x, v) = last @@ nth_buf s t in
@@ -83,7 +73,7 @@ let flush s t =
     s with
     mem = set_assoc x v s.mem;
     buf =
-      set_nth t (first @@ List.nth s.buf t) s.buf;
+      set_nth t (front @@ List.nth s.buf t) s.buf;
   }
 
 let rec inser_all_first_pos x = function
@@ -111,81 +101,110 @@ let flush_after_mop p x =
   |> List.filter
     (fun (_i, buf) ->
        try fst @@ last buf = x with Not_found -> false)
-  |> List.map (fun (i, buf) -> repeat (List.length buf) i)
+  |> List.map (fun (i, buf) -> List.make (List.length buf) i)
   |> all_combi
   |> List.map (List.fold_left flush p)
 
-let transfer domain t = function
-  | Pass -> domain
-  | Read (r, x) ->
+let rec get_expr p thread =
+  let open Syntax in
+  function
+  | Int { Location.item = n; _ } -> Some n
+  | Var { Location.item = v; _ } ->
+    if is_local v
+    then get_reg p thread v.var_name
+    else get_var p thread v.var_name
+  | ArithUnop (op, expr) ->
+    Option.map
+      (fun_of_arith_unop op.Location.item)
+      (get_expr p thread expr.Location.item)
+  | ArithBinop (op, expr1, expr2) ->
+    begin
+      try
+        option_map2
+          (fun_of_arith_binop op.Location.item)
+          (get_expr p thread expr1.Location.item)
+          (get_expr p thread expr2.Location.item)
+      with
+        Division_by_zero -> None
+    end
+
+let rec validates_cond p thread =
+  let open Syntax in
+  let open Location in
+  function
+  | Bool b -> b.item
+  | LogicUnop (op, c) ->
+    fun_of_logic_unop op.item
+      (validates_cond p thread c.item)
+  | LogicBinop (op, c1, c2) ->
+    fun_of_logic_binop op.item
+      (validates_cond p thread c1.item)
+      (validates_cond p thread c2.item)
+  | ArithRel (rel, e1, e2) ->
+    begin match get_expr p thread e1.item, get_expr p thread e2.item with
+      | None, _ -> true
+      | _, None -> true
+      | Some n1, Some n2 -> fun_of_arith_rel rel.item n1 n2
+    end
+
+let transfer domain {Op.thread = t; op} = match op with
+  | Op.Identity -> domain
+  | Op.MFence -> D.filter (fun p -> is_empty_buffer p t) domain
+  | Op.Filter c -> D.filter (fun p -> validates_cond p t c) domain
+  | Op.Assign (x, expr) ->
+    let flush = match Syntax.shared_in_expr expr with
+      | [] -> List.singleton
+      | [x] -> fun p -> flush_after_mop p x
+      | _ -> Error.not_implemented_msg_error "Several shared in expr"
+    in
     let domain =
       domain
-      |> S.elements
-      |> List.map (fun p -> set_reg p r.item (get_var p t x.item))
-      |> List.map (fun p -> flush_after_mop p x.item)
+      |> D.elements
+      |> List.map (fun p -> set_var p t x.var_name (get_expr p t expr))
+      |> List.map flush
       |> List.flatten
     in
-    List.fold_right S.add domain S.empty
-  | Write (x, v) ->
-    let domain =
-      domain
-      |> S.elements
-      |> List.map (fun p -> set_var p t x.item (get_value p v.item))
-      |> List.map (fun p -> flush_after_mop p x.item)
-      |> List.flatten
-    in
-    List.fold_right S.add domain S.empty
-  | RegOp (r, e)  ->
-    smap
-      (fun p -> set_reg p r.item (get_expr p e.item)) domain
-  | Cmp (r, v1, v2) ->
-    smap
-      (fun p -> set_reg p r.item (
-           let v1 = get_value p v1.item in
-           let v2 = get_value p v2.item in
-           match (v1, v2) with
-           | Some n1, Some n2 ->
-             Some (
-               if n1 < n2 then -1
-               else if n1 > n2 then 1
-               else 0)
-           | _, _ -> None))
-      domain
-  | MFence -> S.filter (fun p -> is_empty_buffer p t) domain
-  | Label _ -> domain
-  | Jmp _ -> domain
-  | Jnz (r, _) -> S.filter (fun p -> get_reg p r.item <> Some 0) domain
-  | Jz (r, _) -> S.filter (fun p -> get_reg p r.item = Some 0) domain
+    List.fold_right D.add domain D.empty
 
 let initial_vars program =
-  List.map (fun (x, v) -> x, Some v) program.initial
+  Symbol.Map.map Option.some program.initial
+  |> Symbol.Map.enum
+  |> List.of_enum
+
 
 let initial_state program = {
   regs =
-    Array.fold_left ( @ ) []
-      (Array.map
-         (fun t -> List.map (fun r -> r, None) t.locals)
-         program.threads);
+    List.map
+      (fun { locals; _ } ->
+         Symbol.Set.fold
+           (fun x acc -> (x, None) :: acc)
+           locals [])
+      program.threads;
   mem = initial_vars program;
-  buf =
-    repeat (Array.length program.threads) [];
+  buf = List.map (fun _ -> []) program.threads
 }
 
-let init program = S.singleton (initial_state program)
+let init program = D.singleton (initial_state program)
 
 let str_var (x, v) =
-  sprintf "%s → %s" x (str_int_option v)
+  sprintf "%s → %s" (Symbol.name x) (str_int_option v)
+
+let rec string_of_list ?(sep="; ") string_of_elem = function
+  | [] -> ""
+  | [x] -> string_of_elem x
+  | x :: xs ->
+    string_of_elem x ^ sep ^ string_of_list ~sep string_of_elem xs
 
 let str_buf buf =
   "[" ^ string_of_list str_var buf ^ "]"
 
 let str_point {regs; mem; buf} =
-  string_of_list str_var regs ^ "\n" ^
+  string_of_list ~sep:"\n" str_buf regs ^ "\n" ^
   string_of_list ~sep:"\n" str_buf buf ^ "\n" ^
   string_of_list str_var mem ^ "\n"
 
 let to_string d =
-  S.fold
+  D.fold
     (fun p acc ->
        str_point p ^ "\n\n" ^ acc)
     d ""
@@ -197,10 +216,7 @@ let is_totally_flushed p =
   List.for_all (( = ) []) p.buf
 
 let state_sat_cond (var, value) s =
-  try
-    List.assoc var s.mem = Some value
-  with Not_found ->
-    List.assoc var s.regs = Some value
+  Error.not_implemented_msg_error "Sat not implemented"
 
 let state_sat cond s =
   is_totally_flushed s &&
@@ -209,4 +225,4 @@ let state_sat cond s =
     cond
 
 let satisfies cond domain =
-  S.exists (fun p -> state_sat cond p) domain
+  D.exists (fun p -> state_sat cond p) domain
