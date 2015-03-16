@@ -17,7 +17,7 @@ module Operation : sig
     | Assign of Program.var * Program.expression
 
   type t = {
-    thread : int;
+    thread : Program.thread_id;
     op : operation;
   }
 

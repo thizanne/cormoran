@@ -1,8 +1,12 @@
 open Batteries
 
+(* TODO: make these types private *)
+
 type control_label = int
 
 type control_state = control_label list
+
+type thread_id = int
 
 type arith_unop =
   | Neg
