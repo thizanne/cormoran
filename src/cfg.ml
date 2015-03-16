@@ -23,16 +23,13 @@ module Operation = struct
     | Filter of Program.condition
     | Assign of Program.var * Program.expression
 
-  type t = {
-    thread : int;
-    op : operation;
-  }
+  type t = operation Program.threaded
 
   let compare = Pervasives.compare
 
   let default = {
-    thread = -1;
-    op = Identity;
+    Program.thread_id = -1;
+    elem = Identity;
   }
 end
 
@@ -42,7 +39,7 @@ module ThreadG =
 module G =
   Persistent.Digraph.ConcreteLabeled (State) (Operation)
 
-let of_thread thread { Program.body; _ } =
+let of_thread thread_id { Program.body; _ } =
 
   let open Operation in
   let open Location in
@@ -68,7 +65,7 @@ let of_thread thread { Program.body; _ } =
     (* Adds an edge from orig to dest corresponding to the operation op.
        orig and dest are expected to be existing vertices in the graph *)
     ThreadG.add_edge_e acc
-      (ThreadG.E.create orig { op; thread } dest),
+      (ThreadG.E.create orig (Program.threaded thread_id op) dest),
     offset
   in
 
@@ -76,7 +73,7 @@ let of_thread thread { Program.body; _ } =
     (* Adds a single vertex to the graph, and a single edge from the
        former last vertex of the graph to this vertex *)
     ThreadG.add_edge_e acc
-      (ThreadG.E.create offset { op; thread } (offset + 1)),
+      (ThreadG.E.create offset (Program.threaded thread_id op) (offset + 1)),
     (offset + 1)
   in
 

@@ -8,6 +8,18 @@ type control_state = control_label list
 
 type thread_id = int
 
+(* TODO: unify threaded with Location.loc as a context comonad *)
+
+type 'a threaded = {
+  thread_id : thread_id;
+  elem : 'a;
+}
+
+let threaded thread_id elem = {
+  thread_id;
+  elem;
+}
+
 type arith_unop =
   | Neg
 
@@ -67,6 +79,16 @@ type var = {
   var_name : Symbol.t;
 }
 
+let local_var var_name = {
+  var_name;
+  var_type = Local;
+}
+
+let shared_var var_name = {
+  var_name;
+  var_type = Shared;
+}
+
 let is_local v =
   v.var_type = Local
 
@@ -80,6 +102,8 @@ type expression =
       arith_binop Location.loc *
       expression Location.loc *
       expression Location.loc
+
+let var v = Var v
 
 let rec shared_in_expr = function
   | Int _ -> []

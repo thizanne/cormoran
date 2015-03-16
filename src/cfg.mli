@@ -16,10 +16,7 @@ module Operation : sig
     | Filter of Program.condition
     | Assign of Program.var * Program.expression
 
-  type t = {
-    thread : Program.thread_id;
-    op : operation;
-  }
+  type t = operation Program.threaded
 
   val compare : t -> t -> int
   val default : t

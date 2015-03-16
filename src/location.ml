@@ -23,3 +23,9 @@ let mkloc item loc =
 
 let mkdummy item =
   { item; loc = dummy }
+
+let cobind f x =
+  { item = f x; loc = x.loc }
+
+let comap f { item; loc } =
+  { item = f item; loc }
