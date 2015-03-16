@@ -6,7 +6,7 @@ module type Outer = sig
   val bottom : t
   val equal : t -> t -> bool
 
-  val init : Syntax.program -> t
+  val init : Program.t -> t
   val transfer : t -> Cfg.Operation.t -> t
   val join : t -> t -> t
 
@@ -24,24 +24,24 @@ module type Inner = sig
 
   val equal : t -> t -> bool
 
-  val init : Syntax.program -> t
+  val init : Program.t -> t
 
   val join : t -> t -> t
   val meet : t -> t -> t
 
   val join_array : t array -> t
 
-  val meet_cons : t -> Syntax.condition -> t
-  val meet_cons_array : t -> Syntax.condition array -> t
+  val meet_cons : t -> Program.condition -> t
+  val meet_cons_array : t -> Program.condition array -> t
 
   val assign_expr :
     t -> ?dest:t option ->
-    Syntax.var -> Syntax.expression ->
+    Program.var -> Program.expression ->
     t
 
   val assign_expr_array :
     t -> ?dest: t option ->
-    Syntax.var array -> Syntax.expression array ->
+    Program.var array -> Program.expression array ->
     t
 
   val print : 'a IO.output -> t -> unit

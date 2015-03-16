@@ -1,1 +1,1 @@
-val type_program : Syntax.program -> Syntax.program
+val type_program : Program.t -> Program.t

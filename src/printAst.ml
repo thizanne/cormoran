@@ -1,5 +1,5 @@
 open Batteries
-open Syntax
+open Program
 open Location
 
 let string_of_arith_unop = function

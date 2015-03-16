@@ -2,7 +2,7 @@ open Batteries
 open Util
 open Printf
 open Location
-open Syntax
+open Program
 
 module Op = Cfg.Operation
 
@@ -106,7 +106,7 @@ let flush_after_mop p x =
   |> List.map (List.fold_left flush p)
 
 let rec get_expr p thread =
-  let open Syntax in
+  let open Program in
   function
   | Int { Location.item = n; _ } -> Some n
   | Var { Location.item = v; _ } ->
@@ -129,7 +129,7 @@ let rec get_expr p thread =
     end
 
 let rec validates_cond p thread =
-  let open Syntax in
+  let open Program in
   let open Location in
   function
   | Bool b -> b.item
@@ -152,7 +152,7 @@ let transfer domain {Op.thread = t; op} = match op with
   | Op.MFence -> D.filter (fun p -> is_empty_buffer p t) domain
   | Op.Filter c -> D.filter (fun p -> validates_cond p t c) domain
   | Op.Assign (x, expr) ->
-    let flush = match Syntax.shared_in_expr expr with
+    let flush = match Program.shared_in_expr expr with
       | [] -> List.singleton
       | [x] -> fun p -> flush_after_mop p x
       | _ -> Error.not_implemented_msg_error "Several shared in expr"

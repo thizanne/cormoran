@@ -20,7 +20,7 @@
 %left Plus Minus
 %left Times Divide
 
-%start <Syntax.program> program
+%start <Program.t> program
 
 %%
 
@@ -31,7 +31,7 @@ program :
 | mem = shared_decs SharpLine
     t = separated_nonempty_list(SharpLine, thread)
     Eof {
-    { Syntax.initial = mem; threads = t}
+    { Program.initial = mem; threads = t}
   }
 | error {
     let open Error in
@@ -50,89 +50,89 @@ shared_dec :
 
 thread :
 | body = body {
-    { Syntax.locals = Symbol.Set.empty; body }
+    { Program.locals = Symbol.Set.empty; body }
   }
 
 body :
-| { Syntax.Nothing }
+| { Program.Nothing }
 | body = nonempty_body { body }
 
 nonempty_body :
 | ins = instruction { ins }
 | ins = loc(instruction) seq = loc(nonempty_body) {
-    Syntax.Seq (ins, seq)
+    Program.Seq (ins, seq)
   }
 
 instruction :
-| Pass { Syntax.Pass }
-| MFence { Syntax.MFence }
+| Pass { Program.Pass }
+| MFence { Program.MFence }
 | x = loc(var) Assign e = loc(expression) {
-    Syntax.Assign (x, e)
+    Program.Assign (x, e)
   }
 | If cond = loc(condition) LCurly body = loc(body) RCurly {
-    Syntax.If (cond, body)
+    Program.If (cond, body)
   }
 | While cond = loc(condition) LCurly body = loc(body) RCurly {
-    Syntax.While (cond, body)
+    Program.While (cond, body)
   }
 | For i = loc(var) Semicolon
   from_exp = loc(expression) Semicolon to_exp = loc(expression)
   LCurly body = loc(body) RCurly {
-    Syntax.For (i, from_exp, to_exp, body)
+    Program.For (i, from_exp, to_exp, body)
   }
 
 var :
 | var_name = var_sym {
-    { Syntax.var_type = Syntax.Shared; var_name }
+    { Program.var_type = Program.Shared; var_name }
   }
 
 var_sym :
 | x = Id { var_sym x }
 
 expression :
-| n = loc(Int) { Syntax.Int n }
-| x = loc(var) { Syntax.Var x }
+| n = loc(Int) { Program.Int n }
+| x = loc(var) { Program.Var x }
 | LPar e = expression RPar { e }
 | o = loc(arith_unop) e = loc(expression) {
-    Syntax.ArithUnop (o, e)
+    Program.ArithUnop (o, e)
   }
 | e1 = loc(expression) o = loc(arith_binop) e2 = loc(expression) {
-    Syntax.ArithBinop (o, e1, e2)
+    Program.ArithBinop (o, e1, e2)
   }
 
 condition :
-| b = loc(Bool) { Syntax.Bool b }
+| b = loc(Bool) { Program.Bool b }
 | LPar c = condition RPar { c }
 | o = loc(logic_unop) c = loc(condition) {
-    Syntax.LogicUnop (o, c)
+    Program.LogicUnop (o, c)
   }
 | c1 = loc(condition) o = loc(logic_binop) c2 = loc(condition) {
-    Syntax.LogicBinop (o, c1, c2)
+    Program.LogicBinop (o, c1, c2)
   }
 | e1 = loc(expression) r = loc(arith_rel) e2 = loc(expression) {
-    Syntax.ArithRel (r, e1, e2)
+    Program.ArithRel (r, e1, e2)
   }
 
 %inline arith_unop :
-| Minus { Syntax.Neg }
+| Minus { Program.Neg }
 
 %inline logic_unop :
-| Not { Syntax.Not }
+| Not { Program.Not }
 
 %inline arith_binop :
-| Plus { Syntax.Add }
-| Minus { Syntax.Sub }
-| Times { Syntax.Mul }
-| Divide { Syntax.Div }
+| Plus { Program.Add }
+| Minus { Program.Sub }
+| Times { Program.Mul }
+| Divide { Program.Div }
 
 %inline arith_rel :
-| Eq { Syntax.Eq }
-| Neq { Syntax.Neq }
-| Lt { Syntax.Lt }
-| Gt { Syntax.Gt }
-| Le { Syntax.Le }
-| Ge { Syntax.Ge }
+| Eq { Program.Eq }
+| Neq { Program.Neq }
+| Lt { Program.Lt }
+| Gt { Program.Gt }
+| Le { Program.Le }
+| Ge { Program.Ge }
 
 %inline logic_binop :
-| And { Syntax.And }
-| Or { Syntax.Or }
+| And { Program.And }
+| Or { Program.Or }

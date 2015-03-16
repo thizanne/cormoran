@@ -2,7 +2,7 @@ open Batteries
 open Graph
 
 module State : sig
-  type t = Syntax.control_state
+  type t = Program.control_state
 
   val compare : t -> t -> int
   val hash : t -> int
@@ -13,8 +13,8 @@ module Operation : sig
   type operation =
     | Identity
     | MFence
-    | Filter of Syntax.condition
-    | Assign of Syntax.var * Syntax.expression
+    | Filter of Program.condition
+    | Assign of Program.var * Program.expression
 
   type t = {
     thread : int;
@@ -31,4 +31,4 @@ module G : Graph.Sig.P
    and type E.t = State.t * Operation.t * State.t
    and type E.label = Operation.t
 
-val of_program : Syntax.program -> G.t
+val of_program : Program.t -> G.t

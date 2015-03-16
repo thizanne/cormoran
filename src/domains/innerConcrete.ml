@@ -1,6 +1,6 @@
 open Batteries
 open Util
-open Syntax.TypedProgram
+open Syntax
 
 module Point = struct
   include Map.Make (struct

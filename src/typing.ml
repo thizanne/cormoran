@@ -1,8 +1,8 @@
 open Batteries
 open Location
 open Printf
-open Syntax
 open Error
+open Program
 
 let add_local_if_absent x env =
   Symbol.Map.modify_opt x

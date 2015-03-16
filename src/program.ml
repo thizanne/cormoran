@@ -1,5 +1,4 @@
 open Batteries
-open Location
 
 type control_label = int
 
@@ -81,11 +80,14 @@ type expression =
 let rec shared_in_expr = function
   | Int _ -> []
   | Var v ->
-    if is_local v.item then [] else [v.item.var_name]
+    if is_local v.Location.item
+    then []
+    else [v.Location.item.var_name]
   | ArithUnop (_, e) ->
-    shared_in_expr e.item
+    shared_in_expr e.Location.item
   | ArithBinop (_, e1, e2) ->
-    shared_in_expr e1.item @ shared_in_expr e2.item
+    shared_in_expr e1.Location.item @
+    shared_in_expr e2.Location.item
 
 type condition =
   | Bool of bool Location.loc
@@ -101,34 +103,37 @@ type condition =
       expression Location.loc *
       expression Location.loc
 
-type t  =
+type body  =
   | Nothing
   | Pass
   | MFence
   | Seq of
-      t Location.loc *
-      t Location.loc
+      body Location.loc *
+      body Location.loc
   | Assign of
       var Location.loc *
       expression Location.loc
   | If of
       condition Location.loc * (* Condition *)
-      t Location.loc (* Body *)
+      body Location.loc (* Body *)
   | While of
       condition Location.loc * (* Condition *)
-      t Location.loc (* Body *)
+      body Location.loc (* Body *)
   | For of
       var Location.loc * (* Indice *)
       expression Location.loc * (* From *)
       expression Location.loc * (* To *)
-      t Location.loc (* Body *)
+      body Location.loc (* Body *)
 
 type thread = {
   locals : Symbol.Set.t;
-  body : t;
+  body : body;
 }
 
-type program = {
+(* TODO: add a phantom type to ensure programs are typed before being
+   analysed *)
+
+type t = {
   initial : int Symbol.Map.t;
   threads : thread list;
 }
