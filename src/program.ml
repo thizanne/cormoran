@@ -12,13 +12,8 @@ type thread_id = int
 
 type 'a threaded = {
   thread_id : thread_id;
-  elem : 'a;
-}
-
-let threaded thread_id elem = {
-  thread_id;
-  elem;
-}
+  elem : 'a [@main];
+} [@@deriving create]
 
 type arith_unop =
   | Neg

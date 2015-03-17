@@ -131,26 +131,26 @@ module Make (Inner : Domain.Inner) = struct
        key is already present *)
     M.modify_def abstr bufs (Inner.join abstr) d
 
-  let flush tid bufs abstr d =
+  let flush thread_id bufs abstr d =
     (* Updates the abstract domain d to take into account the flush of
        the oldest entry of the t-th buffer from the numerical domain
        abstr *)
-    let x = Program.shared_var @@ Bufs.last (Bufs.nth bufs tid) in
+    let x = P.shared_var @@ Bufs.last (Bufs.nth bufs thread_id) in
     (* Assign the value of x_t to every x_i in the numerical domain
        abstr where x_i is not present in buffer i *)
     let var_array = (* [|x_0; x_1; ...|] as var threaded *)
-      Bufs.get_no_var bufs x.Program.var_name
-      |> List.map (fun tid -> Program.threaded tid x)
+      Bufs.get_no_var bufs x.P.var_name
+      |> List.map (fun tid -> P.create_threaded thread_id x)
       |> Array.of_list in
     let texpr_array = (* [|x_t; x_t; ...|] as expression threaded *)
       Array.make (Array.length var_array) (Location.mkdummy x)
-      |> Array.map Program.var
-      |> Array.map @@ Program.threaded tid in
+      |> Array.map P.var
+      |> Array.map @@ P.create_threaded ~thread_id in
     let abstr =
       Inner.assign_expr_array abstr var_array texpr_array in
 
     (* Make the joins *)
-    add_join (Bufs.flush bufs tid) abstr d
+    add_join (Bufs.flush bufs thread_id) abstr d
 
   let flush_mop x bufs abstr d =
     (* Updates the abstract domain d to take into account every possible
@@ -169,7 +169,7 @@ module Make (Inner : Domain.Inner) = struct
        operation on the shared variable x *)
     M.fold (flush_mop x) d d
 
-  let transfer d { Program.thread_id = tid; elem = ins } =
+  let transfer d { P.thread_id = tid; elem = ins } =
     match ins with
     | O.Identity -> d
     | O.MFence ->
@@ -179,23 +179,23 @@ module Make (Inner : Domain.Inner) = struct
         M.map
           (fun abstr ->
              Inner.assign_expr abstr
-               (Program.threaded tid x)
-               (Program.threaded tid expr))
+               (P.create_threaded tid x)
+               (P.create_threaded tid expr))
           d in
       let d = (* Add x to the tid-th buffer if it's a write *)
-        match x.Program.var_type with
-        | Program.Local -> d
-        | Program.Shared ->
+        match x.P.var_type with
+        | P.Local -> d
+        | P.Shared ->
           M.Labels.fold
             ~f:(fun ~key:bufs ~data:abstr acc ->
                 add_join
-                  (Bufs.write bufs tid x.Program.var_name)
+                  (Bufs.write bufs tid x.P.var_name)
                   abstr
                   acc)
             ~init:M.empty
             d in
       let d = (* Close by partial flush if needed *)
-        begin match Program.shared_in_expr expr with
+        begin match P.shared_in_expr expr with
           | [] -> d
           | [x] -> close_after_mop x d
           | _ -> failwith "Abstract.transfer"
@@ -204,7 +204,7 @@ module Make (Inner : Domain.Inner) = struct
     | O.Filter cond ->
       M.map
         (fun abstr ->
-           Inner.meet_cons abstr @@ Program.threaded tid cond)
+           Inner.meet_cons abstr @@ P.create_threaded tid cond)
         d
       |> normalize
 
