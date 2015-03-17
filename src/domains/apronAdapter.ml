@@ -143,42 +143,57 @@ module Make (N : Numerical) : Domain.Inner = struct
           )
       end
 
-  let rec aux cond = match cond with
+  let rec norm_cond cond = match cond with
+    (* TODO: Maybe it would be better to do this once and for all when
+       building the AST *)
     | P.Bool _
     | P.ArithRel _ -> cond
     | P.LogicUnop ({ L.item = P.Not; _ }, cond) ->
-      aux (cond_not cond.L.item)
+      norm_cond (cond_not cond.L.item)
     | P.LogicBinop ({ L.item = P.Or; _ } as op, cond1, cond2) ->
-      P.LogicBinop (op, L.comap aux cond1, L.comap aux cond2)
+      P.LogicBinop (op, L.comap norm_cond cond1, L.comap norm_cond cond2)
     | P.LogicBinop ({ L.item = P.And; _ } as op_and, cond1, cond2) ->
       begin match cond1.L.item with
-        | P.Bool { L.item = true } -> aux cond2.L.item
+        | P.Bool { L.item = true } -> norm_cond cond2.L.item
         | P.Bool { L.item = false } -> cond1.L.item
         | P.LogicUnop _ ->
-          aux @@ P.LogicBinop (op_and, L.comap aux cond1, cond2)
+          norm_cond @@ P.LogicBinop (op_and, L.comap norm_cond cond1, cond2)
         | P.LogicBinop ({ L.item = P.Or }, cond1', cond2') ->
           P.LogicBinop (
             L.mkdummy P.Or,
-            L.mkdummy @@ aux @@ P.LogicBinop (op_and, cond1', cond2),
-            L.mkdummy @@ aux @@ P.LogicBinop (op_and, cond2', cond2)
+            L.mkdummy @@ norm_cond @@ P.LogicBinop (op_and, cond1', cond2),
+            L.mkdummy @@ norm_cond @@ P.LogicBinop (op_and, cond2', cond2)
           )
         | P.LogicBinop ({ L.item = P.And; _ } as op_and', cond1', cond2') ->
-          aux @@ P.LogicBinop (
+          norm_cond @@ P.LogicBinop (
             op_and,
             cond1',
             L.mkdummy @@ P.LogicBinop (op_and', cond2', cond2)
           )
         | P.ArithRel _ ->
-          begin match aux cond2.L.item with
+          begin match norm_cond cond2.L.item with
             | P.LogicUnop _ -> failwith "normalize_cond"
             | P.ArithRel _
             | P.LogicBinop ({ L.item = P.And; _}, _, _) as c2 ->
               P.LogicBinop (op_and, cond1, L.mkdummy c2)
             | P.Bool _ | P.LogicBinop ({ L.item = P.Or; _}, _, _) as c2 ->
-              aux @@ P.LogicBinop (op_and, L.mkdummy c2, cond1)
+              norm_cond @@ P.LogicBinop (op_and, L.mkdummy c2, cond1)
           end
-
       end
+
+  let tcons thread_id env rel e1 e2 =
+    let expr e e' =
+      Texpr1.binop
+        Texpr1.Sub
+        (texpr1 env e) (texpr1 env e')
+        Texpr1.Int Texpr1.Zero in
+    match rel with
+    | P.Eq -> Tcons1.make (expr e1 e2) Tcons1.EQ
+    | P.Neq -> Tcons1.make (expr e1 e2) Tcons1.DISEQ
+    | P.Lt -> Tcons1.make (expr e2 e1) Tcons1.SUP
+    | P.Le -> Tcons1.make (expr e2 e1) Tcons1.SUPEQ
+    | P.Gt -> Tcons1.make (expr e1 e2) Tcons1.SUP
+    | P.Ge -> Tcons1.make (expr e1 e2) Tcons1.SUPEQ
 
   let meet_cons abstr cons =
     Abstract1.meet_tcons_array man abstr
