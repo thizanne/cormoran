@@ -72,10 +72,17 @@ let rec type_body env = function
     check_condition env cond.item;
     type_body env body.item
   | For (i, exp_from, exp_to, body) ->
-    let env_i = add_local_if_absent i.item.var_name env in
-    check_expression env_i false exp_from;
-    check_expression env_i false exp_to;
-    type_body env_i body.item
+    begin match Symbol.Map.Exceptionless.find i.item.var_name env with
+      | None
+      | Some Local ->
+        i.item.var_type <- Local;
+        let env_i = add_local_if_absent i.item.var_name env in
+        check_expression env_i false exp_from;
+        check_expression env_i false exp_to;
+        type_body env_i body.item
+      | Some Shared ->
+        type_error i "For indices must not be shared variables"
+    end
 
 let type_thread shared_env { locals; body } =
   let env = type_body shared_env body in {

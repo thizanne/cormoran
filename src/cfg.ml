@@ -1,6 +1,8 @@
 open Batteries
 open Graph
 
+module L = Location
+
 module ThreadState = struct
   type t = Program.control_label
   let compare = Pervasives.compare
@@ -116,12 +118,18 @@ let cfg_of_thread thread_id { Program.body; _ } =
       |> add_op_edge (filter_not cond) offset (offset' + 1)
     | P.For (i, exp_from, exp_to, body) ->
       let acc', offset' = cfg_of_body (acc, offset + 2) body.item in
+      let iplus1 =
+        P.ArithBinop (
+          L.mkdummy P.Add,
+          L.mkdummy @@ P.Var (L.mkdummy i.item),
+          L.mkdummy @@ P.Int (L.mkdummy 1)
+        ) in
       (acc', offset')
       |> add_single_vertex
       |> add_op_edge (Assign (i.item, exp_from.item)) offset (offset + 1)
       |> add_op_edge (filter_rel P.Le i exp_to) (offset + 1) (offset + 2)
       |> add_op_edge (filter_rel P.Gt i exp_to) (offset + 1) (offset' + 1)
-      |> add_op_edge Identity offset' (offset + 1)
+      |> add_op_edge (Assign (i.item, iplus1)) offset' (offset + 1)
 
   in fst (cfg_of_body (ThreadG.add_vertex ThreadG.empty 0, 0) body)
 
