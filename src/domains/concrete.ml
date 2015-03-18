@@ -2,9 +2,9 @@ open Batteries
 open Util
 open Printf
 open Location
-open Program
 
 module Op = Cfg.Operation
+module P = Program
 
 type state = {
   regs : (Symbol.t * int option) list list;
@@ -147,7 +147,7 @@ let rec validates_cond p thread =
       | Some n1, Some n2 -> fun_of_arith_rel rel.item n1 n2
     end
 
-let transfer domain {Op.thread = t; op} = match op with
+let transfer domain {P.thread_id = t; elem = op} = match op with
   | Op.Identity -> domain
   | Op.MFence -> D.filter (fun p -> is_empty_buffer p t) domain
   | Op.Filter c -> D.filter (fun p -> validates_cond p t c) domain
@@ -160,14 +160,14 @@ let transfer domain {Op.thread = t; op} = match op with
     let domain =
       domain
       |> D.elements
-      |> List.map (fun p -> set_var p t x.var_name (get_expr p t expr))
+      |> List.map (fun p -> set_var p t x.P.var_name (get_expr p t expr))
       |> List.map flush
       |> List.flatten
     in
     List.fold_right D.add domain D.empty
 
 let initial_vars program =
-  Symbol.Map.map Option.some program.initial
+  Symbol.Map.map Option.some program.P.initial
   |> Symbol.Map.enum
   |> List.of_enum
 
@@ -175,13 +175,13 @@ let initial_vars program =
 let initial_state program = {
   regs =
     List.map
-      (fun { locals; _ } ->
+      (fun { P.locals; _ } ->
          Symbol.Set.fold
            (fun x acc -> (x, None) :: acc)
            locals [])
-      program.threads;
+      program.P.threads;
   mem = initial_vars program;
-  buf = List.map (fun _ -> []) program.threads
+  buf = List.map (fun _ -> []) program.P.threads
 }
 
 let init program = D.singleton (initial_state program)
