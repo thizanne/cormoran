@@ -75,7 +75,13 @@ let cfg_of_thread thread_id { Program.body; _ } =
     offset
   in
 
-  let single_edge op (acc, offset) =
+  let add_single_vertex (acc, offset) =
+    (* Adds a single vertex to the graph *)
+    ThreadG.add_vertex acc (offset + 1),
+    (offset + 1)
+  in
+
+  let add_single_edge op (acc, offset) =
     (* Adds a single vertex to the graph, and a single edge from the
        former last vertex of the graph to this vertex *)
     ThreadG.add_edge_e acc
@@ -89,11 +95,11 @@ let cfg_of_thread thread_id { Program.body; _ } =
     | P.Nothing ->
       acc, offset
     | P.Pass ->
-      single_edge Identity (acc, offset)
+      add_single_edge Identity (acc, offset)
     | P.MFence ->
-      single_edge MFence (acc, offset)
+      add_single_edge MFence (acc, offset)
     | P.Assign (x, e) ->
-      single_edge (Assign (x.item, e.item)) (acc, offset)
+      add_single_edge (Assign (x.item, e.item)) (acc, offset)
     | P.Seq (b1, b2) ->
       cfg_of_body (cfg_of_body (acc, offset) b1.item) b2.item
     | P.If (cond, body) ->
@@ -104,15 +110,17 @@ let cfg_of_thread thread_id { Program.body; _ } =
     | P.While (cond, body) ->
       let acc', offset' = cfg_of_body (acc, offset + 1) body.item in
       (acc', offset')
-      |> add_op_edge (Filter cond.item) offset (offset + 1)
-      |> add_op_edge (filter_not cond) offset offset'
+      |> add_single_vertex
       |> add_op_edge Identity offset' offset
+      |> add_op_edge (Filter cond.item) offset (offset + 1)
+      |> add_op_edge (filter_not cond) offset (offset' + 1)
     | P.For (i, exp_from, exp_to, body) ->
       let acc', offset' = cfg_of_body (acc, offset + 2) body.item in
       (acc', offset')
+      |> add_single_vertex
       |> add_op_edge (Assign (i.item, exp_from.item)) offset (offset + 1)
       |> add_op_edge (filter_rel P.Le i exp_to) (offset + 1) (offset + 2)
-      |> add_op_edge (filter_rel P.Gt i exp_to) (offset + 1) offset'
+      |> add_op_edge (filter_rel P.Gt i exp_to) (offset + 1) (offset' + 1)
       |> add_op_edge Identity offset' (offset + 1)
 
   in fst (cfg_of_body (ThreadG.add_vertex ThreadG.empty 0, 0) body)
