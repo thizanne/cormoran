@@ -38,7 +38,12 @@ module ThreadG =
 module G =
   Persistent.Digraph.ConcreteLabeled (State) (Operation)
 
-let of_thread thread_id { Program.body; _ } =
+type t = {
+  program : Program.t;
+  graph : G.t;
+}
+
+let cfg_of_thread thread_id { Program.body; _ } =
 
   let open Operation in
   let open Location in
@@ -80,7 +85,7 @@ let of_thread thread_id { Program.body; _ } =
     (offset + 1)
   in
 
-  let rec of_body (acc, offset) = function
+  let rec cfg_of_body (acc, offset) = function
     | P.Nothing ->
       acc, offset
     | P.Pass ->
@@ -90,27 +95,27 @@ let of_thread thread_id { Program.body; _ } =
     | P.Assign (x, e) ->
       single_edge (Assign (x.item, e.item)) (acc, offset)
     | P.Seq (b1, b2) ->
-      of_body (of_body (acc, offset) b1.item) b2.item
+      cfg_of_body (cfg_of_body (acc, offset) b1.item) b2.item
     | P.If (cond, body) ->
-      let acc', offset' = of_body (acc, offset + 1) body.item in
+      let acc', offset' = cfg_of_body (acc, offset + 1) body.item in
       (acc', offset')
       |> add_op_edge (Filter cond.item) offset (offset + 1)
       |> add_op_edge (filter_not cond) offset offset'
     | P.While (cond, body) ->
-      let acc', offset' = of_body (acc, offset + 1) body.item in
+      let acc', offset' = cfg_of_body (acc, offset + 1) body.item in
       (acc', offset')
       |> add_op_edge (Filter cond.item) offset (offset + 1)
       |> add_op_edge (filter_not cond) offset offset'
       |> add_op_edge Identity offset' offset
     | P.For (i, exp_from, exp_to, body) ->
-      let acc', offset' = of_body (acc, offset + 2) body.item in
+      let acc', offset' = cfg_of_body (acc, offset + 2) body.item in
       (acc', offset')
       |> add_op_edge (Assign (i.item, exp_from.item)) offset (offset + 1)
       |> add_op_edge (filter_rel P.Le i exp_to) (offset + 1) (offset + 2)
       |> add_op_edge (filter_rel P.Gt i exp_to) (offset + 1) offset'
       |> add_op_edge Identity offset' (offset + 1)
 
-  in fst (of_body (ThreadG.add_vertex ThreadG.empty 0, 0) body)
+  in fst (cfg_of_body (ThreadG.add_vertex ThreadG.empty 0, 0) body)
 
 module Oper = Oper.Make (Builder.P (G))
 
@@ -129,8 +134,13 @@ let combine cfg1 cfg2 =
          cfg2)
     cfg1
 
-let of_program { Program.threads; _ } =
+let cfg_of_program { Program.threads; _ } =
   List.fold_righti
-    (fun thread body g -> combine (of_thread thread body) g)
+    (fun thread body g -> combine (cfg_of_thread thread body) g)
     threads
     (G.add_vertex G.empty [])
+
+let of_program program = {
+  program;
+  graph = cfg_of_program program;
+}

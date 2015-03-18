@@ -18,11 +18,11 @@ module Make (D : Domain.Outer) = struct
 
   include Fixpoint
 
-  let make_analyze program =
+  let make_analyze g =
     analyze
       (fun control_state ->
          if P.is_initial control_state
-         then D.init program
+         then D.init g.Cfg.program
          else D.bottom)
-      (Cfg.of_program program)
+      g.Cfg.graph
   end

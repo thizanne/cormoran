@@ -27,4 +27,9 @@ module G : Graph.Sig.P
    and type E.t = State.t * Operation.t * State.t
    and type E.label = Operation.t
 
-val of_program : Program.t -> G.t
+type t = private {
+  program : Program.t;
+  graph : G.t;
+}
+
+val of_program : Program.t -> t
