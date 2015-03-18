@@ -122,7 +122,7 @@ let print output =
   D.print
     ~first:"" ~last:"" ~sep:";\n"
     (Point.print
-       ~first:"" ~sep:", " ~last:""
+       ~first:"" ~sep:", " ~last:"" ~kvsep:" = "
        (Program.print_threaded Program.print_var)
        print_int_option)
     output

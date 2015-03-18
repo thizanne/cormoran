@@ -33,7 +33,7 @@ module Make (N : Numerical) : Domain.Inner = struct
     (* We use the same to-string conversion for local and shared vars,
        using the syntactic fact that variable names cannot contain
        ':'. *)
-    Var.of_string (sprintf "%d:%s" thread_id (Symbol.name x))
+    Var.of_string (sprintf "%s:%d" (Symbol.name x) thread_id)
 
   let ap_var { P.thread_id; elem = x } =
     ap_var_sym thread_id x.P.var_name

@@ -19,7 +19,7 @@ type 'a threaded = {
 } [@@deriving create]
 
 let print_threaded print_elem output { thread_id; elem } =
-  Printf.fprintf output "%d:%a" thread_id print_elem elem
+  Printf.fprintf output "%a:%d" print_elem elem thread_id
 
 type arith_unop =
   | Neg
