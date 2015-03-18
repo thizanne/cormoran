@@ -1,5 +1,4 @@
 open Batteries
-open Format
 open Util
 
 module P = Program
@@ -14,10 +13,8 @@ module Bufs : sig
   type buf
   val is_empty : buf -> bool
   val last : buf -> Symbol.t (* can raise Not_found *)
-  val is_last : buf -> Symbol.t -> bool
   type t
   val compare : t -> t -> int
-  val nb_threads : t -> int
   val nth : t -> int -> buf
   val write : t -> Program.thread_id -> Symbol.t -> t
   val init : Program.t -> t
@@ -36,10 +33,6 @@ struct
     | Some (_, x) -> x
     | None -> raise Not_found
 
-  let is_last buf x =
-    try last buf = x
-    with Not_found -> false
-
   let is_absent buf x =
     Deque.find (( = ) x) buf = None
 
@@ -56,17 +49,15 @@ struct
          Enum.compare Symbol.Ord.compare
            (Deque.enum dq1) (Deque.enum dq2))
 
-  let nb_threads = List.length
-
   let nth = List.at
 
-  let rec write bufs tid var =
+  let write bufs tid var =
     List.modify_at tid (move_to_head var) bufs
 
   let init prog =
     List.init (List.length prog.P.threads) (fun _ -> Deque.empty)
 
-  let rec flush bufs tid =
+  let flush bufs tid =
     List.modify_at tid
       (fun buf -> match Deque.rear buf with
          | Some (buf', _) -> buf'
@@ -77,7 +68,7 @@ struct
     (* TODO can probably be done better *)
     let t_list tid buf =
       (* ~= List.make (Deque.length buf) t, if Deque.length existed *)
-      Deque.fold_left (fun acc x -> tid :: acc) [] buf
+      Deque.fold_left (fun acc _ -> tid :: acc) [] buf
     in
 
     bufs
@@ -166,18 +157,18 @@ module Make (Inner : Domain.Inner) = struct
        operation on the shared variable x *)
     M.fold (flush_mop x) d d
 
-  let transfer d { P.thread_id = tid; elem = ins } =
+  let transfer d { P.thread_id; elem = ins } =
     match ins with
     | O.Identity -> d
     | O.MFence ->
-      M.filter (fun bufs _ -> Bufs.is_empty (Bufs.nth bufs tid)) d
+      M.filter (fun bufs _ -> Bufs.is_empty (Bufs.nth bufs thread_id)) d
     | O.Assign (x, expr) ->
       let d = (* Make the assignation on inner abstract variables *)
         M.map
           (fun abstr ->
              Inner.assign_expr abstr
-               (P.create_threaded tid x)
-               (P.create_threaded tid expr))
+               (P.create_threaded ~thread_id x)
+               (P.create_threaded ~thread_id expr))
           d in
       let d = (* Add x to the tid-th buffer if it's a write *)
         match x.P.var_type with
@@ -186,7 +177,7 @@ module Make (Inner : Domain.Inner) = struct
           M.Labels.fold
             ~f:(fun ~key:bufs ~data:abstr acc ->
                 add_join
-                  (Bufs.write bufs tid x.P.var_name)
+                  (Bufs.write bufs thread_id x.P.var_name)
                   abstr
                   acc)
             ~init:M.empty
@@ -201,7 +192,7 @@ module Make (Inner : Domain.Inner) = struct
     | O.Filter cond ->
       M.map
         (fun abstr ->
-           Inner.meet_cons abstr @@ P.create_threaded tid cond)
+           Inner.meet_cons abstr @@ P.create_threaded ~thread_id cond)
         d
       |> normalize
 
@@ -212,7 +203,7 @@ module Make (Inner : Domain.Inner) = struct
          | _, None -> abstr1
          | Some abstr1, Some abstr2 -> Some (Inner.join abstr1 abstr2))
 
-  let satisfies t =
+  let satisfies _ =
     Error.not_implemented_msg_error
       "Constraint satisfaction is not implemented on domain Abstract"
 end

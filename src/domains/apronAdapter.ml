@@ -38,7 +38,7 @@ module Make (N : Numerical) : Domain.Inner = struct
   let ap_var { P.thread_id; elem = x } =
     ap_var_sym thread_id x.P.var_name
 
-  let rec texpr1 env { P.elem = expr; thread_id } =
+  let texpr1 env { P.elem = expr; thread_id } =
     let rec to_expr = function
       | P.Int n ->
         Texpr1.Cst (Coeff.s_of_int n.L.item)
@@ -128,7 +128,7 @@ module Make (N : Numerical) : Domain.Inner = struct
     | P.LogicBinop (op, cond1, cond2) ->
       P.LogicBinop (
         L.comap not_op op,
-        L.mkdummy @@ P.LogicUnop (L.mkdummy P.Not, cond2),
+        L.mkdummy @@ P.LogicUnop (L.mkdummy P.Not, cond1),
         L.mkdummy @@ P.LogicUnop (L.mkdummy P.Not, cond2)
       )
 
@@ -152,7 +152,7 @@ module Make (N : Numerical) : Domain.Inner = struct
     match cons with
     | P.Bool { L.item = true; _ } -> abstr
     | P.Bool { L.item = false; _ } -> Abstract1.bottom man env
-    | P.LogicUnop ({ L.item = P.Not }, c) ->
+    | P.LogicUnop ({ L.item = P.Not; _ }, c) ->
       meet_cons abstr { P.elem = reduce_not c.L.item; thread_id }
     | P.ArithRel (rel, e1, e2) ->
       let earray = Tcons1.array_make env 1 in

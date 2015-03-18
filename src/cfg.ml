@@ -1,5 +1,4 @@
 open Batteries
-open Printf
 open Graph
 
 module ThreadState = struct
@@ -66,7 +65,7 @@ let of_thread thread_id { Program.body; _ } =
        orig and dest are expected to be existing vertices in the graph *)
     ThreadG.add_edge_e acc
       (ThreadG.E.create orig
-         (Program.create_threaded thread_id op)
+         (Program.create_threaded ~thread_id op)
          dest),
     offset
   in
@@ -76,7 +75,7 @@ let of_thread thread_id { Program.body; _ } =
        former last vertex of the graph to this vertex *)
     ThreadG.add_edge_e acc
       (ThreadG.E.create offset
-         (Program.create_threaded thread_id op)
+         (Program.create_threaded ~thread_id op)
          (offset + 1)),
     (offset + 1)
   in

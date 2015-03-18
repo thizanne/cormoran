@@ -55,7 +55,7 @@ let rec last = function
 
 let rec front = function
   | [] -> failwith "front"
-  | [x] -> []
+  | [_] -> []
   | x :: xs -> x :: front xs
 
 let rec inser_all_pos x = function

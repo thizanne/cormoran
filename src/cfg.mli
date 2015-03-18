@@ -1,5 +1,4 @@
 open Batteries
-open Graph
 
 module State : sig
   type t = Program.control_state
