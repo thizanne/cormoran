@@ -6,6 +6,9 @@ type control_label = int
 
 type control_state = control_label list
 
+let is_initial =
+  List.for_all (( = ) 0)
+
 type thread_id = int
 
 (* TODO: unify threaded with Location.loc as a context comonad *)
