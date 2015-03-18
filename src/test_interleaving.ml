@@ -13,7 +13,7 @@ let speclist = [
 
   "--domain",
   Arg.Set_string domain,
-  "Domain: abstract (default), order, mark, concrete, top";
+  "Domain: abstract (default), order, concrete, top";
 
   "--no-cond",
   Arg.Clear cond_check,
@@ -29,7 +29,6 @@ let domains : (string * (module Domain.Outer)) list = [
   "abstract", (module Abstract.Make (ApronAdapter.Polka));
   "top", (module Top);
   "order", (module Abstract.Make (InnerConcrete));
-  "mark", (module Mark);
   "concrete", (module Concrete);
 ]
 
@@ -37,15 +36,15 @@ let print_cfg file =
   try
     let lexbuf = Lexing.from_channel @@ open_in file in
     let program, _cond = Parse.parse use_litmus lexbuf in
-    let g = Cfg.make program in
     let module D = (val List.assoc !domain domains) in
+    let g = Cfg.of_program program in
     let module Analysis = Interleaving.Make (D) in
-    let analyze = Analysis.make_analyze program in
+    let analyze = Analysis.make_analyze g in
     let module Result = struct module Domain = D let data = analyze end in
-    let module Dot = Cfg.Dot (Result) in
-    Dot.output_graph stdout g
+    let module Dot = ExportCfg.Dot (Result) in
+    Dot.output_graph Legacy.stdout g.Cfg.graph
   with
-  | Error li -> List.iter (fun e -> print_endline (msg_of_error e ^ "\n")) li
+  | Error e -> prerr_endline (to_string e)
 
 let () =
   Arg.parse speclist print_cfg
