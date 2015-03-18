@@ -1,6 +1,5 @@
 open Batteries
 open Util
-open Printf
 open Location
 
 module Op = Cfg.Operation
@@ -39,11 +38,25 @@ let get_var state t x =
   with Not_found ->
     List.assoc x state.mem
 
-let set_var state t x v = {
+let set_local state tid x n = {
+  state with
+  regs =
+    List.modify_at tid
+      (List.modify_opt x (fun _ -> Some n))
+      state.regs
+}
+
+let set_shared state tid x n = {
   state with
   buf =
-    set_nth t ((x, v) :: List.nth state.buf t) state.buf
+    List.modify_at tid
+      (List.cons (x, n))
+      state.buf
 }
+
+let set_var state tid x n = match x.P.var_type with
+  | P.Local -> set_local state tid x.P.var_name n
+  | P.Shared -> set_shared state tid x.P.var_name n
 
 let nth_buf p t =
   List.nth p.buf t
@@ -68,8 +81,7 @@ let threads_x_older p x =
   |> List.of_enum
 
 let flush s t =
-  let (x, v) = last @@ nth_buf s t in
-  {
+  let (x, v) = last @@ nth_buf s t in {
     s with
     mem = set_assoc x v s.mem;
     buf =
@@ -106,22 +118,21 @@ let flush_after_mop p x =
   |> List.map (List.fold_left flush p)
 
 let rec get_expr p thread =
-  let open Program in
   function
-  | Int { Location.item = n; _ } -> Some n
-  | Var { Location.item = v; _ } ->
-    if is_local v
-    then get_reg p thread v.var_name
-    else get_var p thread v.var_name
-  | ArithUnop (op, expr) ->
+  | P.Int { Location.item = n; _ } -> Some n
+  | P.Var { Location.item = v; _ } ->
+    if P.is_local v
+    then get_reg p thread v.P.var_name
+    else get_var p thread v.P.var_name
+  | P.ArithUnop (op, expr) ->
     Option.map
-      (fun_of_arith_unop op.Location.item)
+      (P.fun_of_arith_unop op.Location.item)
       (get_expr p thread expr.Location.item)
-  | ArithBinop (op, expr1, expr2) ->
+  | P.ArithBinop (op, expr1, expr2) ->
     begin
       try
         option_map2
-          (fun_of_arith_binop op.Location.item)
+          (P.fun_of_arith_binop op.Location.item)
           (get_expr p thread expr1.Location.item)
           (get_expr p thread expr2.Location.item)
       with
@@ -152,15 +163,16 @@ let transfer domain {P.thread_id = t; elem = op} = match op with
   | Op.MFence -> D.filter (fun p -> is_empty_buffer p t) domain
   | Op.Filter c -> D.filter (fun p -> validates_cond p t c) domain
   | Op.Assign (x, expr) ->
-    let flush = match Program.shared_in_expr expr with
-      | [] -> List.singleton
-      | [x] -> fun p -> flush_after_mop p x
+    let flush = match x.P.var_type, Program.shared_in_expr expr with
+      | P.Local, [] -> List.singleton
+      | P.Shared, [] -> fun p -> flush_after_mop p x.P.var_name
+      | P.Local, [y] -> fun p -> flush_after_mop p y
       | _ -> Error.not_implemented_msg_error "Several shared in expr"
     in
     let domain =
       domain
       |> D.elements
-      |> List.map (fun p -> set_var p t x.P.var_name (get_expr p t expr))
+      |> List.map (fun p -> set_var p t x (get_expr p t expr))
       |> List.map flush
       |> List.flatten
     in
@@ -170,7 +182,6 @@ let initial_vars program =
   Symbol.Map.map Option.some program.P.initial
   |> Symbol.Map.enum
   |> List.of_enum
-
 
 let initial_state program = {
   regs =
@@ -186,31 +197,26 @@ let initial_state program = {
 
 let init program = D.singleton (initial_state program)
 
-let str_var (x, v) =
-  sprintf "%s → %s" (Symbol.name x) (str_int_option v)
+let val_print output (x, n) =
+  Printf.fprintf output "%a=%a"
+    Symbol.print x
+    print_int_option n
 
-let rec string_of_list ?(sep="; ") string_of_elem = function
-  | [] -> ""
-  | [x] -> string_of_elem x
-  | x :: xs ->
-    string_of_elem x ^ sep ^ string_of_list ~sep string_of_elem xs
+let print_mem output =
+  List.print val_print output
 
-let str_buf buf =
-  "[" ^ string_of_list str_var buf ^ "]"
+let print_thread output =
+  List.print ~sep:"\n" ~first:"" ~last:"" print_mem output
 
-let str_point {regs; mem; buf} =
-  string_of_list ~sep:"\n" str_buf regs ^ "\n" ^
-  string_of_list ~sep:"\n" str_buf buf ^ "\n" ^
-  string_of_list str_var mem ^ "\n"
+let print_point output { regs; buf; mem } =
+  Printf.fprintf output "Locals:\n%a\n\nBuffers:\n%a\n\nMemory:\n%a"
+    print_thread regs
+    print_thread buf
+    print_mem mem
 
-let to_string d =
-  D.fold
-    (fun p acc ->
-       str_point p ^ "\n\n" ^ acc)
-    d ""
-
-let print output d =
-  IO.nwrite output (to_string d)
+let print output =
+  D.print print_point output
+    ~first:"" ~last:"" ~sep:"\n────────\n"
 
 let is_totally_flushed p =
   List.for_all (( = ) []) p.buf
