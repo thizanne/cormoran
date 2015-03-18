@@ -4,6 +4,7 @@ open Util
 
 module P = Program
 module O = Cfg.Operation
+module L = Location
 
 (* A buffer is abstracted by a Deque giving the order of the more
    recent entries of each variable in this buffer.
@@ -131,26 +132,22 @@ module Make (Inner : Domain.Inner) = struct
        key is already present *)
     M.modify_def abstr bufs (Inner.join abstr) d
 
-  let flush thread_id bufs abstr d =
+  let flush t bufs abstr d =
     (* Updates the abstract domain d to take into account the flush of
        the oldest entry of the t-th buffer from the numerical domain
        abstr *)
-    let x = P.shared_var @@ Bufs.last (Bufs.nth bufs thread_id) in
+    let var_x = P.shared_var @@ Bufs.last @@ Bufs.nth bufs t in
+    let x i = P.create_threaded ~thread_id:i var_x in
+    let x_t = P.create_threaded ~thread_id:t (P.var (L.mkdummy var_x)) in
     (* Assign the value of x_t to every x_i in the numerical domain
        abstr where x_i is not present in buffer i *)
-    let var_array = (* [|x_0; x_1; ...|] as var threaded *)
-      Bufs.get_no_var bufs x.P.var_name
-      |> List.map (fun tid -> P.create_threaded thread_id x)
-      |> Array.of_list in
-    let texpr_array = (* [|x_t; x_t; ...|] as expression threaded *)
-      Array.make (Array.length var_array) (Location.mkdummy x)
-      |> Array.map P.var
-      |> Array.map @@ P.create_threaded ~thread_id in
     let abstr =
-      Inner.assign_expr_array abstr var_array texpr_array in
-
+      List.fold_left
+        (fun acc i -> Inner.assign_expr acc (x i) x_t)
+        abstr
+        (Bufs.get_no_var bufs var_x.P.var_name) in
     (* Make the joins *)
-    add_join (Bufs.flush bufs thread_id) abstr d
+    add_join (Bufs.flush bufs t) abstr d
 
   let flush_mop x bufs abstr d =
     (* Updates the abstract domain d to take into account every possible

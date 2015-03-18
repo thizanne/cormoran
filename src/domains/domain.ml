@@ -29,21 +29,12 @@ module type Inner = sig
   val join : t -> t -> t
   val meet : t -> t -> t
 
-  val join_array : t array -> t
-
   val meet_cons : t -> Program.condition Program.threaded -> t
-  val meet_cons_array : t -> Program.condition Program.threaded array -> t
 
   val assign_expr :
-    t -> ?dest:t option ->
+    t ->
     Program.var Program.threaded ->
     Program.expression Program.threaded ->
-    t
-
-  val assign_expr_array :
-    t -> ?dest: t option ->
-    Program.var Program.threaded array ->
-    Program.expression Program.threaded array ->
     t
 
   val print : 'a IO.output -> t -> unit
