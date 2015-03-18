@@ -147,29 +147,31 @@ module Make (N : Numerical) : Domain.Inner = struct
     | P.Gt -> Tcons1.make (expr e1 e2) Tcons1.SUP
     | P.Ge -> Tcons1.make (expr e1 e2) Tcons1.SUPEQ
 
-  let rec meet_cons abstr { P.elem = cons; thread_id } =
+  let meet_cons abstr cons =
     let env = Abstract1.env abstr in
-    match cons with
-    | P.Bool { L.item = true; _ } -> abstr
-    | P.Bool { L.item = false; _ } -> Abstract1.bottom man env
-    | P.LogicUnop ({ L.item = P.Not; _ }, c) ->
-      meet_cons abstr { P.elem = reduce_not c.L.item; thread_id }
-    | P.ArithRel (rel, e1, e2) ->
-      let earray = Tcons1.array_make env 1 in
-      Tcons1.array_set earray 0
-        (tcons1 thread_id env rel.L.item e1.L.item e2.L.item);
-      Abstract1.meet_tcons_array man abstr earray
-    | P.LogicBinop (op, c1, c2) ->
-      begin match op.L.item with
-        | P.And ->
-          meet_cons
-            (meet_cons abstr @@ P.create_threaded ~thread_id c1.L.item)
-            (P.create_threaded ~thread_id c2.L.item)
-        | P.Or ->
-          join
-            (meet_cons abstr @@ P.create_threaded ~thread_id c1.L.item)
-            (meet_cons abstr @@ P.create_threaded ~thread_id c2.L.item)
-      end
+    let rec aux abstr = function
+      | P.Bool { L.item = true; _ } -> abstr
+      | P.Bool { L.item = false; _ } -> Abstract1.bottom man env
+      | P.LogicUnop ({ L.item = P.Not; _ }, c) ->
+        aux abstr (reduce_not c.L.item)
+      | P.ArithRel ({ L.item = P.Neq; loc }, e1, e2) ->
+        join (* meet with Diseq does not work in Apron *)
+          (aux abstr @@ P.ArithRel ({ L.item = P.Lt; loc}, e1, e2))
+          (aux abstr @@ P.ArithRel ({ L.item = P.Gt; loc}, e1, e2))
+      | P.ArithRel (rel, e1, e2) ->
+        let earray = Tcons1.array_make env 1 in
+        Tcons1.array_set earray 0
+          (tcons1 cons.P.thread_id env rel.L.item e1.L.item e2.L.item);
+        Abstract1.meet_tcons_array man abstr earray
+      | P.LogicBinop (op, c1, c2) ->
+        begin match op.L.item with
+          | P.And -> aux (aux abstr c1.L.item) c2.L.item
+          | P.Or ->
+            join
+              (aux abstr c1.L.item)
+              (aux abstr c2.L.item)
+        end
+    in aux abstr cons.P.elem
 
   let assign_expr abstr var expr =
     Abstract1.assign_texpr man abstr
