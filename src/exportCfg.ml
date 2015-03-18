@@ -3,9 +3,9 @@ open Printf
 open Util
 open Cfg
 
-let edge_label {Operation.thread; op} =
+let edge_label {Program.thread_id; elem = op} =
   let output = IO.output_string () in
-  Int.print output thread;
+  Int.print output thread_id;
   String.print output ":";
   begin match op with
     | Operation.Identity ->
