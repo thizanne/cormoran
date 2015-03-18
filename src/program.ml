@@ -18,6 +18,9 @@ type 'a threaded = {
   elem : 'a [@main];
 } [@@deriving create]
 
+let print_threaded print_elem output { thread_id; elem } =
+  Printf.fprintf output "%d:%a" thread_id print_elem elem
+
 type arith_unop =
   | Neg
 
@@ -76,6 +79,9 @@ type var = {
   mutable var_type : var_type;
   var_name : Symbol.t;
 }
+
+let print_var output x =
+  Symbol.print output x.var_name
 
 let local_var var_name = {
   var_name;

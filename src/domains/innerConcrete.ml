@@ -1,34 +1,42 @@
 open Batteries
 open Util
-open Syntax
+
+module L = Location
+module P = Program
 
 module Point = struct
   include Map.Make (struct
-      type t = Expression.var
+      type t = P.var P.threaded
       let compare = Pervasives.compare
     end)
 
-  let rec get_expr p =
-    let open Expression in function
-      | EInt n -> Some n
-      | EVar v -> find v p
-      | EUnop (op, e) ->
-        Option.map (fun_of_unop op) (get_expr p e)
-      | EBinop (op, e1, e2) ->
-        let f = fun_of_binop op in
-        begin match get_expr p e1, get_expr p e2 with
-          | None, _ -> None
-          | _, None -> None
-          | Some v1, Some v2 ->
-            try Some (f v1 v2)
-            with Division_by_zero -> None
-        end
+  let rec get_expr p { P.elem = expr; thread_id } = match expr with
+    | P.Int n -> Some n.L.item
+    | P.Var v -> find (P.create_threaded ~thread_id v.L.item) p
+    | P.ArithUnop (op, e) ->
+      Option.map
+        (P.fun_of_arith_unop op.L.item)
+        (get_expr p @@ P.create_threaded ~thread_id e.L.item)
+    | P.ArithBinop (op, e1, e2) ->
+      option_map2
+        (P.fun_of_arith_binop op.L.item)
+        (get_expr p @@ P.create_threaded ~thread_id e1.L.item)
+        (get_expr p @@ P.create_threaded ~thread_id e2.L.item)
 
-  let sat_cons p { Constraint.typ; e1; e2 } =
-    match get_expr p e1, get_expr p e2 with
-    | None, _
-    | _, None -> true
-    | Some v1, Some v2 -> Constraint.fun_of_typ typ v1 v2
+  let sat_cons p { P.elem = cons; thread_id } =
+    let rec aux = function
+      | P.Bool b -> b.L.item
+      | P.LogicUnop (op, c) ->
+        P.fun_of_logic_unop op.L.item (aux c.L.item)
+      | P.LogicBinop (op, c1, c2) ->
+        P.fun_of_logic_binop op.L.item (aux c1.L.item) (aux c2.L.item)
+      | P.ArithRel (rel, e1, e2) ->
+        option_map2
+          (P.fun_of_arith_rel rel.L.item)
+          (get_expr p @@ P.create_threaded ~thread_id e1.L.item)
+          (get_expr p @@ P.create_threaded ~thread_id e2.L.item)
+        |> Option.default true
+    in aux cons
 
   let assign_expr p var expr =
     add var (get_expr p expr) p
@@ -40,27 +48,41 @@ module Point = struct
     Enum.fold2 add p vars exprs
 
   let init program =
-    let open LazyList in
-    let open Syntax.TypedProgram in
-    let threads = init (Array.length program.threads) (fun x -> x) in
-    let shared = (* Lazy list of (x_t, Some value of x) initial shared vars *)
-      of_list program.initial
-      |> map
-        (fun (x, v) ->
-           map
-             (fun t -> Expression.shared_var x t, Some v)
-             threads)
-      |> concat in
-    let local = (* LazyList of (r, None) for all r local vars *)
-      of_array program.threads
-      |> map (fun th -> of_list th.locals)
-      |> concat
-      |> map Expression.local_var
-      |> map (fun r -> r, None) in
-    LazyList.fold_left
+    let module LL = LazyList in
+    let add_shared_x x n acc =
+      (* appends (0:x, Some n); ...; (N:x, Some n) to acc *)
+      List.fold_lefti
+        (fun acc thread_id thread ->
+           LL.cons
+             (P.create_threaded ~thread_id (P.shared_var x), Some n)
+             acc)
+        acc
+        program.P.threads in
+    let shared =
+      (* LazyList of (x_t, value of x) initial shared vars *)
+      Symbol.Map.fold
+        add_shared_x
+        program.P.initial
+        LL.nil in
+    let add_locals_thread acc thread_id thread =
+      (* appends locals of the thread to acc with None value *)
+      Symbol.Set.fold
+        (fun x acc ->
+           LL.cons
+             (P.create_threaded ~thread_id (P.local_var x), None)
+             acc)
+        thread.Program.locals
+        acc in
+    let locals =
+      (* LazyList of the local vars of program with None value *)
+      List.fold_lefti
+        add_locals_thread
+        LL.nil
+        program.P.threads in
+    LL.fold_left
       (fun acc (x, v) -> add x v acc)
       empty
-      (append shared local)
+      (LL.append shared locals)
 end
 
 module D = Set.Make (struct
@@ -89,9 +111,8 @@ let meet_cons d cons =
 let meet_cons_array =
   Array.fold_left meet_cons
 
-let assign_expr d ?(dest=None) var expr =
-  let d' = D.map (fun p -> Point.assign_expr p var expr) d in
-  Option.map_default (meet d') d' dest
+let assign_expr d var expr =
+  D.map (fun p -> Point.assign_expr p var expr) d
 
 let assign_expr_array d ?(dest=None) vars exprs =
   let d' = D.map (fun p -> Point.assign_expr_array p vars exprs) d in
@@ -102,5 +123,6 @@ let print output =
     ~first:"" ~last:"" ~sep:";\n"
     (Point.print
        ~first:"" ~sep:", " ~last:""
-       Expression.print_var print_int_option)
+       (Program.print_threaded Program.print_var)
+       print_int_option)
     output
