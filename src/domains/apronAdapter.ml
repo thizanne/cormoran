@@ -106,8 +106,6 @@ module Make (N : Numerical) : Domain.Inner = struct
 
   let meet = Abstract1.meet man
 
-  let join_array = Abstract1.join_array man
-
   let not_rel = function
     | P.Eq -> failwith "not_rel"
     | P.Neq -> P.Eq
@@ -120,9 +118,11 @@ module Make (N : Numerical) : Domain.Inner = struct
     | P.And -> P.Or
     | P.Or -> P.And
 
-  let rec cond_not = function
+  let reduce_not = function
     | P.Bool b ->
       P.Bool (L.comap ( not ) b)
+    | P.ArithRel (rel, expr1, expr2) ->
+      P.ArithRel (L.comap not_rel rel, expr1, expr2)
     | P.LogicUnop ({ L.item = P.Not; _}, cond) ->
       cond.L.item
     | P.LogicBinop (op, cond1, cond2) ->
@@ -131,61 +131,13 @@ module Make (N : Numerical) : Domain.Inner = struct
         L.mkdummy @@ P.LogicUnop (L.mkdummy P.Not, cond2),
         L.mkdummy @@ P.LogicUnop (L.mkdummy P.Not, cond2)
       )
-    | P.ArithRel (rel, expr1, expr2) ->
-      begin match rel.L.item with
-        | P.Neq | P.Lt | P.Gt | P.Le | P.Ge ->
-          P.ArithRel (L.comap not_rel rel, expr1, expr2)
-        | P.Eq ->
-          P.LogicBinop (
-            L.mkdummy P.Or,
-            L.mkdummy @@ P.ArithRel (L.mkdummy P.Gt, expr1, expr2),
-            L.mkdummy @@ P.ArithRel (L.mkdummy P.Lt, expr1, expr2)
-          )
-      end
 
-  let rec norm_cond cond = match cond with
-    (* TODO: Maybe it would be better to do this once and for all when
-       building the AST *)
-    | P.Bool _
-    | P.ArithRel _ -> cond
-    | P.LogicUnop ({ L.item = P.Not; _ }, cond) ->
-      norm_cond (cond_not cond.L.item)
-    | P.LogicBinop ({ L.item = P.Or; _ } as op, cond1, cond2) ->
-      P.LogicBinop (op, L.comap norm_cond cond1, L.comap norm_cond cond2)
-    | P.LogicBinop ({ L.item = P.And; _ } as op_and, cond1, cond2) ->
-      begin match cond1.L.item with
-        | P.Bool { L.item = true } -> norm_cond cond2.L.item
-        | P.Bool { L.item = false } -> cond1.L.item
-        | P.LogicUnop _ ->
-          norm_cond @@ P.LogicBinop (op_and, L.comap norm_cond cond1, cond2)
-        | P.LogicBinop ({ L.item = P.Or }, cond1', cond2') ->
-          P.LogicBinop (
-            L.mkdummy P.Or,
-            L.mkdummy @@ norm_cond @@ P.LogicBinop (op_and, cond1', cond2),
-            L.mkdummy @@ norm_cond @@ P.LogicBinop (op_and, cond2', cond2)
-          )
-        | P.LogicBinop ({ L.item = P.And; _ } as op_and', cond1', cond2') ->
-          norm_cond @@ P.LogicBinop (
-            op_and,
-            cond1',
-            L.mkdummy @@ P.LogicBinop (op_and', cond2', cond2)
-          )
-        | P.ArithRel _ ->
-          begin match norm_cond cond2.L.item with
-            | P.LogicUnop _ -> failwith "normalize_cond"
-            | P.ArithRel _
-            | P.LogicBinop ({ L.item = P.And; _}, _, _) as c2 ->
-              P.LogicBinop (op_and, cond1, L.mkdummy c2)
-            | P.Bool _ | P.LogicBinop ({ L.item = P.Or; _}, _, _) as c2 ->
-              norm_cond @@ P.LogicBinop (op_and, L.mkdummy c2, cond1)
-          end
-      end
-
-  let tcons thread_id env rel e1 e2 =
+  let tcons1 thread_id env rel e1 e2 =
     let expr e e' =
       Texpr1.binop
         Texpr1.Sub
-        (texpr1 env e) (texpr1 env e')
+        (texpr1 env @@ P.create_threaded ~thread_id e)
+        (texpr1 env @@ P.create_threaded ~thread_id e')
         Texpr1.Int Texpr1.Zero in
     match rel with
     | P.Eq -> Tcons1.make (expr e1 e2) Tcons1.EQ
@@ -195,24 +147,35 @@ module Make (N : Numerical) : Domain.Inner = struct
     | P.Gt -> Tcons1.make (expr e1 e2) Tcons1.SUP
     | P.Ge -> Tcons1.make (expr e1 e2) Tcons1.SUPEQ
 
-  let meet_cons abstr cons =
-    Abstract1.meet_tcons_array man abstr
-      (earray_1 (Constraint.to_tcons (Abstract1.env abstr) cons))
+  let rec meet_cons abstr { P.elem = cons; thread_id } =
+    let env = Abstract1.env abstr in
+    match cons with
+    | P.Bool { L.item = true; _ } -> abstr
+    | P.Bool { L.item = false; _ } -> Abstract1.bottom man env
+    | P.LogicUnop ({ L.item = P.Not }, c) ->
+      meet_cons abstr { P.elem = reduce_not c.L.item; thread_id }
+    | P.ArithRel (rel, e1, e2) ->
+      let earray = Tcons1.array_make env 1 in
+      Tcons1.array_set earray 0
+        (tcons1 thread_id env rel.L.item e1.L.item e2.L.item);
+      Abstract1.meet_tcons_array man abstr earray
+    | P.LogicBinop (op, c1, c2) ->
+      begin match op.L.item with
+        | P.And ->
+          meet_cons
+            (meet_cons abstr @@ P.create_threaded ~thread_id c1.L.item)
+            (P.create_threaded ~thread_id c2.L.item)
+        | P.Or ->
+          join
+            (meet_cons abstr @@ P.create_threaded ~thread_id c1.L.item)
+            (meet_cons abstr @@ P.create_threaded ~thread_id c2.L.item)
+      end
 
-  let meet_cons_array abstr array =
-    Abstract1.meet_tcons_array man abstr (earray (Abstract1.env abstr) array)
-
-  let assign_expr abstr ?(dest=None) var expr =
+  let assign_expr abstr var expr =
     Abstract1.assign_texpr man abstr
       (ap_var var)
       (texpr1 (Abstract1.env abstr) expr)
-      dest
-
-  let assign_expr_array abstr ?(dest=None) vars exprs =
-    Abstract1.assign_texpr_array man abstr
-      (Array.map ap_var vars)
-      (Array.map (texpr1 @@ Abstract1.env abstr) exprs)
-      dest
+      None
 
   let print output abstr =
     let fmt = Format.formatter_of_output output in
