@@ -22,7 +22,7 @@ let print_cfg file =
     let lexbuf = Lexing.from_channel @@ open_in file in
     let program, _cond = Parse.parse use_litmus lexbuf in
     let g = Cfg.of_program program in
-    Dot.output_graph Legacy.stdout g
+    Dot.output_graph Legacy.stdout g.Cfg.graph
   with
   | Error.Error e -> prerr_endline (Error.to_string e)
 
