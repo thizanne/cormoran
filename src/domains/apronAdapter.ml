@@ -107,7 +107,7 @@ module Make (N : Numerical) : Domain.Inner = struct
   let meet = Abstract1.meet man
 
   let not_rel = function
-    | P.Eq -> failwith "not_rel"
+    | P.Eq -> P.Neq
     | P.Neq -> P.Eq
     | P.Lt -> P.Ge
     | P.Gt -> P.Le
