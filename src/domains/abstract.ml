@@ -109,7 +109,7 @@ module Make (Inner : Domain.Inner) = struct
 
   let print output =
     M.print
-      ~first:"" ~last:"" ~kvsep:":\n" ~sep:"\n"
+      ~first:"" ~last:"" ~kvsep:":\n" ~sep:"\n────────\n"
       Bufs.print Inner.print output
 
   let equal d1 d2 =
@@ -183,9 +183,10 @@ module Make (Inner : Domain.Inner) = struct
             ~init:M.empty
             d in
       let d = (* Close by partial flush if needed *)
-        begin match P.shared_in_expr expr with
-          | [] -> d
-          | [x] -> close_after_mop x d
+        begin match x.P.var_type, P.shared_in_expr expr with
+          | P.Local, [] -> d
+          | P.Shared, [] -> close_after_mop x.P.var_name d
+          | P.Local, [y] -> close_after_mop y d
           | _ -> failwith "Abstract.transfer"
         end
       in d
