@@ -13,7 +13,7 @@ let speclist = [
 
   "--domain",
   Arg.Set_string domain,
-  "Domain: abstract (default), order, concrete, top";
+  "Domain: polka (default), oct, order, concrete, top";
 
   "--no-cond",
   Arg.Clear cond_check,
@@ -26,7 +26,8 @@ let speclist =
   |> Arg.align
 
 let domains : (string * (module Domain.Outer)) list = [
-  "abstract", (module Abstract.Make (ApronAdapter.Polka));
+  "polka", (module Abstract.Make (ApronAdapter.Polka));
+  "oct", (module Abstract.Make (ApronAdapter.Oct));
   "top", (module Top);
   "order", (module Abstract.Make (InnerConcrete));
   "concrete", (module Concrete);
