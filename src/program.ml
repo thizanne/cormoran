@@ -96,6 +96,9 @@ let shared_var var_name = {
 let is_local v =
   v.var_type = Local
 
+let is_shared v =
+  v.var_type = Shared
+
 type expression =
   | Int of int Location.loc
   | Var of var Location.loc
@@ -156,6 +159,11 @@ type body  =
       expression Location.loc * (* From *)
       expression Location.loc * (* To *)
       body Location.loc (* Body *)
+
+let seq body1 body2 =
+  Location.mk (Seq (body1, body2))
+    Location.(body1.loc.startpos)
+    Location.(body2.loc.endpos)
 
 type thread = {
   locals : Symbol.Set.t;
