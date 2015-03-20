@@ -10,11 +10,13 @@ let empty = ['\t' ' ' '\r']
 
 rule lexer = parse
   | "//" [^'\n']* { lexer lexbuf }
-  | "#" [^'\n']* { Sharp }
+  | "#" [^'\n']* { SharpLine }
   | "/*" { comment 1 lexbuf }
   | eof { Eof }
   | '\n' { Lexing.new_line lexbuf; lexer lexbuf }
   | empty+ { lexer lexbuf }
+  | "(" { LPar }
+  | ")" { RPar }
   | "{" { LCurly }
   | "}" { RCurly }
   | "+" { Plus }
@@ -22,19 +24,24 @@ rule lexer = parse
   | "*" { Times }
   | "/" { Divide }
   | "," { Comma }
-  | "=" { Equal }
-  | ":=" { Affect }
+  | "=" { Eq }
+  | "<>" | "!=" { Neq }
+  | "<" { Lt }
+  | "<=" { Le }
+  | ">" { Gt }
+  | ">=" { Ge }
+  | "not" | "!" { Not }
+  | "or" | "||" { Or }
+  | "and" | "&&" { And }
+  | ":=" { Assign }
   | ";" { Semicolon }
-  | "cmp" { Cmp }
-  | "jnz" { Jnz }
-  | "jz" { Jz }
-  | "jmp" { Jmp }
-  | "If" { If }
+  | "if" { If }
   | "while" { While }
-  | "label" { Label }
-  | "local" { Local }
+  | "for" { For }
   | "pass" { Pass }
   | "mfence" { MFence }
+  | "true" { Bool true }
+  | "false" { Bool false }
   | digits+ as n { Int (int_of_string n) }
   | alpha (alpha | digits | "_")* as x { Id x }
 
@@ -45,11 +52,14 @@ and comment depth = parse
     else comment (depth - 1) lexbuf
   }
   | eof {
-    raise
-    (Error
-       [LexingError,
-        lexeme_start_p lexbuf, lexeme_start_p lexbuf,
-        "Non closed commentary"])
+    raise (Error {
+      error = LexingError;
+      err_loc = {
+        Location.startpos = lexeme_start_p lexbuf;
+        Location.endpos = lexeme_start_p lexbuf;
+      };
+      err_msg = "Non closed commentary";
+    })
   }
   | '\n' { new_line lexbuf; comment depth lexbuf }
   | _ { comment depth lexbuf }

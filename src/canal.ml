@@ -1,3 +1,4 @@
+open Batteries
 open Error
 open Printf
 
@@ -11,7 +12,8 @@ let speclist = [
   "--no-cond", Arg.Clear cond_check, "Litmus: don't check final condition";
 ]
 
-let domains : (string * (module Domain.Domain)) list = [
+(*
+let domains : (string * (module Domain.Outer)) list = [
   "top", (module Top);
   "order", (module Abstract.Make (InnerConcrete));
   "mark", (module Mark);
@@ -46,6 +48,10 @@ let analyze file =
     else Analyzer.print result
   with
   | Error li -> List.iter (fun e -> print_endline (msg_of_error e ^ "\n")) li
+*)
+
+let analyze file =
+  failwith "This program does not work anymore. Use test_interleaving."
 
 let () =
   Arg.parse speclist analyze "Analyze a program. Options available:"

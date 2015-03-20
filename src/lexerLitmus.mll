@@ -1,15 +1,12 @@
 {
   open ParserLitmus
-  open Error
   open Lexing
-  open Printf
-
-  let proc = ref 0
 }
 
 let digits = ['0' - '9']
 let alpha = ['a' - 'z']
 let empty = ['\t' ' ' '\r']
+let register = 'E' ['A' - 'D'] 'X'
 
 rule drop_prelude = parse
   | '\n' { Lexing.new_line lexbuf; drop_prelude lexbuf }
@@ -24,8 +21,8 @@ and lexer = parse
   | "}" { RCurly }
   (*  | ":" { Colon } *)
   | "," { Comma }
-  | ";" { proc := 0; Semi }
-  | "|" { incr proc; Pipe }
+  | ";" { Semi }
+  | "|" { Pipe }
   | "(" { LPar }
   | ")" { RPar }
   | "/\\" { And }
@@ -33,10 +30,12 @@ and lexer = parse
   | "MOV" { Mov }
   | "MFENCE" { MFence }
   | "exists" { Exists }
-  | alpha+ as var { Var var }
+  | alpha+ as var { Shared var }
+  | register as reg { Reg reg }
   | digits+ as num { Int (int_of_string num) }
-  | digits ':' "E" ['A' - 'D'] "X" as reg { Reg reg }
-  | "[" (alpha+ as var) "]" { Var var }
+  | "[" (alpha+ as var) "]" { Shared var }
   | "$" (digits+ as num) { Int (int_of_string num) }
   | empty* 'P' ['0'-'9'] [^'\n']+ { lexer lexbuf }
-  | "E" ['A' - 'D'] "X" as reg { Reg (sprintf "%d:%s" !proc reg) }
+  | (digits+ as tid) ':' (register as reg) {
+      ThreadedReg (int_of_string tid, reg)
+    }

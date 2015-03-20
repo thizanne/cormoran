@@ -1,204 +1,162 @@
 open Batteries
-open Util
-module S = Syntax
-module T = Syntax.Typed
-open Syntax.TypedProgram
-open Printf
+open Graph
 
-module V =
-struct
-  type t = Syntax.position
+module L = Location
+
+module ThreadState = struct
+  type t = Program.control_label
   let compare = Pervasives.compare
   let hash = Hashtbl.hash
   let equal = ( = )
 end
 
-module E =
-struct
-  type t = {
-    thread : int;
-    ins : S.Typed.t;
-  }
+module State = struct
+  type t = Program.control_state
   let compare = Pervasives.compare
+  let hash = Hashtbl.hash
+  let equal = ( = )
+end
+
+module Operation = struct
+  type operation =
+    | Identity
+    | MFence
+    | Filter of Program.condition
+    | Assign of Program.var * Program.expression
+
+  type t = operation Program.threaded
+
+  let compare = Pervasives.compare
+
   let default = {
-    thread = -1;
-    ins = S.Typed.Pass;
+    Program.thread_id = -1;
+    elem = Identity;
   }
 end
 
-module G = Graph.Persistent.Digraph.ConcreteLabeled (V) (E)
+module ThreadG =
+  Persistent.Digraph.ConcreteLabeled (ThreadState) (Operation)
 
-let label_positions { threads; _ } =
-  (* Return the list of lists of (label, position) for each thread *)
-  let open Syntax in
-  let lbl_pos_t =
-    Array.fold_lefti
-      (fun acc i ins ->
-         match ins.item with
-         | T.Label { item = s } ->
-           (s, i) :: acc
-         | _ -> acc)
-      []
-  in Array.map (fun t -> lbl_pos_t t.ins) threads
+module G =
+  Persistent.Digraph.ConcreteLabeled (State) (Operation)
 
-let dual_jump = function
-  | T.Jz (r, lbl) -> T.Jnz (r, lbl)
-  | T.Jnz (r, lbl) -> T.Jz (r, lbl)
-  | _ -> failwith "dual_jump"
+type t = {
+  program : Program.t;
+  graph : G.t;
+}
 
-let add_ins_edges lbls g pos thread ins =
-  (* Adds in g the edges corresponding to the execution in position
-     pos of the instruction ins by the t-th thread, given the positions of
-     the labels of this thread *)
-  let open Syntax in
-  let open Syntax.Typed in
-  let open E in
-  match ins with
-  | Pass
-  | Read _
-  | Write _
-  | RegOp _
-  | Cmp _
-  | MFence
-  | Label _ ->
-    let succ_pos = incr_nth thread pos in
-    let edge = G.E.create pos {thread; ins} succ_pos in
-    G.add_edge_e g edge
-  | Jmp lbl ->
-    let succ_pos =
-      set_nth thread (List.assoc lbl.item lbls) pos in
-    let edge = G.E.create pos {thread; ins} succ_pos in
-    G.add_edge_e g edge
-  | Jz (r, lbl)
-  | Jnz (r, lbl) ->
-    let succ_pos_1 = incr_nth thread pos in
-    let succ_pos_2 =
-      set_nth thread (List.assoc lbl.item lbls) pos in
-    let edge_1 = G.E.create pos {thread; ins = dual_jump ins} succ_pos_1 in
-    let edge_2 = G.E.create pos {thread; ins} succ_pos_2 in
-    G.add_edge_e (G.add_edge_e g edge_1) edge_2
+let cfg_of_thread thread_id { Program.body; _ } =
 
-let add_pos_edges lbls g pos prog =
-  (* Adds in the not-yet-complete CFG g of the program prog all the
-     edges whose origin is vertex labelled with the position pos *)
-  List.fold_lefti
-    (fun g i p ->
-       try
-         add_ins_edges lbls.(i) g pos i
-           (nth_ins prog i p).S.item
-       with
-       (* We already are at the end of a thread *)
-         Invalid_argument "index out of bounds" -> g)
-    g pos
+  let open Operation in
+  let open Location in
+  let module P = Program in
 
-let init prog =
-  (* Builds the graph containing the vertices of the CFG of prog, with
-     no edge *)
-
-  (* TODO: append ... [|ins.(0)|] is used to add a final
-     position. This works but is ugly. *)
-  Array.fold_right
-    (fun thread pos ->
-       Array.mapi
-         (fun i _ ->
-            List.map (fun t -> i :: t) pos)
-         (Array.append thread.ins [|thread.ins.(0)|])
-       |> Array.fold_left ( @ ) [])
-    prog.threads [[]]
-  |> List.fold_left G.add_vertex G.empty
-
-let make prog =
-  (* Builds the CFG of prog *)
-  (* TODO This could be efficiently regrouped with init to treat
-     positions in one pass *)
-  let g = init prog in
-  let lbls = label_positions prog in
-  G.fold_vertex
-    (fun pos g ->
-       add_pos_edges lbls g pos prog)
-    g g
-
-let edge_label {E.thread; ins} =
-  let open Syntax.Typed in
-  let open Syntax in
-
-  let str_value v =
-    match v with
-    | Int x -> string_of_int x.item
-    | Var r -> r.item
+  let filter_not cond =
+    Filter (P.LogicUnop (mkdummy P.Not, cond))
   in
 
-  let rec str_exp e =
-    match e with
-    | Val v -> str_value v.item
-    | Op (op, e1, e2) ->
-      sprintf "%s %c %s" (str_exp e1.item) op.item (str_exp e2.item)
+  let filter_rel rel i exp =
+    Filter (P.ArithRel (mkdummy rel, mkloc (P.Var i) i.loc, exp))
   in
 
-  sprintf "%d:%s" thread
-    begin match ins with
-      | Pass -> "<id>"
-      | Label lbl -> "<id>"
-      | MFence -> "MFence"
-      | Jmp _ -> ""
-      | Jnz (r, _) ->
-        sprintf "%s ≠ 0" r.item
-      | Jz (r, _) ->
-        sprintf "%s = 0" r.item
-      | Read (r, x) ->
-        sprintf "%s ← %s" r.item x.item
-      | Write (x, v) ->
-        sprintf "%s ← %s" x.item (str_value v.item)
-      | RegOp (r, e) ->
-        sprintf "%s ← %s" r.item (str_exp e.item)
-      | Cmp (r, v1, v2) ->
-        sprintf "%s ← %s <?> %s" r.item (str_value v1.item) (str_value v2.item)
-    end
+  (* The following functions take as a parameter and return a couple
+     `(graph, offset)`. The graph is a CFG of a single-thread program,
+     thus with edges in the form of [n : int].
 
-module Dot (R : Analysis.Result) = Graph.Graphviz.Dot (
-  struct
-    include G
+     These couples should observe the invariant that `offset` is the
+     number present in the "last" vertex of the graph, that is the
+     vertex corresponding to the end of the program. *)
 
-    let vertex_attributes v =
-      let label v =
-        let out = IO.output_string () in
-        let () = R.Domain.print out @@ R.data v in
-        IO.close_out out
-        |> String.replace_chars
-          (function
-            | '\n' -> "<BR/>"
-            | '>' -> "&gt;"
-            | '<' -> "&lt;"
-            | c -> String.make 1 c)
-      in [
-        `Shape `Box;
-        `Fillcolor 0xdddddd;
-        `Style `Filled;
-        `Style `Rounded;
-        `HtmlLabel (
-          sprintf "
-<TABLE BORDER=\"0\" ALIGN=\"CENTER\">
-<TR><TD BORDER=\"0\">%s</TD></TR>
-<TR><TD BORDER=\"1\" BGCOLOR=\"white\">
-<FONT POINT-SIZE=\"12\"> %s </FONT>
-</TD>
-</TR>
-</TABLE>"
-            (string_of_pos v)
-            (label v)
-        )
-      ]
+  let add_op_edge op orig dest (acc, offset) =
+    (* Adds an edge from orig to dest corresponding to the operation op.
+       orig and dest are expected to be existing vertices in the graph *)
+    ThreadG.add_edge_e acc
+      (ThreadG.E.create orig
+         (Program.create_threaded ~thread_id op)
+         dest),
+    offset
+  in
 
-    let edge_attributes (_, e, _) = [
-      `Label (edge_label e);
-      `Fontsize 12;
-      `Arrowsize 0.5;
-    ]
+  let add_single_vertex (acc, offset) =
+    (* Adds a single vertex to the graph *)
+    ThreadG.add_vertex acc (offset + 1),
+    (offset + 1)
+  in
 
-    let default_edge_attributes _ = []
-    let get_subgraph _ = None
-    let vertex_name v =
-      "\"" ^ string_of_pos v ^ "\""
-    let default_vertex_attributes _ = []
-    let graph_attributes _ = []
-  end)
+  let add_single_edge op (acc, offset) =
+    (* Adds a single vertex to the graph, and a single edge from the
+       former last vertex of the graph to this vertex *)
+    ThreadG.add_edge_e acc
+      (ThreadG.E.create offset
+         (Program.create_threaded ~thread_id op)
+         (offset + 1)),
+    (offset + 1)
+  in
+
+  let rec cfg_of_body (acc, offset) = function
+    | P.Nothing ->
+      acc, offset
+    | P.Pass ->
+      add_single_edge Identity (acc, offset)
+    | P.MFence ->
+      add_single_edge MFence (acc, offset)
+    | P.Assign (x, e) ->
+      add_single_edge (Assign (x.item, e.item)) (acc, offset)
+    | P.Seq (b1, b2) ->
+      cfg_of_body (cfg_of_body (acc, offset) b1.item) b2.item
+    | P.If (cond, body) ->
+      let acc', offset' = cfg_of_body (acc, offset + 1) body.item in
+      (acc', offset')
+      |> add_op_edge (Filter cond.item) offset (offset + 1)
+      |> add_op_edge (filter_not cond) offset offset'
+    | P.While (cond, body) ->
+      let acc', offset' = cfg_of_body (acc, offset + 1) body.item in
+      (acc', offset')
+      |> add_single_vertex
+      |> add_op_edge Identity offset' offset
+      |> add_op_edge (Filter cond.item) offset (offset + 1)
+      |> add_op_edge (filter_not cond) offset (offset' + 1)
+    | P.For (i, exp_from, exp_to, body) ->
+      let acc', offset' = cfg_of_body (acc, offset + 2) body.item in
+      let iplus1 =
+        P.ArithBinop (
+          L.mkdummy P.Add,
+          L.mkdummy @@ P.Var (L.mkdummy i.item),
+          L.mkdummy @@ P.Int (L.mkdummy 1)
+        ) in
+      (acc', offset')
+      |> add_single_vertex
+      |> add_op_edge (Assign (i.item, exp_from.item)) offset (offset + 1)
+      |> add_op_edge (filter_rel P.Le i exp_to) (offset + 1) (offset + 2)
+      |> add_op_edge (filter_rel P.Gt i exp_to) (offset + 1) (offset' + 1)
+      |> add_op_edge (Assign (i.item, iplus1)) offset' (offset + 1)
+
+  in fst (cfg_of_body (ThreadG.add_vertex ThreadG.empty 0, 0) body)
+
+module Oper = Oper.Make (Builder.P (G))
+
+let combine cfg1 cfg2 =
+  (* Combines two CFG.
+     cfg1 is the cfg of a single thread,
+     cfg2 is the cfg of a program. *)
+  G.empty
+  |> ThreadG.fold_vertex
+    (fun i -> Oper.union (G.map_vertex (fun is -> i :: is) cfg2))
+    cfg1
+  |> ThreadG.fold_edges_e
+    (fun (i, op, i') ->
+       G.fold_vertex
+         (fun is g -> G.add_edge_e g (G.E.create (i :: is) op (i' :: is)))
+         cfg2)
+    cfg1
+
+let cfg_of_program { Program.threads; _ } =
+  List.fold_righti
+    (fun thread body g -> combine (cfg_of_thread thread body) g)
+    threads
+    (G.add_vertex G.empty [])
+
+let of_program program = {
+  program;
+  graph = cfg_of_program program;
+}

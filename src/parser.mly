@@ -1,95 +1,138 @@
 %{
- open Lexing
- module Program = Syntax.Program (Syntax.Untyped)
- module Untyped = Syntax.Untyped
+  open Lexing
+  let var_sym = Symbol.namespace ()
 %}
 
-%token LCurly RCurly
+%token LPar RPar LCurly RCurly
 %token Plus Minus Times Divide
-%token Label Local Comma Equal Semicolon Sharp
-%token Cmp Jnz Jz Jmp MFence Affect Pass While If
+%token Eq Neq Gt Ge Lt Le
+%token Not Or And
+%token Comma Semicolon SharpLine
+%token MFence Assign Pass While If For
+%token <bool> Bool
 %token <int> Int
 %token <string> Id
 %token Eof
 
-%left Plus
-%left Minus
-%left Times
-%left Divide
+%left Or
+%left And
+%nonassoc Not
+%left Plus Minus
+%left Times Divide
 
-%start <Syntax.UntypedProgram.t> program
+%start <Program.t> program
 
 %%
 
 %inline loc(X) :
-| x = X { {Syntax.item = x; startpos = $startpos; endpos = $endpos} }
+| x = X { Location.mk x $startpos $endpos }
 
 program :
-| mem = shared_decs Sharp t = separated_nonempty_list(Sharp, thread)  Eof
-    { {Program.initial = mem; threads = Array.of_list t} }
-| error { raise (Error.Error [Error.SyntaxError, $startpos, $endpos, ""]) }
+| mem = shared_decs SharpLine
+    t = separated_nonempty_list(SharpLine, thread)
+    Eof {
+    { Program.initial = mem; threads = t}
+  }
+| error {
+    let open Error in
+    let err_loc = { Location.startpos = $startpos; endpos = $endpos } in
+    raise @@ Error { error = SyntaxError; err_loc; err_msg = "" }
+  }
 
 shared_decs :
-| vars = separated_list(Comma, shared_dec) { vars }
+| vars = separated_list(Comma, shared_dec) {
+    let open Batteries in
+    vars |> List.enum |> Symbol.Map.of_enum
+  }
 
 shared_dec :
-| i = Id Equal n = Int { i, n }
+| x = var_sym Eq n = Int { x, n }
 
 thread :
-| ins = instructions { {Program.locals = []; ins = Array.of_list ins} }
-| loc = local_dec Semicolon ins = instructions { {Program.locals = loc; ins = Array.of_list ins} }
-
-local_dec :
-| Local locals = separated_list(Comma, Id) { locals }
-
-instructions :
-| ins = nonempty_list(block) { List.flatten ins }
-
-block :
-| ins = loc(instruction) { [ins] }
-| If r = loc(Id) LCurly body = block RCurly {
-    (* TODO: correct locations for If *)
-    let loc = Syntax.dummy_loc in
-    let lbl_end = loc @@ Symbol.fresh_label () in
-    [loc @@ Untyped.Jz (r, lbl_end)] @ body @ [loc @@ Untyped.Label lbl_end]
+| body = body {
+    { Program.locals = Symbol.Set.empty; body }
   }
-| While r = loc(Id) LCurly body = block RCurly {
-    (* TODO: correct locations for While *)
-    let loc = Syntax.dummy_loc in
-    let lbl_begin = loc @@ Symbol.fresh_label () in
-    let lbl_end = loc @@ Symbol.fresh_label () in
-    [
-      loc @@ Untyped.Label lbl_begin;
-      loc @@ Untyped.Jz (r, lbl_end);
-    ] @
-    body @
-    [
-      loc @@ Untyped.Jmp lbl_begin;
-      loc @@ Untyped.Label lbl_end;
-    ]
+
+body :
+| { Program.Nothing }
+| body = nonempty_body { body }
+
+nonempty_body :
+| ins = instruction { ins }
+| ins = loc(instruction) seq = loc(nonempty_body) {
+    Program.Seq (ins, seq)
   }
 
 instruction :
-| r = loc(Id) Affect e = loc(expression) { Untyped.Affect (r, e) }
-| Cmp r = loc(Id) v1 = loc(value) v2 = loc(value) { Untyped.Cmp (r, v1, v2) }
-| Pass { Untyped.Pass }
-| MFence { Untyped.MFence }
-| Label lbl = loc(Id) { Untyped.Label lbl }
-| Jnz r = loc(Id) lbl = loc(Id) { Untyped.Jnz (r, lbl) }
-| Jz r = loc(Id) lbl = loc(Id) { Untyped.Jz (r, lbl) }
-| Jmp lbl = loc(Id) { Untyped.Jmp lbl }
+| Pass { Program.Pass }
+| MFence { Program.MFence }
+| x = loc(var) Assign e = loc(expression) {
+    Program.Assign (x, e)
+  }
+| If cond = loc(condition) LCurly body = loc(body) RCurly {
+    Program.If (cond, body)
+  }
+| While cond = loc(condition) LCurly body = loc(body) RCurly {
+    Program.While (cond, body)
+  }
+| For i = loc(var) Semicolon
+  from_exp = loc(expression) Semicolon to_exp = loc(expression)
+  LCurly body = loc(body) RCurly {
+    Program.For (i, from_exp, to_exp, body)
+  }
+
+var :
+| var_name = var_sym {
+    { Program.var_type = Program.Shared; var_name }
+  }
+
+var_sym :
+| x = Id { var_sym x }
 
 expression :
-| v = loc(value) { Syntax.Val v }
-| e1 = loc(expression) o = loc(op) e2 = loc(expression)
-    { Syntax.Op (o, e1, e2) }
+| n = loc(Int) { Program.Int n }
+| x = loc(var) { Program.Var x }
+| LPar e = expression RPar { e }
+| o = loc(arith_unop) e = loc(expression) {
+    Program.ArithUnop (o, e)
+  }
+| e1 = loc(expression) o = loc(arith_binop) e2 = loc(expression) {
+    Program.ArithBinop (o, e1, e2)
+  }
 
-value :
-| n = loc(Int) { Syntax.Int n }
-| v = loc(Id) { Syntax.Var v }
+condition :
+| b = loc(Bool) { Program.Bool b }
+| LPar c = condition RPar { c }
+| o = loc(logic_unop) c = loc(condition) {
+    Program.LogicUnop (o, c)
+  }
+| c1 = loc(condition) o = loc(logic_binop) c2 = loc(condition) {
+    Program.LogicBinop (o, c1, c2)
+  }
+| e1 = loc(expression) r = loc(arith_rel) e2 = loc(expression) {
+    Program.ArithRel (r, e1, e2)
+  }
 
-%inline op :
-| Plus { '+' }
-| Minus { '-' }
-| Times { '*' }
-| Divide { '/' }
+%inline arith_unop :
+| Minus { Program.Neg }
+
+%inline logic_unop :
+| Not { Program.Not }
+
+%inline arith_binop :
+| Plus { Program.Add }
+| Minus { Program.Sub }
+| Times { Program.Mul }
+| Divide { Program.Div }
+
+%inline arith_rel :
+| Eq { Program.Eq }
+| Neq { Program.Neq }
+| Lt { Program.Lt }
+| Gt { Program.Gt }
+| Le { Program.Le }
+| Ge { Program.Ge }
+
+%inline logic_binop :
+| And { Program.And }
+| Or { Program.Or }

@@ -1,7 +1,6 @@
-B _build
-B _build/src
+B _build/**
 
-S src
+S src/**
 
 PKG batteries
 PKG ocamlgraph

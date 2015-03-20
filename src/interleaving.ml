@@ -1,4 +1,8 @@
-module Make (D : Domain.Domain) = struct
+open Batteries
+
+module P = Program
+
+module Make (D : Domain.Outer) = struct
   module Fixpoint = Graph.Fixpoint.Make (Cfg.G)
       (struct
         type vertex = Cfg.G.vertex
@@ -8,17 +12,17 @@ module Make (D : Domain.Domain) = struct
         let direction = Graph.Fixpoint.Forward
         let equal = D.equal
         let join = D.join
-        let analyze (_, {Cfg.E.thread; ins}, _) d =
-          D.transfer d thread ins
+        let analyze (_, op, _) d =
+          D.transfer d op
       end)
 
   include Fixpoint
 
-  let make_analyze program =
+  let make_analyze g =
     analyze
-      (fun pos ->
-         if pos = Syntax.TypedProgram.initial_position program
-         then D.init program
+      (fun control_state ->
+         if P.is_initial control_state
+         then D.init g.Cfg.program
          else D.bottom)
-      (Cfg.make program)
+      g.Cfg.graph
   end

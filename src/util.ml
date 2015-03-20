@@ -1,6 +1,15 @@
 open Batteries
 
 (*
+   Print
+*)
+
+let print_to_string print item =
+  let output = IO.output_string () in
+  print output item;
+  IO.close_out output
+
+(*
   Option
 *)
 
@@ -11,6 +20,15 @@ let str_int_option = function
 let print_int_option output opt =
   String.print output (str_int_option opt)
 
+let option_map2 f op1 op2 = match op1, op2 with
+  | None, _ -> None
+  | _, None -> None
+  | Some x, Some y -> Some (f x y)
+
+let option_bind2 f op1 op2 = match op1, op2 with
+  | None, _ -> None
+  | _, None -> None
+  | Some x, Some y -> f x y
 
 (*
   List
@@ -30,44 +48,15 @@ let rec incr_nth n = function
     then succ x :: xs
     else x :: incr_nth (pred n) xs
 
-let repeat n v =
-  let rec aux acc n =
-    if n = 0 then acc
-    else aux (v :: acc) (pred n)
-  in aux [] n
-
-let rec string_of_list ?(sep="; ") string_of_elem = function
-  | [] -> ""
-  | [x] -> string_of_elem x
-  | x :: xs ->
-    string_of_elem x ^ sep ^ string_of_list ~sep string_of_elem xs
-
-let string_of_pos = string_of_list string_of_int
-
-let string_of_int_list li =
-  "[" ^ string_of_pos li ^ "]"
-
-let rec print_list p = function
-  | [] -> ()
-  | [x] -> p x
-  | x :: xs -> p x; print_string "; "; print_list p xs
-
 let rec last = function
   | [] -> raise Not_found
   | [x] -> x
   | _ :: xs -> last xs
 
-let rec first = function
-  | [] -> failwith "first"
-  | [x] -> []
-  | x :: xs -> x :: first xs
-
-let rec ( -- ) init final =
-  if init > final then []
-  else init :: (succ init -- final)
-
-let ( --^ ) init final =
-  init -- pred final
+let rec front = function
+  | [] -> failwith "front"
+  | [_] -> []
+  | x :: xs -> x :: front xs
 
 let rec inser_all_pos x = function
   | [] -> [[x]]

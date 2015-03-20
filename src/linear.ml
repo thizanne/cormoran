@@ -4,7 +4,7 @@ open Syntax
 open Syntax.Typed
 open Syntax.TypedProgram
 
-module Make (D : Domain.Domain) = struct
+module Make (D : Domain.Outer) = struct
 
   let rec state_pred = function
     | [] -> []

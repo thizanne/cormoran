@@ -1,134 +1,121 @@
 %{
- open Lexing
- module Program = Syntax.Program (Syntax.Typed)
- module Typed = Syntax.Typed
+  open Lexing
 
- let rec transform = function
-   | [] -> failwith "transform"
-   | [x] ->
-     List.map
-       (function Some i -> [i] | None -> []) x
-   | line :: lines ->
-     let r = transform lines in
-     List.map2
-       (fun ins li ->
-         match ins with
-         | None -> li
-         | Some ins -> ins :: li
-       ) line r
+  module P = Program
+  module L = Location
 
-  let rec inser x = function
-    | [] -> [x]
-    | y :: ys as yss ->
-      if x = y then yss
-      else if x < y then x :: yss
-      else y :: inser x ys
+  let var_sym = Symbol.namespace ()
 
-  let rec inser2 x = function
-    | [] -> [x, 0]
-    | (y1, y2) :: ys as yss ->
-      if x = y1 then yss
-      else if x < y1 then (x, 0) :: yss
-      else (y1, y2) :: inser2 x ys
+  let rec transform = function
+    | [] -> failwith "transform"
+    | [line] ->
+      List.map
+        (function
+          | None -> L.mkdummy P.Nothing
+          | Some i -> i)
+        line
+    | line :: lines ->
+      let bodies = transform lines in
+      List.map2
+        (fun ins body -> match ins with
+           | None -> body
+           | Some ins -> P.seq ins body)
+        line bodies
 
-  let rec locals =
-    let open Syntax in
-    let open Typed in
-    function
-    | [] -> []
-    | x :: xs -> begin match x.item with
-        | Read (r, _)
-        | Write (_, {item = Var r; _})
-        | RegOp (r, _) -> inser r.item (locals xs)
-        | _ -> locals xs
-      end
+  let add_preserve k v map =
+    Symbol.Map.modify_opt
+      k (function None -> Some v | Some v' -> Some v') map
 
-  let globals acc threads =
-    let open Syntax in
-    let open Typed in
-    let open TypedProgram in
-
-    let global_thread acc ins =
-      Array.fold_left
-        (fun acc ins ->
-           match ins.item with
-           | Read (_, v)
-           | Write (v, _) -> inser2 v.item acc
-           | _ -> acc
-        ) acc ins
+  let get_shared acc threads =
+    (* Finds all shared variables of the program, including those
+       which were not initialised (meaning they should be initialised
+       to 0, according to litmus specification). Relies on the fact
+       that litmus programs only contain sequences of
+       assignations/fences (and enforces it with an exception) *)
+    let rec scan_body body acc = match body with
+      | P.MFence -> acc
+      | P.Seq (b1, b2) ->
+        acc |> scan_body b1.L.item |> scan_body b2.L.item
+      | P.Assign (x, e) ->
+        if P.is_shared x.L.item
+        then add_preserve x.L.item.P.var_name 0 acc
+        else begin
+          match P.shared_in_expr e.L.item with
+          | [y] -> Symbol.Map.add y 0 acc
+          | _ -> failwith "ParserLitmus.globals"
+        end
+      | _ -> failwith "ParserLitmus.get_shared"
     in
-
-    let rec aux acc = function
-      | [] -> List.sort Pervasives.compare acc
-      | t :: ts -> aux (global_thread acc t.ins) ts
-    in
-
-    aux (List.sort Pervasives.compare acc) threads
+    List.fold_left
+      (fun acc thread -> scan_body thread.P.body acc)
+      acc threads
 %}
 
 %token LCurly RCurly LPar RPar
 %token (* Colon *) Comma Semi Pipe And Equals Mov MFence Exists
 %token Eof
-%token <string> Var
+%token <string> Shared
 %token <int> Int
 %token <string> Reg
+%token <int * string> ThreadedReg
 
-%start <Syntax.TypedProgram.t * (string * int) list> program
+%start <Program.t> program
 
 %%
 
 %inline loc(X) :
-| x = X { {Syntax.item = x; startpos = $startpos; endpos = $endpos} }
+| x = X { L.mk x $startpos $endpos }
 
 program :
-| init = init_dec c = code cond = exists Eof {
-    { Program.initial = globals init c; threads = Array.of_list c },
-    cond
+| init = init_dec c = code prop = exists Eof {
+    { P.initial = get_shared init c; threads = c }
   }
 | error {
-  raise (Error.Error [Error.SyntaxError, $startpos, $endpos, "program"])
+    let open Error in
+    let err_loc = { L.startpos = $startpos; endpos = $endpos } in
+    raise @@ Error { error = SyntaxError; err_loc; err_msg = "" }
   }
 
 init_dec :
   (* Due to a hack with LexerLitmus.drop_prelude, LCurly is actually
      dropped *)
-| LCurly? li = separated_list(Semi, init_var) RCurly { li }
+| LCurly? li = separated_list(Semi, init_var) RCurly {
+    Symbol.Map.of_enum @@ BatList.enum @@ li
+  }
 
 init_var :
-| v = Var Equals x = Int { v, x }
+| v = Shared Equals x = Int { var_sym v, x }
 
 code :
 | lines = line+ {
-      let threads = transform lines in
-      List.map
-        (fun t -> { Program.locals = locals t; ins = Array.of_list t })
-        threads
-    }
+    List.map
+      (fun { L.item = body; _ } ->
+         { P.locals = Symbol.Set.empty; body })
+      (transform lines)
+  }
 
 line :
 | ins = separated_nonempty_list(Pipe, loc(instruction)?) Semi { ins }
 
 instruction :
-| MFence { Typed.MFence }
-| Mov d = loc(Reg) Comma v = loc(expr) {
-    Typed.RegOp (d, v)
-  }
-| Mov d = loc(Reg) Comma v = loc(Var) { Typed.Read (d, v) }
-| Mov d = loc(Var) Comma v = loc(value) { Typed.Write (d, v) }
+| MFence { P.MFence }
+| Mov x = loc(var) Comma e = loc(expr) { P.Assign (x, e) }
 
 expr :
-| v = loc(value) { Syntax.Val v }
+| n = loc(Int) { P.Int n }
+| x = loc(var) { P.Var x }
 
-value :
-| x = loc(Int) { Syntax.Int x }
-| r = loc(Reg) { Syntax.Var r }
+var :
+| r = Reg { P.local_var (var_sym r) }
+| x = Shared { P.shared_var (var_sym x) }
 
 exists :
 | Exists LPar eqs = separated_list(And, equality) RPar { eqs }
 
 equality :
-| v = var Equals x = Int { (v, x) }
+| v = threaded_var Equals x = Int { (v, x) }
 
-var :
-| r = Reg { r }
-| v = Var { v }
+(* TODO: real property checking *)
+threaded_var :
+| Shared { }
+| ThreadedReg { }

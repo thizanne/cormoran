@@ -1,123 +1,101 @@
+open Batteries
+open Location
 open Printf
-open Syntax
 open Error
+open Program
 
-let type_error e msg = Error [TypeError, e.startpos, e.endpos, msg]
+let add_local_if_absent x env =
+  Symbol.Map.modify_opt x
+    (function
+      | None -> Some Local
+      | Some typ -> Some typ)
+    env
 
-let name_error e msg = Error [NameError, e.startpos, e.endpos, msg]
+let check_expression env shared_allowed expr =
+  let rec has_shared shared_allowed = function
+    | Int _ -> false
+    | Var v ->
+      begin match Symbol.Map.find v.item.var_name env with
+        | Local ->
+          let () = v.item.var_type <- Local in false
+        | Shared ->
+          if shared_allowed
+          then let () = v.item.var_type <- Shared in true
+          else type_error expr
+              "This expression has too many shared variables"
+        | exception Not_found ->
+          type_error v @@
+          sprintf "Var %s is not defined"
+            (Symbol.name v.item.var_name)
+      end
+    | ArithUnop (_, e) ->
+      has_shared shared_allowed e.item
+    | ArithBinop (_, e1, e2) ->
+      has_shared
+        (shared_allowed && (not (has_shared shared_allowed e1.item)))
+        e2.item
+  in ignore (has_shared shared_allowed expr.item)
 
-let label_already_defined e =
-  name_error e (sprintf "Label %s already defined" e.item)
+let rec check_condition env = function
+  | Bool _ -> ()
+  | LogicUnop (_, c) ->
+    check_condition env c.item
+  | LogicBinop (_, c1, c2) ->
+    check_condition env c1.item;
+    check_condition env c2.item
+  | ArithRel (_, e1, e2) ->
+    check_expression env false e1;
+    check_expression env false e2
 
-let not_defined e =
-  name_error e (sprintf "%s not defined" e.item)
+let rec type_body env = function
+  | Nothing
+  | Pass
+  | MFence -> env
+  | Seq (b1, b2) ->
+    type_body (type_body env b1.item) b2.item
+  | Assign ({ item = { var_type; var_name } as x; _ }, exp) ->
+    begin match Symbol.Map.Exceptionless.find var_name env with
+      | Some Local
+      | None ->
+        check_expression env true exp;
+        x.var_type <- Local;
+        Symbol.Map.add var_name Local env
+      | Some Shared ->
+        check_expression env false exp;
+        x.var_type <- Shared;
+        env
+    end
+  | If (cond, body) ->
+    check_condition env cond.item;
+    type_body env body.item
+  | While (cond, body) ->
+    check_condition env cond.item;
+    type_body env body.item
+  | For (i, exp_from, exp_to, body) ->
+    begin match Symbol.Map.Exceptionless.find i.item.var_name env with
+      | None
+      | Some Local ->
+        i.item.var_type <- Local;
+        let env_i = add_local_if_absent i.item.var_name env in
+        check_expression env_i false exp_from;
+        check_expression env_i false exp_to;
+        type_body env_i body.item
+      | Some Shared ->
+        type_error i "For indices must not be shared variables"
+    end
 
-let check_var good_name good_vars bad_vars v =
-  if List.mem v.item good_vars then v
-  else
-  if List.mem v.item bad_vars then
-    raise (type_error v
-             (sprintf "%s defined but wrong type: should be %s" v.item good_name))
-  else
-    raise (Error [
-        NameError, v.startpos, v.endpos,
-        sprintf "%s not defined: should be %s" v.item good_name])
-
-let check_global globals locals = check_var "shared" globals locals
-let check_local globals locals = check_var "register" locals globals
-
-let check_label labels lbl =
-  if List.mem lbl.item labels then lbl
-  else raise (not_defined lbl)
-
-let type_value globals locals v = match v.item with
-  | Int _ -> v
-  | Var r -> {v with item = Var (check_local globals locals r)}
-
-let rec type_expr globals locals e =
-  { e with item =
-             match e.item with
-             | Val x -> Val (type_value globals locals x)
-             | Op (op, e1, e2) ->
-               Op (
-                 op,
-                 type_expr globals locals e1,
-                 type_expr globals locals e2
-               )}
-
-let type_ins globals locals labels ins =
-  let open Typed in {ins with item = match ins.item with
-      | Untyped.Pass -> Pass
-      | Untyped.Affect (x, e) ->
-        if List.mem x.item globals
-        then
-          begin match e.item with
-            | Val ({item = Int _; _} as n) -> Write (x, n)
-            | Val {item = Var v; _} ->
-              Write (x, {e with item = Var (check_local globals locals v)})
-            | Op (_, _, _) -> raise (
-                type_error e
-                  "Arithmetic operation not allowed in memory write")
-          end
-        else if List.mem x.item locals
-        then
-          begin match e.item with
-            | Val {item = Var y; _} when List.mem y.item globals ->
-              Read (x, y)
-            | Val {item = _; _} | Op (_, _, _) ->
-              RegOp (x, type_expr globals locals e)
-          end
-        else raise (not_defined x)
-      | Untyped.Cmp (r, v1, v2) ->
-        Cmp (check_local globals locals r,
-             type_value globals locals v1,
-             type_value globals locals v2)
-      | Untyped.MFence -> MFence
-      | Untyped.Label s -> Label s
-      | Untyped.Jnz (r, s) ->
-        Jnz (check_local globals locals r, (check_label labels s))
-      | Untyped.Jz (r, s) ->
-        Jz (check_local globals locals r, (check_label labels s))
-      | Untyped.Jmp s ->
-        Jmp (check_label labels s)
-    }
-
-let get_labels =
-  Array.fold_left
-    (fun lbls ins -> match ins.item with
-       | Untyped.Label s ->
-         if List.mem s.item lbls
-         then raise (label_already_defined s)
-         else s.item :: lbls
-       | _ -> lbls) []
-
-let type_thread globals thread =
-  let open UntypedProgram in {
-    TypedProgram.locals = thread.locals;
-    ins = Array.map
-        (type_ins globals thread.locals (get_labels thread.ins)) thread.ins
+let type_thread shared_env { locals; body } =
+  let env = type_body shared_env body in {
+    body;
+    locals =
+      env
+      |> Symbol.Map.filterv (( = ) Local)
+      |> Symbol.Map.keys
+      |> Symbol.Set.of_enum
   }
 
-let rec type_threads globals locals = function
-  (* TODO better handling of a local already defined *)
-  | [] -> []
-  | t :: ts ->
-    let t = type_thread globals t in
-    List.iter
-      (fun v ->
-         if List.mem v locals
-         then failwith (sprintf "Local %s used at least twice" v))
-      t.TypedProgram.locals;
-    t :: type_threads globals (t.TypedProgram.locals @ locals) ts
-
-
-let type_program prog =
-  let open UntypedProgram in {
-    TypedProgram.initial = prog.initial;
-    threads =
-      (* TODO : double array <-> list conversion sucks *)
-      prog.threads
-      |> Array.to_list
-      |> type_threads (List.map fst prog.initial) []
-      |> Array.of_list;
+let type_program { initial; threads } =
+  let shared_env = Symbol.Map.map (fun _ -> Shared) initial in {
+    initial;
+    threads = List.map (type_thread shared_env) threads
   }
