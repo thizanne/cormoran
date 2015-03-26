@@ -21,7 +21,7 @@ if max01 > n2 {
    max012 := max01
 }
 
-number0 := max012
+number0 := 1 + max012
 
 entering0 := 0
 
@@ -103,7 +103,7 @@ if max01 > n2 {
    max012 := max01
 }
 
-number1 := max012
+number1 := 1 + max012
 
 entering1 := 0
 
@@ -185,7 +185,7 @@ if max01 > n2 {
    max012 := max01
 }
 
-number2 := max012
+number2 := 1 + max012
 
 entering2 := 0
 

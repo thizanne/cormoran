@@ -1,0 +1,126 @@
+entering0 = 0, entering1 = 0,
+number0 = 0, number1 = 0
+
+#### THREAD 0 ####
+
+entering0 := 1
+mfence
+
+n0 := number0
+n1 := number1
+
+// number0 = 1 + max(number0, number1);
+
+max01 := n1
+if n0 > n1 {
+   max01 := n0
+}
+
+number0 := 1 + max01
+mfence
+
+entering0 := 0
+mfence
+
+// Wait until thread 0 receives its number:
+
+e := entering0
+while (e = 1) {
+    e := entering0
+}
+
+// Wait until all threads with smaller numbers or with the same
+// number, but with higher priority, finish their work:
+
+nj := number0
+ni := number0
+
+while nj <> 0 && (nj < ni || nj = ni && 0 < 0) {
+    nj := number0
+    ni := number0
+}
+
+// Wait until thread 1 receives its number:
+
+e := entering1
+while (e = 1) {
+    e := entering1
+}
+
+// Wait until all threads with smaller numbers or with the same
+// number, but with higher priority, finish their work:
+
+nj := number1
+ni := number0
+
+while nj <> 0 && (nj < ni || nj = ni && 1 < 0) {
+    nj := number1
+    ni := number0
+}
+
+// Critical section
+
+number0 := 0
+mfence
+
+#### THREAD 1 ####
+
+entering1 := 1
+mfence
+
+n0 := number0
+n1 := number1
+
+// number1 = 1 + max(number0, number1);
+
+max01 := n1
+if n0 > n1 {
+   max01 := n0
+}
+
+number1 := 1 + max01
+mfence
+
+entering1 := 0
+mfence
+
+// Wait until thread 0 receives its number:
+
+e := entering0
+while (e = 1) {
+    e := entering0
+}
+
+// Wait until all threads with smaller numbers or with the same
+// number, but with higher priority, finish their work:
+
+nj := number0
+ni := number1
+
+while nj <> 0 && (nj < ni || nj = ni && 0 < 1) {
+    nj := number0
+    ni := number1
+}
+
+// Wait until thread 1 receives its number:
+
+e := entering1
+while (e = 1) {
+    e := entering1
+}
+
+// Wait until all threads with smaller numbers or with the same
+// number, but with higher priority, finish their work:
+
+nj := number1
+ni := number1
+
+while nj <> 0 && (nj < ni || nj = ni && 1 < 1) {
+    nj := number1
+    ni := number1
+}
+
+// Critical section
+
+number1 := 0
+mfence
