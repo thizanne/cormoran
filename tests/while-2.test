@@ -1,0 +1,15 @@
+x = 10, y = 1
+
+#
+ry := y
+while (ry = 1) {
+    rx := x
+    x := rx - 1
+    ry := y
+}
+
+#
+rx := x
+if (rx = 0) {
+    y := 1
+}
