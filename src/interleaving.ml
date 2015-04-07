@@ -3,26 +3,32 @@ open Batteries
 module P = Program
 
 module Make (D : Domain.Outer) = struct
-  module Fixpoint = Graph.Fixpoint.Make (Cfg.G)
+  module Wto = Graph.WeakTopological.Make (Cfg.G)
+
+  module Fixpoint = Graph.ChaoticIteration.Make (Cfg.G)
       (struct
-        type vertex = Cfg.G.vertex
         type edge = Cfg.G.edge
-        type g = Cfg.G.t
         type data = D.t
-        let direction = Graph.Fixpoint.Forward
         let equal = D.equal
         let join = D.join
+        let widening =
+          D.widening
         let analyze (_, op, _) d =
           D.transfer d op
+        let widening_delay = 0
       end)
 
   include Fixpoint
 
   let make_analyze g =
-    analyze
-      (fun control_state ->
-         if P.is_initial control_state
-         then D.init g.Cfg.program
-         else D.bottom)
-      g.Cfg.graph
+    let result =
+      recurse
+        g.Cfg.graph
+        (Wto.recursive_scc g.Cfg.graph @@
+         Program.initial_state g.Cfg.program)
+        (fun control_state ->
+           if P.is_initial control_state
+           then D.init g.Cfg.program
+           else D.bottom)
+    in fun state -> M.find state result
   end
