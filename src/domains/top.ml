@@ -12,6 +12,8 @@ let transfer Top _ = Top
 
 let join Top Top = Top
 
+let widening Top Top = Top
+
 let satisfies _ Top = true
 
 let print output Top = Unit.print output ()

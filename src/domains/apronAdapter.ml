@@ -179,6 +179,9 @@ module Make (N : Numerical) : Domain.Inner = struct
       (texpr1 (Abstract1.env abstr) expr)
       None
 
+  let widening abstr1 abstr2 =
+    Abstract1.widening man abstr1 abstr2
+
   let print output abstr =
     let fmt = Format.formatter_of_output output in
     Abstract1.print fmt abstr;

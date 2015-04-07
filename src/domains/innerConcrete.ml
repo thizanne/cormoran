@@ -100,7 +100,11 @@ let init program =
   D.singleton (Point.init program)
 
 let join = D.union
+
 let meet = D.inter
+
+let widening _abstr1 abstr2 =
+  abstr2
 
 let join_array =
   Array.fold_left join D.empty

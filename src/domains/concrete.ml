@@ -21,6 +21,9 @@ let equal = D.equal
 
 let join = D.union
 
+let widening _abstr1 abstr2 =
+  abstr2
+
 let smap f s = D.fold (fun x e -> D.add (f x) e) s D.empty
 
 let set_reg state t x v = {

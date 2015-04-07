@@ -204,6 +204,14 @@ module Make (Inner : Domain.Inner) = struct
          | _, None -> abstr1
          | Some abstr1, Some abstr2 -> Some (Inner.join abstr1 abstr2))
 
+  let widening =
+    M.merge
+      (fun _bufs abstr1 abstr2 -> match (abstr1, abstr2) with
+         | None, _ -> abstr2
+         | _, None -> failwith "Abstract.widening"
+         | Some abstr1, Some abstr2 ->
+           Some (Inner.widening abstr1 abstr2))
+
   let satisfies _ =
     Error.not_implemented_msg_error
       "Constraint satisfaction is not implemented on domain Abstract"
