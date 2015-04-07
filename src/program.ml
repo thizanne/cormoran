@@ -177,3 +177,6 @@ type t = {
   initial : int Symbol.Map.t;
   threads : thread list;
 }
+
+let initial_state p =
+  List.map (fun _ -> 0) p.threads
