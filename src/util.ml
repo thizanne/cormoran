@@ -1,6 +1,17 @@
 open Batteries
 
 (*
+   Lexing
+*)
+
+let file_lexbuf filename =
+  let open Lexing in
+  let lexbuf = from_channel @@ open_in filename in
+  lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
+  lexbuf.lex_start_p <- { lexbuf.lex_start_p with pos_fname = filename };
+  lexbuf
+
+(*
    Print
 *)
 
