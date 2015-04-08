@@ -2,6 +2,7 @@ B _build/**
 
 S src/**
 
+PKG cmdliner
 PKG batteries
 PKG ocamlgraph
 PKG ppx_deriving.std

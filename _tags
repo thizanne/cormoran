@@ -1,5 +1,6 @@
 true: use_menhir
 true: package(ocamlgraph),package(batteries),package(ppx_deriving.std)
+true: package(cmdliner)
 <src>: include
 <src/*>: include
 
