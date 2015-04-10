@@ -1,57 +1,35 @@
 open Batteries
-open Error
-open Printf
+open Cmdliner
 
-let use_litmus = ref false
-let cond_check = ref true
-let domain = ref "order"
+let info =
+  let doc = "Analyses a program under TSO." in
+  let man = [
+    `S "BUGS";
+    `P "Probably.";
+  ] in
+  Term.info "canal" ~version:"0.1" ~doc ~man
 
-let speclist = [
-  "--litmus", Arg.Set use_litmus, "Use litmus syntax";
-  "--domain", Arg.Set_string domain, "Domain: order (default), mark, concrete";
-  "--no-cond", Arg.Clear cond_check, "Litmus: don't check final condition";
-]
-
-(*
-let domains : (string * (module Domain.Outer)) list = [
-  "top", (module Top);
-  "order", (module Abstract.Make (InnerConcrete));
-  "mark", (module Mark);
-  "concrete", (module Concrete);
-]
-
-let speclist =
-  speclist
-  |> List.map (fun (a, b, c) -> (a, b, " " ^ c))
-  |> Arg.align
-
-let last_point program =
-  let open Syntax.TypedProgram in
-  Array.map
-    (fun t -> Array.length t.ins)
-    program.threads
-  |> Array.to_list
-
-let analyze file =
-  printf "Analysing file %s...\n" file;
-  try
-    let lexbuf = Lexing.from_channel @@ open_in file in
-    let program, cond = Parse.parse use_litmus lexbuf in
-    let module D = (val List.assoc !domain domains) in
-    let module Analyzer = Linear.Make (D) in
-    let result = Analyzer.analyze program in
-    if !use_litmus && !cond_check then
-      if D.satisfies cond @@
-        Hashtbl.find result (last_point program)
-      then print_endline "Condition satisfied"
-      else print_endline "Condition not satisfied"
-    else Analyzer.print result
-  with
-  | Error li -> List.iter (fun e -> print_endline (msg_of_error e ^ "\n")) li
-*)
-
-let analyze file =
-  failwith "This program does not work anymore. Use test_interleaving."
+let make_analysis d =
+  let module D = (val d : Domain.Outer) in
+  let module A = Interleaving.Make (D) in
+  A.make_analyze
 
 let () =
-  Arg.parse speclist analyze "Analyze a program. Options available:"
+  let module P = Param in
+  let open P.CommandTerm in
+  let open Term in
+  let program = P.Parse.parse $ use_litmus $ filename in
+  let program = pure fst $ program in
+  let g = pure Cfg.of_program $ program in
+  let d = P.Domain.get $ domain in
+  let module Analysis = Interleaving.Make (D) in
+  let analyze = Analysis.make_analyze g in
+  let module Result = struct module Domain = D let data = analyze end in
+  let module Dot = ExportCfg.Dot (Result) in
+  Dot.output_graph Legacy.stdout g.Cfg.graph
+
+let () =
+  match Term.eval (Term.(pure failwith $ pure "lol"), info) with
+  | `Error _ -> exit 1
+  | `Ok s -> print_string s
+  | _ -> exit 0
