@@ -94,6 +94,11 @@ let cfg_of_thread thread_id { Program.body; _ } =
   in
 
   let rec cfg_of_body (acc, offset) = function
+    (* TODO: Control blocks structures are generating one node more
+       than necessary. The building functions should be modified to
+       specify the end of the graph to yield, thus making the bodies
+       point on the structure head rather than on a new node linked to
+       the head by Identity. *)
     | P.Nothing ->
       acc, offset
     | P.Pass ->
