@@ -6,6 +6,7 @@ Experimental static analyser for a toy concurrent language with the TSO weak mem
 
 - apron
 - batteries
+- cmdliner
 - menhir
 - ocamlgraph
 - ppx_deriving
