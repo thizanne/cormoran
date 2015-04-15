@@ -5,30 +5,45 @@ module P = Program
 module Make (D : Domain.Outer) = struct
   module Wto = Graph.WeakTopological.Make (Cfg.G)
 
-  module Fixpoint = Graph.ChaoticIteration.Make (Cfg.G)
-      (struct
-        type edge = Cfg.G.edge
-        type data = D.t
-        let equal = D.equal
-        let join = D.join
-        let widening =
-          D.widening
-        let analyze (_, op, _) d =
-          D.transfer d op
-        let widening_delay = 0
-      end)
+  module Data = struct
+    type t = D.t
 
-  include Fixpoint
+    type edge = Cfg.G.edge
 
-  let make_analyze g =
-    let result =
-      recurse
-        g.Cfg.graph
-        (Wto.recursive_scc g.Cfg.graph @@
-         Program.initial_state g.Cfg.program)
-        (fun control_state ->
-           if P.is_initial control_state
-           then D.init g.Cfg.program
-           else D.bottom)
-    in fun state -> M.find state result
+    let equal = D.equal
+    let join = D.join
+
+    let analyze (_, op, _) d =
+      D.transfer d op
+
+    let widening = D.widening
   end
+
+  module Fixpoint = Graph.ChaoticIteration.Make (Cfg.G) (Data)
+
+  let analyze g widening_delay =
+    let wto =
+      Wto.recursive_scc g.Cfg.graph @@
+      Program.initial_state g.Cfg.program
+    in
+
+    let init control_state =
+      if P.is_initial control_state
+      then D.init g.Cfg.program
+      else D.bottom
+    in
+
+    let widening_set =
+      Graph.ChaoticIteration.FromWto
+    in
+
+    let result =
+      Fixpoint.recurse
+        g.Cfg.graph
+        wto
+        init
+        widening_set
+        widening_delay
+
+    in fun state -> Fixpoint.M.find state result
+end
