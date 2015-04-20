@@ -1,0 +1,92 @@
+/*
+item: TYPE
+slot: ARRAY [boolean, boolean] OF item;
+index: ARRAY [boolean] OF boolean;
+latest, reading: boolean;
+
+PROCESS writer(in: item);           PROCESS reader(out: item);
+wpair, windex: boolean;             rpair, rindex: boolean;
+*/
+
+latest = 1, reading = 0,
+slot00 = 0, slot01 = 0, slot10 = 0, slot11 = 0,
+index0 = 0, index1 = 0
+
+#### THREAD WRITER ####
+
+in := 1
+
+// !wpair := reading;
+wpair := reading
+
+// windex := !index[wpair];
+if wpair = 0 {
+    windex := index0
+}
+
+if wpair = 1 {
+    windex := index1
+}
+
+// slot[wpair][windex] := in;
+if wpair = 0 && windex = 0 {
+   slot00 := in
+}
+
+if wpair = 0 && windex = 1 {
+   slot01 := in
+}
+
+if wpair = 1 && windex = 0 {
+   slot10 := in
+}
+
+if wpair = 1 && windex = 1 {
+   slot11 := in
+}
+
+// index[wpair] := windex;
+if wpair = 0 {
+    index0 := windex
+}
+
+if wpair = 1 {
+    index1 := windex
+}
+
+// latest := wpair;
+latest := wpair
+
+#### THREAD READER ####
+
+// rpair := latest;
+rpair := latest
+
+// reading := rpair;
+reading := rpair
+
+// rindex := index[rpair];
+if rpair = 0 {
+    rindex := index0
+}
+
+if rpair = 1 {
+    rindex := index1
+}
+
+// out := slot[rpair][rindex];
+if rpair = 0 && rindex = 0 {
+   out := slot00
+}
+
+if rpair = 0 && rindex = 1 {
+   out := slot01
+}
+
+if rpair = 1 && rindex = 0 {
+   out := slot10
+}
+
+if rpair = 1 && rindex = 1 {
+   out := slot11
+}
