@@ -47,31 +47,34 @@ let rec check_condition env = function
     check_expression env false e1;
     check_expression env false e2
 
-let rec type_body env = function
+let rec type_body (env, labels) = function
   | Nothing
   | Pass
-  | MFence -> env
-  | Label lbl -> env
+  | MFence -> env, labels
+  | Label lbl ->
+    if Symbol.Set.mem lbl.item labels
+    then name_error lbl "Label already defined on this thread"
+    else env, Symbol.Set.add lbl.item labels
   | Seq (b1, b2) ->
-    type_body (type_body env b1.item) b2.item
+    type_body (type_body (env, labels) b1.item) b2.item
   | Assign ({ item = { var_type; var_name } as x; _ }, exp) ->
     begin match Symbol.Map.Exceptionless.find var_name env with
       | Some Local
       | None ->
         check_expression env true exp;
         x.var_type <- Local;
-        Symbol.Map.add var_name Local env
+        Symbol.Map.add var_name Local env, labels
       | Some Shared ->
         check_expression env false exp;
         x.var_type <- Shared;
-        env
+        env, labels
     end
   | If (cond, body) ->
     check_condition env cond.item;
-    type_body env body.item
+    type_body (env, labels) body.item
   | While (cond, body) ->
     check_condition env cond.item;
-    type_body env body.item
+    type_body (env, labels) body.item
   | For (i, exp_from, exp_to, body) ->
     begin match Symbol.Map.Exceptionless.find i.item.var_name env with
       | None
@@ -80,13 +83,13 @@ let rec type_body env = function
         let env_i = add_local_if_absent i.item.var_name env in
         check_expression env_i false exp_from;
         check_expression env_i false exp_to;
-        type_body env_i body.item
+        type_body (env_i, labels) body.item
       | Some Shared ->
         type_error i "For indices must not be shared variables"
     end
 
 let type_thread shared_env { locals; body } =
-  let env = type_body shared_env body in {
+  let env, _ = type_body (shared_env, Symbol.Set.empty) body in {
     body;
     locals =
       env
