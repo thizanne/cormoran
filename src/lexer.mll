@@ -42,6 +42,7 @@ rule lexer = parse
   | "mfence" { MFence }
   | "true" { Bool true }
   | "false" { Bool false }
+  | "label" { Label }
   | digits+ as n { Int (int_of_string n) }
   | alpha (alpha | digits | "_")* as x { Id x }
 

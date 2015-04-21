@@ -142,6 +142,7 @@ type body  =
   | Nothing
   | Pass
   | MFence
+  | Label of Symbol.t Location.loc
   | Seq of
       body Location.loc *
       body Location.loc

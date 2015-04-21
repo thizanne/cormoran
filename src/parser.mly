@@ -1,6 +1,7 @@
 %{
   open Lexing
   let var_sym = Symbol.namespace ()
+  let lbl_sym = Symbol.namespace ()
 %}
 
 %token LPar RPar LCurly RCurly
@@ -8,7 +9,7 @@
 %token Eq Neq Gt Ge Lt Le
 %token Not Or And
 %token Comma Semicolon SharpLine
-%token MFence Assign Pass While If For
+%token MFence Assign Pass While If For Label
 %token <bool> Bool
 %token <int> Int
 %token <string> Id
@@ -65,6 +66,7 @@ nonempty_body :
 
 instruction :
 | Pass { Program.Pass }
+| Label lbl = loc(label) { Program.Label lbl }
 | MFence { Program.MFence }
 | x = loc(var) Assign e = loc(expression) {
     Program.Assign (x, e)
@@ -80,6 +82,9 @@ instruction :
   LCurly body = loc(body) RCurly {
     Program.For (i, from_exp, to_exp, body)
   }
+
+label :
+| lbl = Id { lbl_sym lbl }
 
 var :
 | var_name = var_sym {

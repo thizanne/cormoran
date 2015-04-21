@@ -51,6 +51,7 @@ let rec type_body env = function
   | Nothing
   | Pass
   | MFence -> env
+  | Label lbl -> env
   | Seq (b1, b2) ->
     type_body (type_body env b1.item) b2.item
   | Assign ({ item = { var_type; var_name } as x; _ }, exp) ->
