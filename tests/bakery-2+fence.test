@@ -58,7 +58,7 @@ while nj <> 0 && (nj < ni || nj = ni && 1 < 0) {
     ni := number0
 }
 
-// Critical section
+label critical_section
 
 number0 := 0
 mfence
@@ -120,7 +120,7 @@ while nj <> 0 && (nj < ni || nj = ni && 1 < 1) {
     ni := number1
 }
 
-// Critical section
+label critical_section
 
 number1 := 0
 mfence

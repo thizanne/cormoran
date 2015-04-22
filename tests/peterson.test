@@ -12,7 +12,7 @@ while (f = 1 && t = 1) {
     t := turn
 }
 
-/* Critical section ... */
+label critical_section
 
 flag_0 := 0
 
@@ -27,6 +27,6 @@ while (f = 1 && t = 0) {
     t := turn
 }
 
-/* Critical section ... */
+label critical_section
 
 flag_1 := 0
