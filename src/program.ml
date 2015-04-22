@@ -181,3 +181,22 @@ type t = {
 
 let initial_state p =
   List.map (fun _ -> 0) p.threads
+
+module Property = struct
+
+  (* A thread code portion delimited by two labels *)
+  type zone = {
+    initial : Symbol.t option;
+    final : Symbol.t option;
+  }
+
+  type t =
+    | CriticalSection of zone threaded list
+    | FinalCondition of condition (* Also requires empty buffers *)
+    | ZoneCondition of
+        zone threaded list *
+        condition threaded
+    | And of t * t
+    | Or of t * t
+
+end

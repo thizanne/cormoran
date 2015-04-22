@@ -234,4 +234,4 @@ let state_sat cond s =
     cond
 
 let satisfies cond domain =
-  D.exists (fun p -> state_sat cond p) domain
+  Error.not_implemented_msg_error "Sat not implemented"
