@@ -30,6 +30,7 @@ module G : Graph.Sig.P
 type t = private {
   program : Program.t;
   graph : G.t;
+  labels : Program.control_label Symbol.Map.t array;
 }
 
 val of_program : Program.t -> t
