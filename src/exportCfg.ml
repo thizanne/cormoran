@@ -48,7 +48,7 @@ module Dot (R : Analysis.Result) = Graph.Graphviz.Dot (
 </TD>
 </TR>
 </TABLE>"
-            (print_to_string (List.print ~first:"" ~last:"" Int.print) v)
+            (print_to_string Program.Control.State.print v)
             (label v)
         )
       ]
@@ -62,7 +62,7 @@ module Dot (R : Analysis.Result) = Graph.Graphviz.Dot (
     let default_edge_attributes _ = []
     let get_subgraph _ = None
     let vertex_name v =
-      "\"" ^ (print_to_string (List.print Int.print) v) ^ "\""
+      "\"" ^ (print_to_string Program.Control.State.print v) ^ "\""
     let default_vertex_attributes _ = []
     let graph_attributes _ = []
   end)

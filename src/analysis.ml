@@ -2,7 +2,7 @@ open Batteries
 
 module type Result = sig
   module Domain : Domain.Outer
-  val data : Program.control_state -> Domain.t
+  val data : Program.Control.State.t -> Domain.t
 end
 
 module EmptyResult (D : Domain.Outer) : Result = struct

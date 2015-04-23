@@ -1,7 +1,5 @@
 open Batteries
 
-module P = Program
-
 module Make (D : Domain.Outer) = struct
   module Wto = Graph.WeakTopological.Make (Cfg.G)
 
@@ -24,11 +22,11 @@ module Make (D : Domain.Outer) = struct
   let analyze g widening_delay =
     let wto =
       Wto.recursive_scc g.Cfg.graph @@
-      Program.initial_state g.Cfg.program
+      Program.Control.State.initial g.Cfg.program
     in
 
     let init control_state =
-      if P.is_initial control_state
+      if Program.Control.State.is_initial control_state
       then D.init g.Cfg.program
       else D.bottom
     in

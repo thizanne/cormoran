@@ -1,14 +1,5 @@
 open Batteries
 
-(* TODO: make these types private *)
-
-type control_label = int
-
-type control_state = control_label list
-
-let is_initial =
-  List.for_all (( = ) 0)
-
 type thread_id = int
 
 (* TODO: unify threaded with Location.loc as a context comonad *)
@@ -179,8 +170,60 @@ type t = {
   threads : thread list;
 }
 
-let initial_state p =
-  List.map (fun _ -> 0) p.threads
+module Control : sig
+  type program = t
+
+  module Label : sig
+    type t
+    val initial : t
+    val succ : t -> t
+    val compare : t -> t -> int
+    val print : 'a IO.output -> t -> unit
+  end
+
+  module State : sig
+    type t
+    val empty : t
+    val add_label : Label.t -> t -> t
+    val is_initial : t -> bool
+    val initial : program -> t
+    val compare : t -> t -> int
+    val print : 'a IO.output -> t -> unit
+  end
+
+  module StateMap : Map.S with type key = State.t
+
+end
+=
+struct
+  type program = t
+
+  module Label = struct
+    include Int
+    let initial = 0
+  end
+
+  module State = struct
+    type t = Label.t list
+
+    let empty = []
+
+    let add_label = List.cons
+
+    let compare = List.compare Label.compare
+
+    let is_initial =
+      List.for_all (( = ) 0)
+
+    let initial program =
+      List.map (fun _ -> 0) program.threads
+
+    let print output =
+      List.print Int.print ~first:"" ~last:"" output
+  end
+
+  module StateMap = Map.Make (State)
+end
 
 module Property = struct
 
