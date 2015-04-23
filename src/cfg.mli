@@ -31,6 +31,7 @@ type t = private {
   program : Program.t;
   graph : G.t;
   labels : Program.Control.Label.t Symbol.Map.t array;
+  final_state : Program.Control.State.t;
 }
 
 val of_program : Program.t -> t
