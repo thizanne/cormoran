@@ -224,14 +224,5 @@ let print output =
 let is_totally_flushed p =
   List.for_all (( = ) []) p.buf
 
-let state_sat_cond (var, value) s =
-  Error.not_implemented_msg_error "Sat not implemented"
-
-let state_sat cond s =
-  is_totally_flushed s &&
-  List.for_all
-    (fun c -> state_sat_cond c s)
-    cond
-
-let satisfies cond domain =
-  Error.not_implemented_msg_error "Sat not implemented"
+let satisfies cond =
+  failwith "TODO"

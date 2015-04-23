@@ -15,7 +15,7 @@ module type Outer = sig
 
   val widening : t -> t -> t
 
-  val satisfies : Program.Property.t -> t -> bool
+  val satisfies : t -> Program.Property.t -> bool
 
   val print : 'a IO.output -> t -> unit
 end
