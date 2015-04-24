@@ -15,10 +15,9 @@ let main domain widening_delay use_litmus filename =
   let g = Cfg.of_program program in
   let module D = (val Domain.get domain) in
   let module Analysis = Interleaving.Make (D) in
-  let analyze = Analysis.analyze g widening_delay in
-  let module Result = struct module Domain = D let data = analyze end in
-  let module Dot = ExportCfg.Dot (Result) in
-  Dot.output_graph Legacy.stdout g.Cfg.graph
+  let data = Analysis.analyze g widening_delay in
+  let module Dot = ExportCfg.Dot (D) in
+  Dot.output_graph IO.stdout data g
 
 let main_term =
   let open Param.CommandTerm in

@@ -40,10 +40,9 @@ let print_cfg file =
     let module D = (val List.assoc !domain domains) in
     let g = Cfg.of_program program in
     let module Analysis = Interleaving.Make (D) in
-    let analyze = Analysis.analyze g 2 in
-    let module Result = struct module Domain = D let data = analyze end in
-    let module Dot = ExportCfg.Dot (Result) in
-    Dot.output_graph Legacy.stdout g.Cfg.graph
+    let data = Analysis.analyze g 2 in
+    let module Dot = ExportCfg.Dot (D) in
+    Dot.output_graph IO.stdout data g
   with
   | Error e -> prerr_endline (to_string e)
 

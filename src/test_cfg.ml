@@ -15,14 +15,15 @@ let speclist =
   |> Arg.align
 *)
 
-module Dot = ExportCfg.Dot (Analysis.EmptyResult (Top))
+module Dot = ExportCfg.Dot (Top)
+let data _ = Top.bottom
 
 let print_cfg file =
   try
     let lexbuf = Lexing.from_channel @@ open_in file in
     let program, _cond = Parse.parse use_litmus lexbuf in
     let g = Cfg.of_program program in
-    Dot.output_graph Legacy.stdout g.Cfg.graph
+    Dot.output_graph IO.stdout data g
   with
   | Error.Error e -> prerr_endline (Error.to_string e)
 

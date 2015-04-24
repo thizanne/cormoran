@@ -21,13 +21,19 @@ let edge_label {Program.thread_id; elem = op} =
   end;
   IO.close_out output
 
-module Dot (R : Analysis.Result) = Graph.Graphviz.Dot (
+module Dot (D : Domain.Outer) = struct
+
+  module DotParam
+      (Data : sig
+         val data : Program.Control.State.t -> D.t
+       end)
+  =
   struct
     include Cfg.G
 
     let vertex_attributes v =
       let label v =
-        print_to_string R.Domain.print (R.data v)
+        print_to_string D.print (Data.data v)
         |> String.replace_chars
           (function
             | '\n' -> "<BR/>"
@@ -65,4 +71,10 @@ module Dot (R : Analysis.Result) = Graph.Graphviz.Dot (
       "\"" ^ (print_to_string Program.Control.State.print v) ^ "\""
     let default_vertex_attributes _ = []
     let graph_attributes _ = []
-  end)
+  end
+
+  let output_graph out data g =
+    let module Param = DotParam (struct let data = data end) in
+    let module Dot = Graph.Graphviz.Dot (Param) in
+    Dot.fprint_graph (Format.formatter_of_output out) g.Cfg.graph
+end
