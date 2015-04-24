@@ -20,6 +20,8 @@ type t = S.t
 
 let bottom = S.empty
 
+let is_bottom = S.is_empty
+
 let equal = S.equal
 
 let join = S.union

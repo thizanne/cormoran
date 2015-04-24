@@ -5,6 +5,8 @@ module type Outer = sig
 
   val bottom : t
 
+  val is_bottom : t -> bool
+
   val equal : t -> t -> bool
 
   val init : Program.t -> t
@@ -15,7 +17,7 @@ module type Outer = sig
 
   val widening : t -> t -> t
 
-  val satisfies : t -> Program.Property.t -> bool
+  val satisfies : t -> Program.condition Program.threaded -> bool
 
   val print : 'a IO.output -> t -> unit
 end

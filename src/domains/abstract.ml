@@ -107,6 +107,9 @@ module Make (Inner : Domain.Inner) = struct
   let normalize =
     M.filterv (fun abstr -> not (Inner.is_bottom abstr))
 
+  let is_bottom d =
+    M.is_empty (normalize d)
+
   let print output =
     M.print
       ~first:"" ~last:"" ~kvsep:":\n" ~sep:"\n────────\n"

@@ -17,6 +17,8 @@ type t = D.t
 
 let bottom = D.empty
 
+let is_bottom = D.is_empty
+
 let equal = D.equal
 
 let join = D.union
