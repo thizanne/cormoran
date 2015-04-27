@@ -16,6 +16,6 @@ let join Top Top = Top
 
 let widening Top Top = Top
 
-let satisfies Top _ = false
+let satisfies _ Top = false
 
 let print output Top = Unit.print output ()

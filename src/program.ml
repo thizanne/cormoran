@@ -162,9 +162,6 @@ type thread = {
   body : body;
 }
 
-(* TODO: add a phantom type to ensure programs are typed before being
-   analysed *)
-
 type t = {
   initial : int Symbol.Map.t;
   threads : thread list;
@@ -177,6 +174,7 @@ module Control : sig
     type t
     val initial : t
     val succ : t -> t
+    val enum : initial:t -> final:t -> t Enum.t
     val compare : t -> t -> int
     val print : 'a IO.output -> t -> unit
   end
@@ -185,14 +183,13 @@ module Control : sig
     type t
     val empty : t
     val add_label : Label.t -> t -> t
+    val from_label_list : Label.t list -> t
+    val tid_label : t -> thread_id -> Label.t
     val is_initial : t -> bool
     val initial : program -> t
     val compare : t -> t -> int
     val print : 'a IO.output -> t -> unit
   end
-
-  module StateMap : Map.S with type key = State.t
-
 end
 =
 struct
@@ -200,7 +197,11 @@ struct
 
   module Label = struct
     include Int
+
     let initial = 0
+
+    let enum ~initial ~final =
+      initial -- final
   end
 
   module State = struct
@@ -208,7 +209,11 @@ struct
 
     let empty = []
 
+    let tid_label = List.nth
+
     let add_label = List.cons
+
+    let from_label_list labels = labels
 
     let compare = List.compare Label.compare
 
@@ -222,5 +227,4 @@ struct
       List.print Int.print ~first:"" ~last:"" output
   end
 
-  module StateMap = Map.Make (State)
 end

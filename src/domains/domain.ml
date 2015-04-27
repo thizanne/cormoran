@@ -11,13 +11,14 @@ module type Outer = sig
 
   val init : Program.t -> t
 
+  (* TODO: reverse order of arguments *)
   val transfer : t -> Cfg.Operation.t -> t
 
   val join : t -> t -> t
 
   val widening : t -> t -> t
 
-  val satisfies : t -> Program.condition Program.threaded -> bool
+  val satisfies : Program.condition Program.threaded -> t -> bool
 
   val print : 'a IO.output -> t -> unit
 end
