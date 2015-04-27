@@ -157,6 +157,57 @@ let seq body1 body2 =
     Location.(body1.loc.startpos)
     Location.(body2.loc.endpos)
 
+module Property = struct
+  (* A thread code portion delimited by two labels.
+   * No initial label means 0.
+   * No final label means the end of the thread.
+  *)
+  type interval = {
+    initial : Symbol.t option;
+    final : Symbol.t option;
+  }
+
+  let whole_interval = {
+    initial = None;
+    final = None;
+  }
+
+  (* A thread code portion defined as an union of intervals *)
+  type thread_zone = interval list
+
+  (* Program states set defined as a conjunction of thread zones.
+   * Typing should check that a given thread is present at most once in
+   * a zone. *)
+  type zone = thread_zone threaded list
+
+  type t =
+    | Condition of
+        zone option *
+        (* None means end of the program, once flushed *)
+        thread_id option *
+        (* If None, either zone is also None and the condition only
+           concerns shared variables, or the condition is
+           syntactically constant (eg. `false` for a critical
+           section) *)
+        condition
+    | And of t * t
+    | Or of t * t
+
+  let always_true =
+    Condition (
+      None,
+      None,
+      Bool (Location.mkdummy true)
+    )
+
+  let always_false =
+    Condition (
+      None,
+      None,
+      Bool (Location.mkdummy false)
+    )
+end
+
 type thread = {
   locals : Symbol.Set.t;
   body : body;
@@ -165,6 +216,7 @@ type thread = {
 type t = {
   initial : int Symbol.Map.t;
   threads : thread list;
+  property : Property.t;
 }
 
 module Control : sig
