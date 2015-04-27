@@ -8,6 +8,7 @@
 %token Plus Minus Times Divide
 %token Eq Neq Gt Ge Lt Le
 %token Not Or And
+%token At BigOr BigAnd Pipe Colon
 %token Comma Semicolon SharpLine
 %token MFence Assign Pass While If For Label
 %token <bool> Bool
@@ -15,6 +16,8 @@
 %token <string> Id
 %token Eof
 
+%left BigOr
+%left BigAnd
 %left Or
 %left And
 %nonassoc Not
@@ -29,15 +32,47 @@
 | x = X { Location.mk x $startpos $endpos }
 
 program :
-| mem = shared_decs SharpLine
-    t = separated_nonempty_list(SharpLine, thread)
+| LCurly property = property RCurly
+  initial = shared_decs SharpLine
+    threads = separated_nonempty_list(SharpLine, thread)
     Eof {
-    { Program.initial = mem; threads = t}
+    { Program.initial; threads; property }
   }
 | error {
     let open Error in
     let err_loc = { Location.startpos = $startpos; endpos = $endpos } in
     raise @@ Error { error = SyntaxError; err_loc; err_msg = "" }
+  }
+
+property :
+| z = zone_option tid = tid_option c = condition {
+    Program.Property.Condition(z, tid, c)
+  }
+| p1 = property BigAnd p2 = property {
+    Program.Property.And (p1, p2)
+  }
+| p1 = property BigOr p2 = property {
+    Program.Property.Or (p1, p2)
+  }
+
+zone_option :
+| At At { None }
+| At LPar zone = separated_list(Comma, thread_zone_threaded) RPar { Some zone }
+
+%inline tid_option :
+| { None }
+| tid = Int Colon { Some tid }
+
+thread_zone_threaded :
+| thread_id = Int Colon intervals = separated_list(Pipe, interval) {
+    Program.create_threaded ~thread_id intervals
+  }
+
+interval :
+| initial = Id? Minus final = Id? {
+    let initial = BatOption.map lbl_sym initial in
+    let final = BatOption.map lbl_sym final in
+    { Program.Property.initial; final }
   }
 
 shared_decs :
