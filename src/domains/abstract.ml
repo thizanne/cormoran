@@ -215,7 +215,9 @@ module Make (Inner : Domain.Inner) = struct
          | Some abstr1, Some abstr2 ->
            Some (Inner.widening abstr1 abstr2))
 
-  let satisfies _ =
-    Error.not_implemented_msg_error
-      "Constraint satisfaction is not implemented on domain Abstract"
+  let satisfies { P.thread_id; elem = cond } d =
+    let not_cond =
+      P.create_threaded ~thread_id
+        (P.LogicUnop (L.mkdummy P.Not, L.mkdummy cond)) in
+    is_bottom @@ M.map (fun inner -> Inner.meet_cons inner not_cond) d
 end
