@@ -31,7 +31,7 @@
 | x = X { Location.mk x $startpos $endpos }
 
 program :
-| LCurly property = property RCurly
+| property = property_def
   initial = shared_decs SharpLine
     threads = separated_nonempty_list(SharpLine, thread)
     Eof {
@@ -42,6 +42,10 @@ program :
     let err_loc = { Location.startpos = $startpos; endpos = $endpos } in
     raise @@ Error { error = SyntaxError; err_loc; err_msg = "" }
   }
+
+property_def :
+| { Program.Property.always_true }
+| LCurly property = property RCurly { property }
 
 property :
 | z = zone_option tid = tid_option c = condition {
