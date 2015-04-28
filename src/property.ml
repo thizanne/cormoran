@@ -59,17 +59,20 @@ module Make (D : Domain.Outer) = struct
       abstr
       g.Cfg.program.Program.threads
 
-  let rec satisfies g data = function
-    | Condition (zone, thread_id, cond) ->
-      let all_data =
-        match zone with
-        | None -> [data g.Cfg.final_state |> full_flush g]
-        | Some zone -> List.map data @@ list_zone zone g
-      in
-      let thread_id = Option.default 0 thread_id in
-      let threaded_cond = Program.create_threaded ~thread_id cond in
-      List.for_all (D.satisfies threaded_cond) all_data
-    | And (p1, p2) ->
-      satisfies g data p1 && satisfies g data p2
+
+  let satisfies g data =
+    let rec sat = function
+      | Condition (zone, thread_id, cond) ->
+        let all_data =
+          match zone with
+          | None -> [data g.Cfg.final_state |> full_flush g]
+          | Some zone -> List.map data @@ list_zone zone g
+        in
+        let thread_id = Option.default 0 thread_id in
+        let threaded_cond = Program.create_threaded ~thread_id cond in
+        List.for_all (D.satisfies threaded_cond) all_data
+      | And (p1, p2) ->
+        sat p1 && sat p2
+    in sat g.Cfg.program.Program.property
 
 end
