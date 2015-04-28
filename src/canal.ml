@@ -16,10 +16,13 @@ let main domain widening_delay use_litmus sourcefile outputfile =
     let g = Cfg.of_program program in
     let module D = (val P.Domain.get domain) in
     let module Analysis = Interleaving.Make (D) in
+    print_string "Analysing the program...";
+    IO.flush IO.stdout;
     let data = Analysis.analyze g widening_delay in
     let module Dot = ExportCfg.Dot (D) in
     let module Prop = Property.Make (D) in
     Dot.output_graph (P.Output.get_output outputfile) data g;
+    print_endline "done.\nChecking properties...";
     if Prop.satisfies g data
     then print_endline "Property verified."
     else print_endline "Property could not be verified: either it is wrong, or the domain is too imprecise."
