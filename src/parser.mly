@@ -8,7 +8,7 @@
 %token Plus Minus Times Divide
 %token Eq Neq Gt Ge Lt Le
 %token Not Or And
-%token At BigOr BigAnd Pipe Colon
+%token At BigAnd Pipe Colon
 %token Comma Semicolon SharpLine
 %token MFence Assign Pass While If For Label
 %token <bool> Bool
@@ -16,7 +16,6 @@
 %token <string> Id
 %token Eof
 
-%left BigOr
 %left BigAnd
 %left Or
 %left And
@@ -50,9 +49,6 @@ property :
   }
 | p1 = property BigAnd p2 = property {
     Program.Property.And (p1, p2)
-  }
-| p1 = property BigOr p2 = property {
-    Program.Property.Or (p1, p2)
   }
 
 zone_option :

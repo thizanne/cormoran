@@ -71,7 +71,5 @@ module Make (D : Domain.Outer) = struct
       List.for_all (D.satisfies threaded_cond) all_data
     | And (p1, p2) ->
       satisfies g data p1 && satisfies g data p2
-    | Or (p1, p2) ->
-      satisfies g data p1 || satisfies g data p2
 
 end

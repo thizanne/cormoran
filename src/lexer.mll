@@ -44,7 +44,6 @@ rule lexer = parse
   | "false" { Bool false }
   | "label" { Label }
   | "/\\" { BigAnd }
-  | "\\/" { BigOr }
   | digits+ as n { Int (int_of_string n) }
   | alpha (alpha | digits | "_")* as x { Id x }
 

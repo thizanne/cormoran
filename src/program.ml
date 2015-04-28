@@ -191,7 +191,6 @@ module Property = struct
            section) *)
         condition
     | And of t * t
-    | Or of t * t
 
   let always_true =
     Condition (
