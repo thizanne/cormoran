@@ -98,8 +98,10 @@ let type_thread shared_env { locals; body } =
       |> Symbol.Set.of_enum
   }
 
-let type_program { initial; threads } =
+let type_program { initial; threads; property } =
+  (* TODO: check that the property is well formed *)
   let shared_env = Symbol.Map.map (fun _ -> Shared) initial in {
     initial;
-    threads = List.map (type_thread shared_env) threads
+    threads = List.map (type_thread shared_env) threads;
+    property
   }
