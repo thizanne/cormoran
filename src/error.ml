@@ -59,7 +59,7 @@ let not_implemented_msg_error err_msg =
 
 let to_string {error; err_loc = {Location.startpos; endpos}; err_msg} =
   let open Lexing in
-  sprintf "%s:\n\tFrom line %d, column %d to line %d, column %d\n\t%s"
+  sprintf "%s:\nFrom line %d, column %d to line %d, column %d\n%s"
     (show_error error)
     startpos.pos_lnum (startpos.pos_cnum - startpos.pos_bol)
     endpos.pos_lnum (endpos.pos_cnum - endpos.pos_bol)
