@@ -69,7 +69,9 @@ module CommandTerm = struct
     let doc = "Use litmus syntax." in
     Arg.(value & flag & info ["litmus"] ~doc)
 
-  let filename =
+  let sourcefile =
     let doc = "The program to analyse." in
     Arg.(required & pos 0 (some non_dir_file) None & info [] ~doc ~docv:"FILE")
+
+  let destfile =
 end
