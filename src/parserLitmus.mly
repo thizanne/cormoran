@@ -67,8 +67,12 @@
 | x = X { L.mk x $startpos $endpos }
 
 program :
-| init = init_dec c = code prop = exists Eof {
-    { P.initial = get_shared init c; threads = c }
+| init = init_dec threads = code property = exists Eof {
+    {
+      P.initial = get_shared init threads;
+      threads;
+      property = P.Property.always_false
+    }
   }
 | error {
     let open Error in
