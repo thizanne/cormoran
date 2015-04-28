@@ -1,3 +1,10 @@
+{
+  @ (0:crit00, 1:crit00) false /\
+  @ (0:crit01, 1:crit01) false /\
+  @ (0:crit10, 1:crit10) false /\
+  @ (0:crit11, 1:crit11) false
+}
+
 /*
 item: TYPE
 slot: ARRAY [boolean, boolean] OF item;
@@ -30,18 +37,22 @@ if wpair = 1 {
 
 // slot[wpair][windex] := in;
 if wpair = 0 && windex = 0 {
+   label crit00
    slot00 := in
 }
 
 if wpair = 0 && windex = 1 {
+   label crit01
    slot01 := in
 }
 
 if wpair = 1 && windex = 0 {
+   label crit10
    slot10 := in
 }
 
 if wpair = 1 && windex = 1 {
+   label crit11
    slot11 := in
 }
 
@@ -76,17 +87,21 @@ if rpair = 1 {
 
 // out := slot[rpair][rindex];
 if rpair = 0 && rindex = 0 {
+   label crit00
    out := slot00
 }
 
 if rpair = 0 && rindex = 1 {
+   label crit01
    out := slot01
 }
 
 if rpair = 1 && rindex = 0 {
+   label crit10
    out := slot10
 }
 
 if rpair = 1 && rindex = 1 {
+   label crit11
    out := slot11
 }

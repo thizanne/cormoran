@@ -1,3 +1,5 @@
+{ @ (0:critical_section,1:critical_section) false }
+
 entering0 = 0, entering1 = 0,
 number0 = 0, number1 = 0
 
