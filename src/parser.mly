@@ -69,6 +69,10 @@ thread_zone_threaded :
   }
 
 interval :
+| single = Id {
+    let lbl = Some (lbl_sym single) in
+    { Program.Property.initial = lbl; final = lbl }
+  }
 | initial = Id? Minus final = Id? {
     let initial = BatOption.map lbl_sym initial in
     let final = BatOption.map lbl_sym final in

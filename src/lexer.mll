@@ -43,6 +43,8 @@ rule lexer = parse
   | "true" { Bool true }
   | "false" { Bool false }
   | "label" { Label }
+  | "@" { At }
+  | ":" { Colon }
   | "/\\" { BigAnd }
   | digits+ as n { Int (int_of_string n) }
   | alpha (alpha | digits | "_")* as x { Id x }
