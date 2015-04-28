@@ -15,7 +15,7 @@ PROCESS writer(in: item);           PROCESS reader(out: item);
 wpair, windex: boolean;             rpair, rindex: boolean;
 */
 
-latest = 1, reading = 0,
+latest = 0, reading = 0,
 slot00 = 0, slot01 = 0, slot10 = 0, slot11 = 0,
 index0 = 0, index1 = 0
 
@@ -23,8 +23,8 @@ index0 = 0, index1 = 0
 
 in := 1
 
-// !wpair := reading;
-wpair := reading
+// !wpair := not reading;
+wpair := 1 - reading
 
 // windex := !index[wpair];
 if wpair = 0 {
