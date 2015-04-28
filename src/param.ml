@@ -46,6 +46,12 @@ module Domain = struct
     | Concrete -> (module Concrete)
 end
 
+module Output = struct
+  let get_output = function
+    | None -> IO.stdnull
+    | Some filename -> File.open_out filename
+end
+
 module CommandTerm = struct
   let domain =
     let domains = Domain.[
@@ -73,5 +79,7 @@ module CommandTerm = struct
     let doc = "The program to analyse." in
     Arg.(required & pos 0 (some non_dir_file) None & info [] ~doc ~docv:"FILE")
 
-  let destfile =
+  let outputfile =
+    let doc = "Graph output file name." in
+    Arg.(value & opt (some non_dir_file) None & info ["o"; "output"] ~doc ~docv:"FILE")
 end
