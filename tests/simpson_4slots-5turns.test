@@ -18,7 +18,8 @@
     0:writer1_crit11|writer2_crit11|writer3_crit11|writer4_crit11|writer5_crit11,
     1:reader1_crit11|reader2_crit11|reader3_crit11|reader4_crit11|reader5_crit11
     )
-    false
+    false /\
+  @@ 1 : out1 <= out2 && out2 <= out3 && out3 <= out4 && out4 <= out5
 }
 
 latest = 0, reading = 0,
@@ -342,22 +343,22 @@ if pair_r = 1 {
 
 if pair_r = 0 && index_r = 0 {
    label reader1_crit00
-   out := data00
+   out1 := data00
 }
 
 if pair_r = 0 && index_r = 1 {
    label reader1_crit01
-   out := data01
+   out1 := data01
 }
 
 if pair_r = 1 && index_r = 0 {
    label reader1_crit10
-   out := data10
+   out1 := data10
 }
 
 if pair_r = 1 && index_r = 1 {
    label reader1_crit11
-   out := data11
+   out1 := data11
 }
 
 /**********/
@@ -387,22 +388,22 @@ if pair_r = 1 {
 
 if pair_r = 0 && index_r = 0 {
    label reader2_crit00
-   out := data00
+   out2 := data00
 }
 
 if pair_r = 0 && index_r = 1 {
    label reader2_crit01
-   out := data01
+   out2 := data01
 }
 
 if pair_r = 1 && index_r = 0 {
    label reader2_crit10
-   out := data10
+   out2 := data10
 }
 
 if pair_r = 1 && index_r = 1 {
    label reader2_crit11
-   out := data11
+   out2 := data11
 }
 
 /**********/
@@ -432,22 +433,22 @@ if pair_r = 1 {
 
 if pair_r = 0 && index_r = 0 {
    label reader3_crit00
-   out := data00
+   out3 := data00
 }
 
 if pair_r = 0 && index_r = 1 {
    label reader3_crit01
-   out := data01
+   out3 := data01
 }
 
 if pair_r = 1 && index_r = 0 {
    label reader3_crit10
-   out := data10
+   out3 := data10
 }
 
 if pair_r = 1 && index_r = 1 {
    label reader3_crit11
-   out := data11
+   out3 := data11
 }
 
 /**********/
@@ -477,22 +478,22 @@ if pair_r = 1 {
 
 if pair_r = 0 && index_r = 0 {
    label reader4_crit00
-   out := data00
+   out4 := data00
 }
 
 if pair_r = 0 && index_r = 1 {
    label reader4_crit01
-   out := data01
+   out4 := data01
 }
 
 if pair_r = 1 && index_r = 0 {
    label reader4_crit10
-   out := data10
+   out4 := data10
 }
 
 if pair_r = 1 && index_r = 1 {
    label reader4_crit11
-   out := data11
+   out4 := data11
 }
 
 /**********/
@@ -522,20 +523,20 @@ if pair_r = 1 {
 
 if pair_r = 0 && index_r = 0 {
    label reader5_crit00
-   out := data00
+   out5 := data00
 }
 
 if pair_r = 0 && index_r = 1 {
    label reader5_crit01
-   out := data01
+   out5 := data01
 }
 
 if pair_r = 1 && index_r = 0 {
    label reader5_crit10
-   out := data10
+   out5 := data10
 }
 
 if pair_r = 1 && index_r = 1 {
    label reader5_crit11
-   out := data11
+   out5 := data11
 }
