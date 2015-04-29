@@ -5,103 +5,103 @@
   @ (0:crit11, 1:crit11) false
 }
 
-/*
-item: TYPE
-slot: ARRAY [boolean, boolean] OF item;
-index: ARRAY [boolean] OF boolean;
-latest, reading: boolean;
-
-PROCESS writer(in: item);           PROCESS reader(out: item);
-wpair, windex: boolean;             rpair, rindex: boolean;
-*/
 
 latest = 0, reading = 0,
-slot00 = 0, slot01 = 0, slot10 = 0, slot11 = 0,
-index0 = 0, index1 = 0
+data00 = 0, data01 = 0, data10 = 0, data11 = 0,
+slot0 = 0, slot1 = 0
 
 #### THREAD WRITER ####
 
 in := 1
 
-// !wpair := not reading;
-wpair := 1 - reading
+// pair_w := not reading
 
-// windex := !index[wpair];
-if wpair = 0 {
-    windex := index0
+pair_w := 1 - reading
+
+// index_w := not slot[pair_w]
+
+if pair_w = 0 {
+   index_w := 1 - slot0
 }
 
-if wpair = 1 {
-    windex := index1
+if pair_w = 1 {
+   index_w := 1 - slot1
 }
 
-// slot[wpair][windex] := in;
-if wpair = 0 && windex = 0 {
+// data[pair_w][index_w] := in /* Critical sections */
+
+if pair_w = 0 && index_w = 0 {
    label crit00
-   slot00 := in
+   data00 := in
 }
 
-if wpair = 0 && windex = 1 {
+if pair_w = 0 && index_w = 1 {
    label crit01
-   slot01 := in
+   data01 := in
 }
 
-if wpair = 1 && windex = 0 {
+if pair_w = 1 && index_w = 0 {
    label crit10
-   slot10 := in
+   data10 := in
 }
 
-if wpair = 1 && windex = 1 {
+if pair_w = 1 && index_w = 1 {
    label crit11
-   slot11 := in
+   data11 := in
 }
 
-// index[wpair] := windex;
-if wpair = 0 {
-    index0 := windex
+// slot[pair_w] := index_w
+
+if pair_w = 0 {
+   slot0 := index_w
 }
 
-if wpair = 1 {
-    index1 := windex
+if pair_w = 1 {
+   slot1 := index_w
 }
 
-// latest := wpair;
-latest := wpair
+// latest := pair_w
+
+latest := pair_w
 
 #### THREAD READER ####
 
-// rpair := latest;
-rpair := latest
+// pair_r := latest
 
-// reading := rpair;
-reading := rpair
+pair_r := latest
 
-// rindex := index[rpair];
-if rpair = 0 {
-    rindex := index0
+// reading := pair_r
+
+reading := pair_r
+
+// index_r := slot[pair_r]
+
+if pair_r = 0 {
+   index_r := slot0
 }
 
-if rpair = 1 {
-    rindex := index1
+if pair_r = 1 {
+   index_r := slot1
 }
 
-// out := slot[rpair][rindex];
-if rpair = 0 && rindex = 0 {
+// out := data[pair_r][index_r] /* Critical sections */
+
+if pair_r = 0 && index_r = 0 {
    label crit00
-   out := slot00
+   out := data00
 }
 
-if rpair = 0 && rindex = 1 {
+if pair_r = 0 && index_r = 1 {
    label crit01
-   out := slot01
+   out := data01
 }
 
-if rpair = 1 && rindex = 0 {
+if pair_r = 1 && index_r = 0 {
    label crit10
-   out := slot10
+   out := data10
 }
 
-if rpair = 1 && rindex = 1 {
+if pair_r = 1 && index_r = 1 {
    label crit11
-   out := slot11
+   out := data11
 }
