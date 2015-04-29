@@ -5,7 +5,6 @@ flag_0 = 0, flag_1 = 0, turn = 0
 #
 
 flag_0 := 1
-mfence
 turn := 1
 mfence
 
@@ -23,7 +22,6 @@ mfence
 
 #
 flag_1 := 1
-mfence
 turn := 0
 mfence
 
