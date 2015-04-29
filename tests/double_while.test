@@ -1,0 +1,23 @@
+{
+  @ (1:test) 1: out <= var /\
+  @@ false
+}
+
+var = 0
+
+# THREAD WRITER
+
+in := 1
+while true {
+    var := in
+    in := in + 1
+}
+
+# THREAD READER
+
+out := 0
+
+while true {
+    label test
+    out := var
+}
