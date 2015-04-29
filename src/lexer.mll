@@ -46,6 +46,7 @@ rule lexer = parse
   | "@" { At }
   | ":" { Colon }
   | "/\\" { BigAnd }
+  | "|" { Pipe }
   | digits+ as n { Int (int_of_string n) }
   | alpha (alpha | digits | "_")* as x { Id x }
 
