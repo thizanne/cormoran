@@ -67,7 +67,7 @@ type var_type =
   | Shared
 
 type var = {
-  mutable var_type : var_type;
+  var_type : var_type;
   var_name : Symbol.t;
 }
 
@@ -90,16 +90,16 @@ let is_local v =
 let is_shared v =
   v.var_type = Shared
 
-type expression =
+type 'a expression =
   | Int of int Location.loc
-  | Var of var Location.loc
+  | Var of 'a Location.loc
   | ArithUnop of
       arith_unop Location.loc *
-      expression Location.loc
+      'a expression Location.loc
   | ArithBinop of
       arith_binop Location.loc *
-      expression Location.loc *
-      expression Location.loc
+      'a expression Location.loc *
+      'a expression Location.loc
 
 let var v = Var v
 
@@ -115,42 +115,42 @@ let rec shared_in_expr = function
     shared_in_expr e1.Location.item @
     shared_in_expr e2.Location.item
 
-type condition =
+type 'a condition =
   | Bool of bool Location.loc
   | LogicUnop of
       logic_unop Location.loc *
-      condition Location.loc
+      'a condition Location.loc
   | LogicBinop of
       logic_binop Location.loc *
-      condition Location.loc *
-      condition Location.loc
+      'a condition Location.loc *
+      'a condition Location.loc
   | ArithRel of
       arith_rel Location.loc *
-      expression Location.loc *
-      expression Location.loc
+      'a expression Location.loc *
+      'a expression Location.loc
 
-type body  =
+type 'a body  =
   | Nothing
   | Pass
   | MFence
   | Label of Symbol.t Location.loc
   | Seq of
-      body Location.loc *
-      body Location.loc
+      'a body Location.loc *
+      'a body Location.loc
   | Assign of
-      var Location.loc *
-      expression Location.loc
+      'a Location.loc *
+      'a expression Location.loc
   | If of
-      condition Location.loc * (* Condition *)
-      body Location.loc (* Body *)
+      'a condition Location.loc * (* Condition *)
+      'a body Location.loc (* Body *)
   | While of
-      condition Location.loc * (* Condition *)
-      body Location.loc (* Body *)
+      'a condition Location.loc * (* Condition *)
+      'a body Location.loc (* Body *)
   | For of
-      var Location.loc * (* Indice *)
-      expression Location.loc * (* From *)
-      expression Location.loc * (* To *)
-      body Location.loc (* Body *)
+      'a Location.loc * (* Indice *)
+      'a expression Location.loc * (* From *)
+      'a expression Location.loc * (* To *)
+      'a body Location.loc (* Body *)
 
 let seq body1 body2 =
   Location.mk (Seq (body1, body2))
@@ -189,7 +189,7 @@ module Property = struct
            concerns shared variables, or the condition is
            syntactically constant (eg. `false` for a critical
            section) *)
-        condition
+        var threaded condition
     | And of t * t
 
   let always_true =
@@ -207,19 +207,19 @@ module Property = struct
     )
 end
 
-type thread = {
+type 'a thread = {
   locals : Symbol.Set.t;
-  body : body;
+  body : 'a body;
 }
 
-type t = {
+type 'a t = {
   initial : int Symbol.Map.t;
-  threads : thread list;
+  threads : 'a thread list;
   property : Property.t;
 }
 
 module Control : sig
-  type program = t
+  type 'a program = 'a t
 
   module Label : sig
     type t
@@ -237,14 +237,14 @@ module Control : sig
     val from_label_list : Label.t list -> t
     val tid_label : t -> thread_id -> Label.t
     val is_initial : t -> bool
-    val initial : program -> t
+    val initial : 'a program -> t
     val compare : t -> t -> int
     val print : 'a IO.output -> t -> unit
   end
 end
 =
 struct
-  type program = t
+  type 'a program = 'a t
 
   module Label = struct
     include Int
