@@ -16,11 +16,10 @@ let check_expression env shared_allowed expr =
     | Int _ -> false
     | Var v ->
       begin match Symbol.Map.find v.item.var_name env with
-        | Local ->
-          let () = v.item.var_type <- Local in false
+        | Local -> false
         | Shared ->
           if shared_allowed
-          then let () = v.item.var_type <- Shared in true
+          then true
           else type_error expr
               "This expression has too many shared variables"
         | exception Not_found ->
@@ -57,16 +56,14 @@ let rec type_body (env, labels) = function
     else env, Symbol.Set.add lbl.item labels
   | Seq (b1, b2) ->
     type_body (type_body (env, labels) b1.item) b2.item
-  | Assign ({ item = { var_type; var_name } as x; _ }, exp) ->
+  | Assign ({ item = { var_type; var_name }; _ }, exp) ->
     begin match Symbol.Map.Exceptionless.find var_name env with
       | Some Local
       | None ->
         check_expression env true exp;
-        x.var_type <- Local;
         Symbol.Map.add var_name Local env, labels
       | Some Shared ->
         check_expression env false exp;
-        x.var_type <- Shared;
         env, labels
     end
   | If (cond, body) ->
@@ -79,7 +76,6 @@ let rec type_body (env, labels) = function
     begin match Symbol.Map.Exceptionless.find i.item.var_name env with
       | None
       | Some Local ->
-        i.item.var_type <- Local;
         let env_i = add_local_if_absent i.item.var_name env in
         check_expression env_i false exp_from;
         check_expression env_i false exp_to;
@@ -98,10 +94,10 @@ let type_thread shared_env { locals; body } =
       |> Symbol.Set.of_enum
   }
 
-let type_program { initial; threads; property } =
+let type_program { initial; threads; properties } =
   (* TODO: check that the property is well formed *)
   let shared_env = Symbol.Map.map (fun _ -> Shared) initial in {
     initial;
     threads = List.map (type_thread shared_env) threads;
-    property
+    properties
   }

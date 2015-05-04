@@ -12,8 +12,8 @@ module Operation : sig
   type operation =
     | Identity
     | MFence
-    | Filter of Program.condition
-    | Assign of Program.var * Program.expression
+    | Filter of Program.var Program.threaded Program.condition
+    | Assign of Program.var * Program.var Program.expression
 
   type t = operation Program.threaded
 

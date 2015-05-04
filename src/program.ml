@@ -129,28 +129,28 @@ type 'a condition =
       'a expression Location.loc *
       'a expression Location.loc
 
-type 'a body  =
+type body =
   | Nothing
   | Pass
   | MFence
   | Label of Symbol.t Location.loc
   | Seq of
-      'a body Location.loc *
-      'a body Location.loc
+      body Location.loc *
+      body Location.loc
   | Assign of
-      'a Location.loc *
-      'a expression Location.loc
+      var Location.loc *
+      var expression Location.loc
   | If of
-      'a condition Location.loc * (* Condition *)
-      'a body Location.loc (* Body *)
+      var condition Location.loc * (* Condition *)
+      body Location.loc (* Body *)
   | While of
-      'a condition Location.loc * (* Condition *)
-      'a body Location.loc (* Body *)
+      var condition Location.loc * (* Condition *)
+      body Location.loc (* Body *)
   | For of
-      'a Location.loc * (* Indice *)
-      'a expression Location.loc * (* From *)
-      'a expression Location.loc * (* To *)
-      'a body Location.loc (* Body *)
+      var Location.loc * (* Indice *)
+      var expression Location.loc * (* From *)
+      var expression Location.loc * (* To *)
+      body Location.loc (* Body *)
 
 let seq body1 body2 =
   Location.mk (Seq (body1, body2))
@@ -180,46 +180,36 @@ module Property = struct
    * a zone. *)
   type zone = thread_zone threaded list
 
-  type t =
-    | Condition of
-        zone option *
-        (* None means end of the program, once flushed *)
-        thread_id option *
-        (* If None, either zone is also None and the condition only
-           concerns shared variables, or the condition is
-           syntactically constant (eg. `false` for a critical
-           section) *)
-        var threaded condition
-    | And of t * t
+  type t = {
+    zone : zone option;
+    (* None means end of the program, once flushed *)
+    condition : var threaded condition;
+  }
 
-  let always_true =
-    Condition (
-      None,
-      None,
-      Bool (Location.mkdummy true)
-    )
+  let always_true = {
+    zone = None;
+    condition = Bool (Location.mkdummy true);
+  }
 
-  let always_false =
-    Condition (
-      None,
-      None,
-      Bool (Location.mkdummy false)
-    )
+  let always_false = {
+    zone = None;
+    condition = Bool (Location.mkdummy false);
+  }
 end
 
-type 'a thread = {
+type thread = {
   locals : Symbol.Set.t;
-  body : 'a body;
+  body : body;
 }
 
-type 'a t = {
+type t = {
   initial : int Symbol.Map.t;
-  threads : 'a thread list;
-  property : Property.t;
+  threads : thread list;
+  properties : Property.t list;
 }
 
 module Control : sig
-  type 'a program = 'a t
+  type program = t
 
   module Label : sig
     type t
@@ -237,14 +227,14 @@ module Control : sig
     val from_label_list : Label.t list -> t
     val tid_label : t -> thread_id -> Label.t
     val is_initial : t -> bool
-    val initial : 'a program -> t
+    val initial : program -> t
     val compare : t -> t -> int
     val print : 'a IO.output -> t -> unit
   end
 end
 =
 struct
-  type 'a program = 'a t
+  type program = t
 
   module Label = struct
     include Int

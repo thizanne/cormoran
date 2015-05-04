@@ -8,22 +8,22 @@
 %token Plus Minus Times Divide
 %token Eq Neq Gt Ge Lt Le
 %token Not Or And
-%token At BigAnd Pipe Colon
+%token At Pipe Colon
 %token Comma Semicolon SharpLine
 %token MFence Assign Pass While If For Label
 %token <bool> Bool
 %token <int> Int
-%token <string> Id
+%token <string> LowerId
+%token <string> UpperId
 %token Eof
 
-%left BigAnd
 %left Or
 %left And
 %nonassoc Not
 %left Plus Minus
 %left Times Divide
 
-%start <Symbol.t Program.t> program
+%start <Program.t> program
 
 %%
 
@@ -36,10 +36,17 @@
 | thread_id = Int Colon x = X { Program.create_threaded ~thread_id x }
 
 lbl_sym :
-| lbl = Id { lbl_sym lbl }
+| lbl = LowerId { lbl_sym lbl }
 
-var_sym :
-| x = Id { var_sym x }
+local_sym :
+| x = LowerId { var_sym x }
+
+shared_sym :
+| x = UpperId { var_sym x }
+
+var :
+| var_name = local_sym { { Program.var_type = Program.Local; var_name } }
+| var_name = shared_sym { { Program.var_type = Program.Shared; var_name } }
 
 %inline arith_unop :
 | Minus { Program.Neg }
@@ -66,11 +73,11 @@ var_sym :
 | Or { Program.Or }
 
 program :
-| property = property_def
+| LCurly properties = list(property) RCurly
   initial = shared_decs SharpLine
     threads = separated_nonempty_list(SharpLine, thread)
     Eof {
-    { Program.initial; threads; property }
+    { Program.initial; threads; properties }
   }
 | error {
     let open Error in
@@ -80,37 +87,24 @@ program :
 
 (* Property definitions *)
 
-property_def :
-| { Program.Property.always_true }
-| LCurly property = property RCurly { property }
-
 property :
-| z = zone_option tid = tid_option c = condition(var_sym) {
-    Program.Property.Condition(z, tid, c)
-  }
-| p1 = property BigAnd p2 = property {
-    Program.Property.And (p1, p2)
+| zone = zone_option condition = condition(threaded(var)) {
+    { Program.Property.zone; condition }
   }
 
 zone_option :
 | At At { None }
 | At LPar zone = separated_list(Comma, threaded(intervals)) RPar { Some zone }
 
-%inline tid_option :
-| { None }
-| tid = Int Colon { Some tid }
-
 intervals :
 | intervals = separated_list(Pipe, interval) { intervals }
 
 interval :
-| single = Id {
-    let lbl = Some (lbl_sym single) in
+| single = lbl_sym {
+    let lbl = Some single in
     { Program.Property.initial = lbl; final = lbl }
   }
-| initial = Id? Minus final = Id? {
-    let initial = BatOption.map lbl_sym initial in
-    let final = BatOption.map lbl_sym final in
+| initial = lbl_sym? Minus final = lbl_sym? {
     { Program.Property.initial; final }
   }
 
@@ -123,7 +117,7 @@ shared_decs :
   }
 
 shared_dec :
-| x = var_sym Eq n = Int { x, n }
+| x = shared_sym Eq n = Int { x, n }
 
 (* Program code *)
 
@@ -146,17 +140,17 @@ instruction :
 | Pass { Program.Pass }
 | Label lbl = loc(lbl_sym) { Program.Label lbl }
 | MFence { Program.MFence }
-| x = loc(var_sym) Assign e = loc(expression(var_sym)) {
+| x = loc(var) Assign e = loc(expression(var)) {
     Program.Assign (x, e)
   }
-| If cond = loc(condition(var_sym)) LCurly body = loc(body) RCurly {
+| If cond = loc(condition(var)) LCurly body = loc(body) RCurly {
     Program.If (cond, body)
   }
-| While cond = loc(condition(var_sym)) LCurly body = loc(body) RCurly {
+| While cond = loc(condition(var)) LCurly body = loc(body) RCurly {
     Program.While (cond, body)
   }
-| For i = loc(var_sym) Semicolon
-  from_exp = loc(expression(var_sym)) Semicolon to_exp = loc(expression(var_sym))
+| For i = loc(var) Semicolon
+  from_exp = loc(expression(var)) Semicolon to_exp = loc(expression(var))
   LCurly body = loc(body) RCurly {
     Program.For (i, from_exp, to_exp, body)
   }

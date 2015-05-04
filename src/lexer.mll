@@ -4,9 +4,13 @@
   open Lexing
 }
 
-let digits = ['0' - '9']
-let alpha = ['a' - 'z']
+let digit = ['0' - '9']
+let lower = ['a' - 'z']
+let upper = ['A' - 'Z']
 let empty = ['\t' ' ' '\r']
+
+let alpha = lower | upper
+let id_char = alpha | digit | "_"
 
 rule lexer = parse
   | "//" [^'\n']* { lexer lexbuf }
@@ -45,10 +49,10 @@ rule lexer = parse
   | "label" { Label }
   | "@" { At }
   | ":" { Colon }
-  | "/\\" { BigAnd }
   | "|" { Pipe }
-  | digits+ as n { Int (int_of_string n) }
-  | alpha (alpha | digits | "_")* as x { Id x }
+  | digit+ as n { Int (int_of_string n) }
+  | (lower id_char*) as x { LowerId x }
+  | (upper id_char*) as x { UpperId x }
 
 and comment depth = parse
   | "/*" { comment (depth + 1) lexbuf }

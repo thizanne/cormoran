@@ -71,7 +71,7 @@ program :
     {
       P.initial = get_shared init threads;
       threads;
-      property = P.Property.always_false
+      properties = [P.Property.always_false]
     }
   }
 | error {
