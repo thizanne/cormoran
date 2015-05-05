@@ -59,7 +59,7 @@
 %token <string> Reg
 %token <int * string> ThreadedReg
 
-%start <Program.t> program
+%start <Program.var Program.t * Program.var_view Property.t list> program
 
 %%
 
@@ -71,8 +71,8 @@ program :
     {
       P.initial = get_shared init threads;
       threads;
-      properties = [P.Property.always_false]
-    }
+    },
+    [Property.always_false]
   }
 | error {
     let open Error in

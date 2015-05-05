@@ -2,15 +2,13 @@ open Batteries
 
 type thread_id = int
 
-(* TODO: unify threaded with Location.loc as a context comonad *)
+(* type 'a threaded = { *)
+(*   thread_id : thread_id; *)
+(*   elem : 'a [@main]; *)
+(* } [@@deriving create] *)
 
-type 'a threaded = {
-  thread_id : thread_id;
-  elem : 'a [@main];
-} [@@deriving create]
-
-let print_threaded print_elem output { thread_id; elem } =
-  Printf.fprintf output "%a:%d" print_elem elem thread_id
+(* let print_threaded print_elem output { thread_id; elem } = *)
+(*   Printf.fprintf output "%a:%d" print_elem elem thread_id *)
 
 type arith_unop =
   | Neg
@@ -74,6 +72,16 @@ type var = {
 let print_var output x =
   Symbol.print output x.var_name
 
+type var_view = {
+  thread_id : thread_id;
+  var : var [@main];
+} [@@deriving create]
+
+let print_var_view output view =
+  Printf.fprintf output "%d:%a"
+    view.thread_id
+    print_var view.var
+
 let local_var var_name = {
   var_name;
   var_type = Local;
@@ -129,87 +137,46 @@ type 'a condition =
       'a expression Location.loc *
       'a expression Location.loc
 
-type body =
+type 'a body =
   | Nothing
   | Pass
   | MFence
   | Label of Symbol.t Location.loc
   | Seq of
-      body Location.loc *
-      body Location.loc
+      'a body Location.loc *
+      'a body Location.loc
   | Assign of
-      var Location.loc *
-      var expression Location.loc
+      'a Location.loc *
+      'a expression Location.loc
   | If of
-      var condition Location.loc * (* Condition *)
-      body Location.loc (* Body *)
+      'a condition Location.loc * (* Condition *)
+      'a body Location.loc (* Body *)
   | While of
-      var condition Location.loc * (* Condition *)
-      body Location.loc (* Body *)
+      'a condition Location.loc * (* Condition *)
+      'a body Location.loc (* Body *)
   | For of
-      var Location.loc * (* Indice *)
-      var expression Location.loc * (* From *)
-      var expression Location.loc * (* To *)
-      body Location.loc (* Body *)
+      'a Location.loc * (* Indice *)
+      'a expression Location.loc * (* From *)
+      'a expression Location.loc * (* To *)
+      'a body Location.loc (* Body *)
 
 let seq body1 body2 =
   Location.mk (Seq (body1, body2))
     Location.(body1.loc.startpos)
     Location.(body2.loc.endpos)
 
-module Property = struct
-  (* A thread code portion delimited by two labels.
-   * No initial label means 0.
-   * No final label means the end of the thread.
-  *)
-  type interval = {
-    initial : Symbol.t option;
-    final : Symbol.t option;
-  }
-
-  let whole_interval = {
-    initial = None;
-    final = None;
-  }
-
-  (* A thread code portion defined as an union of intervals *)
-  type thread_zone = interval list
-
-  (* Program states set defined as a conjunction of thread zones.
-   * Typing should check that a given thread is present at most once in
-   * a zone. *)
-  type zone = thread_zone threaded list
-
-  type t = {
-    zone : zone option;
-    (* None means end of the program, once flushed *)
-    condition : var threaded condition;
-  }
-
-  let always_true = {
-    zone = None;
-    condition = Bool (Location.mkdummy true);
-  }
-
-  let always_false = {
-    zone = None;
-    condition = Bool (Location.mkdummy false);
-  }
-end
-
-type thread = {
+type 'a thread = {
   locals : Symbol.Set.t;
-  body : body;
+  body : 'a body;
 }
 
-type t = {
+type 'a t = {
   initial : int Symbol.Map.t;
-  threads : thread list;
-  properties : Property.t list;
+  threads : 'a thread list;
 }
 
 module Control : sig
-  type program = t
+  type 'a program = 'a t
 
   module Label : sig
     type t
@@ -227,14 +194,14 @@ module Control : sig
     val from_label_list : Label.t list -> t
     val tid_label : t -> thread_id -> Label.t
     val is_initial : t -> bool
-    val initial : program -> t
+    val initial : _ program -> t
     val compare : t -> t -> int
     val print : 'a IO.output -> t -> unit
   end
 end
 =
 struct
-  type program = t
+  type 'a program = 'a t
 
   module Label = struct
     include Int

@@ -9,13 +9,14 @@ module State : sig
 end
 
 module Operation : sig
-  type operation =
+  type t =
     | Identity
-    | MFence
-    | Filter of Program.var Program.threaded Program.condition
-    | Assign of Program.var * Program.var Program.expression
-
-  type t = operation Program.threaded
+    | MFence of Program.thread_id
+    | Filter of Program.var_view Program.condition
+    | Assign of
+        Program.thread_id *
+        Program.var *
+        Program.var Program.expression
 
   val compare : t -> t -> int
   val default : t
@@ -28,10 +29,10 @@ module G : Graph.Sig.P
    and type E.label = Operation.t
 
 type t = private {
-  program : Program.t;
+  program : Program.var Program.t;
   graph : G.t;
   labels : Program.Control.Label.t Symbol.Map.t array;
   final_state : Program.Control.State.t;
 }
 
-val of_program : Program.t -> t
+val of_program : Program.var Program.t -> t

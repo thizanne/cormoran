@@ -3,21 +3,21 @@ open Printf
 open Util
 open Cfg
 
-let edge_label {Program.thread_id; elem = op} =
+let edge_label op =
   let output = IO.output_string () in
-  Int.print output thread_id;
   String.print output ":";
   begin match op with
     | Operation.Identity ->
       String.print output "Id"
-    | Operation.MFence ->
-      String.print output "MFence"
+    | Operation.MFence thread_id ->
+      Printf.fprintf output "%d:MFence" thread_id
     | Operation.Filter c ->
-      PrintAst.print_condition output c
-    | Operation.Assign (x, e) ->
-      Printf.fprintf output "%a := %a"
+      PrintAst.print_condition Program.print_var_view output c
+    | Operation.Assign (thread_id, x, e) ->
+      Printf.fprintf output "%d:%a := %a"
+        thread_id
         Symbol.print x.Program.var_name
-        PrintAst.print_expression e
+        (PrintAst.print_expression Program.print_var) e
   end;
   IO.close_out output
 

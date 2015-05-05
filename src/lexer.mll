@@ -51,8 +51,7 @@ rule lexer = parse
   | ":" { Colon }
   | "|" { Pipe }
   | digit+ as n { Int (int_of_string n) }
-  | (lower id_char*) as x { LowerId x }
-  | (upper id_char*) as x { UpperId x }
+  | (lower id_char*) as x { Id x }
 
 and comment depth = parse
   | "/*" { comment (depth + 1) lexbuf }

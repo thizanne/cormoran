@@ -18,20 +18,18 @@ module State = struct
 end
 
 module Operation = struct
-  type operation =
+  type t =
     | Identity
-    | MFence
-    | Filter of Program.var Program.threaded Program.condition
-    | Assign of Program.var * Program.var Program.expression
-
-  type t = operation Program.threaded
+    | MFence of Program.thread_id
+    | Filter of Program.var_view Program.condition
+    | Assign of
+        Program.thread_id *
+        Program.var *
+        Program.var Program.expression
 
   let compare = Pervasives.compare
 
-  let default = {
-    Program.thread_id = -1;
-    elem = Identity;
-  }
+  let default = Identity
 end
 
 module ThreadG =
@@ -41,7 +39,7 @@ module G =
   Persistent.Digraph.ConcreteLabeled (State) (Operation)
 
 type t = {
-  program : Program.t;
+  program : Program.var Program.t;
   graph : G.t;
   labels : Program.Control.Label.t Symbol.Map.t array;
   final_state : Program.Control.State.t;
@@ -50,16 +48,50 @@ type t = {
 let cfg_of_thread thread_id { Program.body; _ } =
 
   let open Operation in
-  let open Location in
   let module P = Program in
   let open P.Control.Label in
 
+  let rec expr_view = function
+    (* Turns a var expression into a var_view expression *)
+    | P.Int n -> P.Int n
+    | P.Var v -> P.Var (L.comap (P.create_var_view ~thread_id) v)
+    | P.ArithUnop (op, exp') ->
+      P.ArithUnop (op, L.comap expr_view exp')
+    | P.ArithBinop (op, exp1, exp2) ->
+      P.ArithBinop (op, L.comap expr_view exp1, L.comap expr_view exp2)
+  in
+
+  let rec cond_view = function
+    (* Turns a var condition into a var_view condition *)
+    | P.Bool b -> P.Bool b
+    | P.LogicUnop (op, cond') ->
+      P.LogicUnop (op, L.comap cond_view cond')
+    | P.LogicBinop (op, cond1, cond2) ->
+      P.LogicBinop (op, L.comap cond_view cond1, L.comap cond_view cond2)
+    | P.ArithRel (rel, exp1, exp2) ->
+      P.ArithRel (rel, L.comap expr_view exp1, L.comap expr_view exp2)
+  in
+
+  let filter cond =
+    Filter (cond_view cond.L.item)
+  in
+
   let filter_not cond =
-    Filter (P.LogicUnop (mkdummy P.Not, cond))
+    (* Turns a var condition into the negation of its var_view condition *)
+    Filter (cond_view (P.LogicUnop (L.mkdummy P.Not, cond)))
   in
 
   let filter_rel rel i exp =
-    Filter (P.ArithRel (mkdummy rel, mkloc (P.Var i) i.loc, exp))
+    (* Builds the Filter for continuing a for loop *)
+    Filter (
+      cond_view (
+        P.ArithRel (
+          L.mkdummy rel,
+          L.mkloc (P.Var i) i.L.loc,
+          exp
+        )
+      )
+    )
   in
 
   (* The following functions take as a parameter and return a tuple
@@ -75,10 +107,7 @@ let cfg_of_thread thread_id { Program.body; _ } =
   let add_op_edge op orig dest (acc, labels, offset) =
     (* Adds an edge from orig to dest corresponding to the operation op.
        orig and dest are expected to be existing vertices in the graph *)
-    ThreadG.add_edge_e acc
-      (ThreadG.E.create orig
-         (Program.create_threaded ~thread_id op)
-         dest),
+    ThreadG.add_edge_e acc @@ ThreadG.E.create orig op dest,
     labels,
     offset
   in
@@ -93,12 +122,9 @@ let cfg_of_thread thread_id { Program.body; _ } =
   let add_single_edge op (acc, labels, offset) =
     (* Adds a single vertex to the graph, and a single edge from the
        former last vertex of the graph to this vertex *)
-    ThreadG.add_edge_e acc
-      (ThreadG.E.create offset
-         (Program.create_threaded ~thread_id op)
-         (succ offset)),
+    ThreadG.add_edge_e acc @@ ThreadG.E.create offset op @@ succ offset,
     labels,
-    (succ offset)
+    succ offset
   in
 
   let rec cfg_of_body (acc, labels, offset) = function
@@ -114,37 +140,39 @@ let cfg_of_thread thread_id { Program.body; _ } =
     | P.Pass ->
       add_single_edge Identity (acc, labels, offset)
     | P.MFence ->
-      add_single_edge MFence (acc, labels, offset)
+      add_single_edge (MFence thread_id) (acc, labels, offset)
     | P.Assign (x, e) ->
-      add_single_edge (Assign (x.item, e.item)) (acc, labels, offset)
+      add_single_edge
+        (Assign (thread_id, x.L.item, e.L.item))
+        (acc, labels, offset)
     | P.Seq (b1, b2) ->
-      cfg_of_body (cfg_of_body (acc, labels, offset) b1.item) b2.item
+      cfg_of_body (cfg_of_body (acc, labels, offset) b1.L.item) b2.L.item
     | P.If (cond, body) ->
       let acc', labels', offset' =
-        cfg_of_body (acc, labels, succ offset) body.item in
+        cfg_of_body (acc, labels, succ offset) body.L.item in
       (acc', labels', offset')
-      |> add_op_edge (Filter cond.item) offset (succ offset)
+      |> add_op_edge (filter cond) offset (succ offset)
       |> add_op_edge (filter_not cond) offset offset'
     | P.While (cond, body) ->
       let acc', labels', offset' =
-        cfg_of_body (acc, labels, succ offset) body.item in
+        cfg_of_body (acc, labels, succ offset) body.L.item in
       (acc', labels', offset')
       |> add_single_vertex
       |> add_op_edge Identity offset' offset
-      |> add_op_edge (Filter cond.item) offset (succ offset)
+      |> add_op_edge (filter cond) offset (succ offset)
       |> add_op_edge (filter_not cond) offset (succ offset')
     | P.For (i, exp_from, exp_to, body) ->
       let acc', labels', offset' =
-        cfg_of_body (acc, labels, succ @@ succ offset) body.item in
+        cfg_of_body (acc, labels, succ @@ succ offset) body.L.item in
       let iplus1 =
         P.ArithBinop (
           L.mkdummy P.Add,
-          L.mkdummy @@ P.Var (L.mkdummy i.item),
+          L.mkdummy @@ P.Var (L.mkdummy i.L.item),
           L.mkdummy @@ P.Int (L.mkdummy 1)
         ) in
       (acc', labels', offset')
       |> add_single_vertex
-      |> add_op_edge (Assign (i.item, exp_from.item))
+      |> add_op_edge (Assign (thread_id, i.L.item, exp_from.L.item))
         offset
         (succ offset)
       |> add_op_edge (filter_rel P.Le i exp_to)
@@ -153,7 +181,7 @@ let cfg_of_thread thread_id { Program.body; _ } =
       |> add_op_edge (filter_rel P.Gt i exp_to)
         (succ offset)
         (succ offset')
-      |> add_op_edge (Assign (i.item, iplus1))
+      |> add_op_edge (Assign (thread_id, i.L.item, iplus1))
         offset'
         (succ offset)
   in

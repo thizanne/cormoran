@@ -8,8 +8,7 @@ let parse_litmus lexbuf =
 
 
 let parse_imp lexbuf =
-  Parser.program Lexer.lexer lexbuf
-  |> Typing.type_program,
+  Parser.program Lexer.lexer lexbuf,
   []
 
 let parse use_litmus =

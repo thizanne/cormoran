@@ -4,8 +4,7 @@ open Cmdliner
 module Parse = struct
   let parse_litmus lexbuf =
     LexerLitmus.drop_prelude lexbuf;
-    ParserLitmus.program LexerLitmus.lexer lexbuf
-    |> Typing.type_program,
+    ParserLitmus.program LexerLitmus.lexer lexbuf,
     []
 
   let parse_imp lexbuf =

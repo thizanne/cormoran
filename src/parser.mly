@@ -13,8 +13,7 @@
 %token MFence Assign Pass While If For Label
 %token <bool> Bool
 %token <int> Int
-%token <string> LowerId
-%token <string> UpperId
+%token <string> Id
 %token Eof
 
 %left Or
@@ -23,7 +22,9 @@
 %left Plus Minus
 %left Times Divide
 
-%start <Program.t> program
+%start
+  <Symbol.t Program.t * (Program.thread_id option * Symbol.t) Property.t list>
+  program
 
 %%
 
@@ -32,21 +33,11 @@
 %inline loc(X) :
 | x = X { Location.mk x $startpos $endpos }
 
-%inline threaded(X) :
-| thread_id = Int Colon x = X { Program.create_threaded ~thread_id x }
-
 lbl_sym :
-| lbl = LowerId { lbl_sym lbl }
+| lbl = Id { lbl_sym lbl }
 
-local_sym :
-| x = LowerId { var_sym x }
-
-shared_sym :
-| x = UpperId { var_sym x }
-
-var :
-| var_name = local_sym { { Program.var_type = Program.Local; var_name } }
-| var_name = shared_sym { { Program.var_type = Program.Shared; var_name } }
+var_sym :
+| x = Id { var_sym x }
 
 %inline arith_unop :
 | Minus { Program.Neg }
@@ -77,7 +68,7 @@ program :
   initial = shared_decs SharpLine
     threads = separated_nonempty_list(SharpLine, thread)
     Eof {
-    { Program.initial; threads; properties }
+    { Program.initial; threads }, properties
   }
 | error {
     let open Error in
@@ -88,9 +79,16 @@ program :
 (* Property definitions *)
 
 property :
-| zone = zone_option condition = condition(threaded(var)) {
-    { Program.Property.zone; condition }
+| zone = zone_option condition = condition(maybe_threaded(var_sym)) {
+    { Property.zone; condition }
   }
+
+threaded(X) :
+| thread_id = Int Colon x = X { thread_id, x }
+
+maybe_threaded(X) :
+| x = X { None, x }
+| tid_x = threaded(X) { let tid, x = tid_x in Some tid, x }
 
 zone_option :
 | At At { None }
@@ -102,10 +100,10 @@ intervals :
 interval :
 | single = lbl_sym {
     let lbl = Some single in
-    { Program.Property.initial = lbl; final = lbl }
+    { Property.initial = lbl; final = lbl }
   }
 | initial = lbl_sym? Minus final = lbl_sym? {
-    { Program.Property.initial; final }
+    { Property.initial; final }
   }
 
 (* Initial memory values *)
@@ -117,7 +115,7 @@ shared_decs :
   }
 
 shared_dec :
-| x = shared_sym Eq n = Int { x, n }
+| x = var_sym Eq n = Int { x, n }
 
 (* Program code *)
 
@@ -140,17 +138,18 @@ instruction :
 | Pass { Program.Pass }
 | Label lbl = loc(lbl_sym) { Program.Label lbl }
 | MFence { Program.MFence }
-| x = loc(var) Assign e = loc(expression(var)) {
+| x = loc(var_sym) Assign e = loc(expression(var_sym)) {
     Program.Assign (x, e)
   }
-| If cond = loc(condition(var)) LCurly body = loc(body) RCurly {
+| If cond = loc(condition(var_sym)) LCurly body = loc(body) RCurly {
     Program.If (cond, body)
   }
-| While cond = loc(condition(var)) LCurly body = loc(body) RCurly {
+| While cond = loc(condition(var_sym)) LCurly body = loc(body) RCurly {
     Program.While (cond, body)
   }
-| For i = loc(var) Semicolon
-  from_exp = loc(expression(var)) Semicolon to_exp = loc(expression(var))
+| For i = loc(var_sym) Semicolon
+  from_exp = loc(expression(var_sym)) Semicolon
+  to_exp = loc(expression(var_sym))
   LCurly body = loc(body) RCurly {
     Program.For (i, from_exp, to_exp, body)
   }

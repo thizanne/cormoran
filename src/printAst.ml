@@ -59,38 +59,52 @@ let prio_print outer_prio get_inner_prio print output item =
   then paren_print print output item
   else print output item
 
-let rec print_expression output = function
+let rec print_expression print_var output = function
   | Int n ->
     Int.print output n.item
   | Var x ->
-    Symbol.print output x.item.var_name
+    print_var output x.item
   | ArithUnop (op, e) ->
     Printf.fprintf output "%s%a"
       (string_of_arith_unop op.item)
-      (prio_print unop_priority arith_priority print_expression) e.item
+      (prio_print unop_priority arith_priority (print_expression print_var))
+      e.item
   | ArithBinop (op, e1, e2) ->
     Printf.fprintf output "%a %s %a"
-      (prio_print (arith_op_priority op.item) arith_priority print_expression)
+      (prio_print
+         (arith_op_priority op.item)
+         arith_priority
+         (print_expression print_var))
       e1.item
       (string_of_arith_binop op.item)
-      (prio_print (arith_op_priority op.item) arith_priority print_expression)
+      (prio_print
+         (arith_op_priority op.item)
+         arith_priority
+         (print_expression print_var))
       e2.item
 
-let rec print_condition output = function
+let rec print_condition print_var output = function
   | Bool b -> Bool.print output b.item
   | LogicUnop (op, c) ->
     Printf.fprintf output "%s %a"
       (string_of_logic_unop op.item)
-      (prio_print unop_priority logic_priority print_condition) c.item
+      (prio_print unop_priority logic_priority @@ print_condition print_var)
+      c.item
   | LogicBinop (op, e1, e2) ->
     Printf.fprintf output "%a %s %a"
-      (prio_print (logic_op_priority op.item) logic_priority print_condition)
+      (prio_print
+         (logic_op_priority op.item)
+         logic_priority
+         (print_condition print_var))
       e1.item
       (string_of_logic_binop op.item)
-      (prio_print (logic_op_priority op.item) logic_priority print_condition)
+      (prio_print
+         (logic_op_priority op.item)
+         logic_priority
+         (print_condition print_var))
       e2.item
   | ArithRel (rel, e1, e2) ->
     Printf.fprintf output "%a %s %a"
-      print_expression e1.item
+      (print_expression print_var) e1.item
       (string_of_arith_rel rel.item)
-      print_expression e2.item
+      (print_expression print_var) e2.item

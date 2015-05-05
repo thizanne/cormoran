@@ -9,16 +9,13 @@ module type Outer = sig
 
   val equal : t -> t -> bool
 
-  val init : Program.t -> t
+  val init : Program.var Program.t -> t
 
-  (* TODO: reverse order of arguments *)
-  val transfer : t -> Cfg.Operation.t -> t
+  val transfer : Cfg.Operation.t -> t -> t
 
   val join : t -> t -> t
 
   val widening : t -> t -> t
-
-  val satisfies : Program.var Program.threaded Program.condition -> t -> bool
 
   val print : 'a IO.output -> t -> unit
 end
@@ -30,13 +27,13 @@ module type Inner = sig
 
   val equal : t -> t -> bool
 
-  val init : Program.t -> t
+  val init : Program.var Program.t -> t
 
   val join : t -> t -> t
 
   val meet : t -> t -> t
 
-  val meet_cons : t -> Program.var Program.threaded Program.condition -> t
+  val meet_cons : t -> Program.var_view Program.condition -> t
 
   val widening : t -> t -> t
 
