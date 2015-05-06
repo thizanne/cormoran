@@ -92,3 +92,5 @@ let fun_of_op op x y = match op with
   | '*' -> Some (x * y)
   | '/' -> if y = 0 then None else Some (x / y)
   | _ -> failwith "fun_of_op"
+
+let ( @@@ ) f g x = f (g x)

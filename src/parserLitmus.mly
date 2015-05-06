@@ -47,7 +47,7 @@
       | _ -> failwith "ParserLitmus.get_shared"
     in
     List.fold_left
-      (fun acc thread -> scan_body thread.P.body acc)
+      (fun acc thread -> scan_body thread.P.body.L.item acc)
       acc threads
 %}
 
@@ -93,8 +93,11 @@ init_var :
 code :
 | lines = line+ {
     List.map
-      (fun { L.item = body; _ } ->
-         { P.locals = Symbol.Set.empty; body })
+      (fun { L.item = body; loc } ->
+         {
+           P.locals = Symbol.Set.empty;
+           body = { L.item = body; loc }
+         })
       (transform lines)
   }
 
@@ -119,7 +122,7 @@ exists :
 equality :
 | v = threaded_var Equals x = Int { (v, x) }
 
-(* TODO: real property checking *)
+(* TODO: property parsing *)
 threaded_var :
 | Shared { }
 | ThreadedReg { }

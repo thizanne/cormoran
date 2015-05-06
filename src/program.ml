@@ -167,7 +167,7 @@ let seq body1 body2 =
 
 type 'a thread = {
   locals : Symbol.Set.t;
-  body : 'a body;
+  body : 'a body Location.loc;
 }
 
 type 'a t = {

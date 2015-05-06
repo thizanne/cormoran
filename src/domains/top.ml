@@ -10,7 +10,7 @@ let equal Top Top = true
 
 let init _ = Top
 
-let transfer Top _ = Top
+let transfer _ Top = Top
 
 let join Top Top = Top
 

@@ -21,6 +21,24 @@ type t = {
 
 exception Error of t
 
+let on_loc_error error err_loc err_msg =
+  raise @@ Error {error; err_loc; err_msg}
+
+let lexing_loc_error item err_msg =
+  on_loc_error LexingError item err_msg
+
+let syntax_loc_error item err_msg =
+  on_loc_error SyntaxError item err_msg
+
+let type_loc_error item err_msg =
+  on_loc_error TypeError item err_msg
+
+let name_loc_error item err_msg =
+  on_loc_error NameError item err_msg
+
+let not_implemented_loc_error item err_msg =
+  on_loc_error NotImplementedError item err_msg
+
 let on_item_error error item err_msg =
   raise @@ Error {error; err_loc = item.Location.loc; err_msg}
 

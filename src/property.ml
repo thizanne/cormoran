@@ -8,8 +8,8 @@ module P = Program
  * No final label means the end of the thread.
 *)
 type interval = {
-  initial : Symbol.t option;
-  final : Symbol.t option;
+  initial : Symbol.t L.loc option;
+  final : Symbol.t L.loc option;
 }
 
 let whole_interval = {
@@ -23,22 +23,22 @@ type thread_zone = interval list
 (* Program states set defined as a conjunction of thread zones.
  * Typing should check that a given thread is present at most once in
  * a zone. *)
-type zone = (P.thread_id * thread_zone) list
+type zone = (P.thread_id L.loc * thread_zone) list
 
 type 'a t = {
   zone : zone option;
   (* None means end of the program, once flushed *)
-  condition : 'a P.condition;
+  condition : 'a P.condition L.loc;
 }
 
 let always_true = {
   zone = None;
-  condition = P.Bool (Location.mkdummy true);
+  condition = L.mkdummy @@ P.Bool (Location.mkdummy true);
 }
 
 let always_false = {
   zone = None;
-  condition = P.Bool (Location.mkdummy false);
+  condition = L.mkdummy @@ P.Bool (Location.mkdummy false);
 }
 
 (* Getting control states from a labelled zone *)
@@ -47,11 +47,11 @@ let enum_interval interval t_labels t_final_label =
   (* Enumerates the control labels of an interval *)
   let initial = match interval.initial with
     | None -> P.Control.Label.initial
-    | Some label -> Symbol.Map.find label t_labels
+    | Some { L.item = label; _ } -> Symbol.Map.find label t_labels
   in
   let final = match interval.final with
     | None -> t_final_label
-    | Some label -> Symbol.Map.find label t_labels
+    | Some { L.item = label; _ } -> Symbol.Map.find label t_labels
   in
   P.Control.Label.enum ~initial ~final
 
@@ -73,7 +73,7 @@ let to_tzone_list { Cfg.labels; _ } zone =
       (Array.length labels)
       [whole_interval] in
   List.iter
-    (fun (thread_id, thread_zone) ->
+    (fun ({ L.item = thread_id; _ }, thread_zone) ->
        tzone_array.(thread_id) <- thread_zone)
     zone;
   Array.to_list tzone_array
@@ -111,6 +111,6 @@ module Make (D : Domain.Outer) = struct
       | Some zone -> List.map data @@ list_zone zone g
     in
     List.for_all
-      (data_satisfies condition)
+      (data_satisfies condition.L.item)
       all_data
 end

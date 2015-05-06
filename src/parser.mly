@@ -64,7 +64,7 @@ var_sym :
 | Or { Program.Or }
 
 program :
-| LCurly properties = list(property) RCurly
+| properties = property_def
   initial = shared_decs SharpLine
     threads = separated_nonempty_list(SharpLine, thread)
     Eof {
@@ -78,8 +78,12 @@ program :
 
 (* Property definitions *)
 
+property_def :
+| { [] }
+| LCurly properties = list(property) RCurly { properties }
+
 property :
-| zone = zone_option condition = condition(maybe_threaded(var_sym)) {
+| zone = zone_option condition = loc(condition(maybe_threaded(var_sym))) {
     { Property.zone; condition }
   }
 
@@ -90,19 +94,24 @@ maybe_threaded(X) :
 | x = X { None, x }
 | tid_x = threaded(X) { let tid, x = tid_x in Some tid, x }
 
+threaded_loc(X) :
+| thread_id = loc(Int) Colon x = X { thread_id, x }
+
 zone_option :
 | At At { None }
-| At LPar zone = separated_list(Comma, threaded(intervals)) RPar { Some zone }
+| At LPar zone = separated_list(Comma, threaded_loc(intervals)) RPar {
+    Some zone
+  }
 
 intervals :
 | intervals = separated_list(Pipe, interval) { intervals }
 
 interval :
-| single = lbl_sym {
+| single = loc(lbl_sym) {
     let lbl = Some single in
     { Property.initial = lbl; final = lbl }
   }
-| initial = lbl_sym? Minus final = lbl_sym? {
+| initial = loc(lbl_sym)? Minus final = loc(lbl_sym)? {
     { Property.initial; final }
   }
 
@@ -120,7 +129,7 @@ shared_dec :
 (* Program code *)
 
 thread :
-| body = body {
+| body = loc(body) {
     { Program.locals = Symbol.Set.empty; body }
   }
 

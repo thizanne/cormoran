@@ -127,7 +127,8 @@ let cfg_of_thread thread_id { Program.body; _ } =
     succ offset
   in
 
-  let rec cfg_of_body (acc, labels, offset) = function
+  let rec cfg_of_body (acc, labels, offset) { L.item = body; _ } =
+    match body with
     (* TODO: Control blocks structures are generating one node more
        than necessary. The building functions should be modified to
        specify the end of the graph to yield, thus making the bodies
@@ -146,16 +147,16 @@ let cfg_of_thread thread_id { Program.body; _ } =
         (Assign (thread_id, x.L.item, e.L.item))
         (acc, labels, offset)
     | P.Seq (b1, b2) ->
-      cfg_of_body (cfg_of_body (acc, labels, offset) b1.L.item) b2.L.item
+      cfg_of_body (cfg_of_body (acc, labels, offset) b1) b2
     | P.If (cond, body) ->
       let acc', labels', offset' =
-        cfg_of_body (acc, labels, succ offset) body.L.item in
+        cfg_of_body (acc, labels, succ offset) body in
       (acc', labels', offset')
       |> add_op_edge (filter cond) offset (succ offset)
       |> add_op_edge (filter_not cond) offset offset'
     | P.While (cond, body) ->
       let acc', labels', offset' =
-        cfg_of_body (acc, labels, succ offset) body.L.item in
+        cfg_of_body (acc, labels, succ offset) body in
       (acc', labels', offset')
       |> add_single_vertex
       |> add_op_edge Identity offset' offset
@@ -163,7 +164,7 @@ let cfg_of_thread thread_id { Program.body; _ } =
       |> add_op_edge (filter_not cond) offset (succ offset')
     | P.For (i, exp_from, exp_to, body) ->
       let acc', labels', offset' =
-        cfg_of_body (acc, labels, succ @@ succ offset) body.L.item in
+        cfg_of_body (acc, labels, succ @@ succ offset) body in
       let iplus1 =
         P.ArithBinop (
           L.mkdummy P.Add,
