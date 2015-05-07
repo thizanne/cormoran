@@ -7,7 +7,7 @@ let info =
     `S "BUGS";
     `P "Probably.";
   ] in
-  Term.info "canal" ~version:"0.1" ~doc ~man
+  Term.info "cormoran" ~version:"0.1" ~doc ~man
 
 let main domain widening_delay use_litmus sourcefile outputfile =
   try
