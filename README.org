@@ -1,6 +1,6 @@
-* Canal
+* Cormoran
 
-Experimental static analyser for a toy concurrent language with the TSO weak memory model.
+A concurrent TSO-relaxed memory program analyser.
 
 * Dependencies
 
