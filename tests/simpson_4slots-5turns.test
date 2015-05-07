@@ -2,24 +2,25 @@
   @ (
     0:writer1_crit00|writer2_crit00|writer3_crit00|writer4_crit00|writer5_crit00,
     1:reader1_crit00|reader2_crit00|reader3_crit00|reader4_crit00|reader5_crit00
-    )
-    false /\
+    ) false
+
   @ (
     0:writer1_crit01|writer2_crit01|writer3_crit01|writer4_crit01|writer5_crit01,
     1:reader1_crit01|reader2_crit01|reader3_crit01|reader4_crit01|reader5_crit01
-    )
-    false /\
+    ) false
+
   @ (
     0:writer1_crit10|writer2_crit10|writer3_crit10|writer4_crit10|writer5_crit10,
     1:reader1_crit10|reader2_crit10|reader3_crit10|reader4_crit10|reader5_crit10
-    )
-    false /\
+    ) false
+
   @ (
     0:writer1_crit11|writer2_crit11|writer3_crit11|writer4_crit11|writer5_crit11,
     1:reader1_crit11|reader2_crit11|reader3_crit11|reader4_crit11|reader5_crit11
     )
-    false /\
-  @@ 1 : out1 <= out2 && out2 <= out3 && out3 <= out4 && out4 <= out5
+    false
+
+  @@ 1:out1 <= 1:out2 && 1:out2 <= 1:out3 && 1:out3 <= 1:out4 && 1:out4 <= 1:out5
 }
 
 latest = 0, reading = 0,

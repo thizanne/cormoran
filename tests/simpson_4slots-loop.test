@@ -1,7 +1,7 @@
 {
-  @ (0:crit00, 1:crit00) false /\
-  @ (0:crit01, 1:crit01) false /\
-  @ (0:crit10, 1:crit10) false /\
+  @ (0:crit00, 1:crit00) false
+  @ (0:crit01, 1:crit01) false
+  @ (0:crit10, 1:crit10) false
   @ (0:crit11, 1:crit11) false
 }
 

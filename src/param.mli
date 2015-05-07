@@ -6,7 +6,10 @@ module Domain : sig
 end
 
 module Parse : sig
-  val parse_filename : bool -> string -> Program.t * 'a list
+  val parse_filename :
+    use_litmus:bool ->
+    string ->
+    Program.var Program.t * Program.var_view Property.t list
 end
 
 module Output : sig

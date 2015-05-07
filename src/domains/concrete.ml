@@ -34,16 +34,24 @@ let set_reg state t x v = {
     set_nth t ((x, v) :: List.nth state.regs t) state.regs
 }
 
-let get_reg s t r =
-  List.assoc r (List.nth s.regs t)
+let get_local tid state r =
+  List.assoc r (List.nth state.regs tid)
 
-let get_var state t x =
+let get_shared tid state x =
   try
-    List.assoc x (List.nth state.buf t)
+    List.assoc x (List.nth state.buf tid)
   with Not_found ->
     List.assoc x state.mem
 
-let set_local state tid x n = {
+let get_var tid state { P.var_name; var_type } =
+  match var_type with
+  | P.Local -> get_local tid state var_name
+  | P.Shared -> get_shared tid state var_name
+
+let get_var_view state { P.thread_id; var } =
+  get_var thread_id state var
+
+let set_local tid state x n = {
   state with
   regs =
     List.modify_at tid
@@ -51,7 +59,7 @@ let set_local state tid x n = {
       state.regs
 }
 
-let set_shared state tid x n = {
+let set_shared tid state x n = {
   state with
   buf =
     List.modify_at tid
@@ -59,9 +67,9 @@ let set_shared state tid x n = {
       state.buf
 }
 
-let set_var state tid x n = match x.P.var_type with
-  | P.Local -> set_local state tid x.P.var_name n
-  | P.Shared -> set_shared state tid x.P.var_name n
+let set_var tid state x n = match x.P.var_type with
+  | P.Local -> set_local tid state x.P.var_name n
+  | P.Shared -> set_shared tid state x.P.var_name n
 
 let nth_buf p t =
   List.nth p.buf t
@@ -122,52 +130,52 @@ let flush_after_mop p x =
   |> all_combi
   |> List.map (List.fold_left flush p)
 
-let rec get_expr p thread =
+let rec get_expr get_var =
   function
   | P.Int { Location.item = n; _ } -> Some n
-  | P.Var { Location.item = v; _ } ->
-    if P.is_local v
-    then get_reg p thread v.P.var_name
-    else get_var p thread v.P.var_name
+  | P.Var { Location.item = v; _ } -> get_var v
   | P.ArithUnop (op, expr) ->
     Option.map
       (P.fun_of_arith_unop op.Location.item)
-      (get_expr p thread expr.Location.item)
+      (get_expr get_var expr.Location.item)
   | P.ArithBinop (op, expr1, expr2) ->
     begin
       try
         option_map2
           (P.fun_of_arith_binop op.Location.item)
-          (get_expr p thread expr1.Location.item)
-          (get_expr p thread expr2.Location.item)
+          (get_expr get_var expr1.Location.item)
+          (get_expr get_var expr2.Location.item)
       with
         Division_by_zero -> None
     end
 
-let rec validates_cond p thread =
+let rec validates_cond p =
   let open Program in
   let open Location in
   function
   | Bool b -> b.item
   | LogicUnop (op, c) ->
     fun_of_logic_unop op.item
-      (validates_cond p thread c.item)
+      (validates_cond p c.item)
   | LogicBinop (op, c1, c2) ->
     fun_of_logic_binop op.item
-      (validates_cond p thread c1.item)
-      (validates_cond p thread c2.item)
+      (validates_cond p c1.item)
+      (validates_cond p c2.item)
   | ArithRel (rel, e1, e2) ->
-    begin match get_expr p thread e1.item, get_expr p thread e2.item with
+    begin match
+        get_expr (get_var_view p) e1.item,
+        get_expr (get_var_view p) e2.item
+      with
       | None, _ -> true
       | _, None -> true
       | Some n1, Some n2 -> fun_of_arith_rel rel.item n1 n2
     end
 
-let transfer domain {P.thread_id = t; elem = op} = match op with
+let transfer op domain = match op with
   | Op.Identity -> domain
-  | Op.MFence -> D.filter (fun p -> is_empty_buffer p t) domain
-  | Op.Filter c -> D.filter (fun p -> validates_cond p t c) domain
-  | Op.Assign (x, expr) ->
+  | Op.MFence tid -> D.filter (fun p -> is_empty_buffer p tid) domain
+  | Op.Filter c -> D.filter (fun p -> validates_cond p c) domain
+  | Op.Assign (tid, x, expr) ->
     let flush = match x.P.var_type, Program.shared_in_expr expr with
       | P.Local, [] -> List.singleton
       | P.Shared, [] -> fun p -> flush_after_mop p x.P.var_name
@@ -177,7 +185,7 @@ let transfer domain {P.thread_id = t; elem = op} = match op with
     let domain =
       domain
       |> D.elements
-      |> List.map (fun p -> set_var p t x (get_expr p t expr))
+      |> List.map (fun p -> set_var tid p x (get_expr (get_var tid p) expr))
       |> List.map flush
       |> List.flatten
     in

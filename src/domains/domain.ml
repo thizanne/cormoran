@@ -39,8 +39,9 @@ module type Inner = sig
 
   val assign_expr :
     t ->
-    Program.thread_id ->
+    Program.thread_id -> (* thread_id of the variable *)
     Program.var ->
+    Program.thread_id -> (* thread_id of the expression *)
     Program.var Program.expression ->
     t
 

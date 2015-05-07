@@ -33,17 +33,17 @@ module Make (N : Numerical) : Domain.Inner = struct
     (* We use the same to-string conversion for local and shared vars,
        using the syntactic fact that variable names cannot contain
        ':'. *)
-    Var.of_string (sprintf "%s:%d" (Symbol.name x) thread_id)
+    Var.of_string (sprintf "%d:%s" thread_id @@ Symbol.name x)
 
-  let ap_var { P.thread_id; elem = x } =
-    ap_var_sym thread_id x.P.var_name
+  let ap_var { P.thread_id; var } =
+    ap_var_sym thread_id var.P.var_name
 
-  let texpr1 env { P.elem = expr; thread_id } =
+  let texpr1 view env expr =
     let rec to_expr = function
       | P.Int n ->
         Texpr1.Cst (Coeff.s_of_int n.L.item)
       | P.Var x ->
-        Texpr1.Var (ap_var_sym thread_id x.L.item.P.var_name)
+        Texpr1.Var (ap_var @@ view x.L.item)
       | P.ArithUnop (op, expr) ->
         Texpr1.Unop (
           ap_unop op.L.item,
@@ -132,12 +132,12 @@ module Make (N : Numerical) : Domain.Inner = struct
         L.mkdummy @@ P.LogicUnop (L.mkdummy P.Not, cond2)
       )
 
-  let tcons1 thread_id env rel e1 e2 =
-    let expr e e' =
+  let tcons1 env rel e1 e2 =
+    let expr e1 e2 =
       Texpr1.binop
         Texpr1.Sub
-        (texpr1 env @@ P.create_threaded ~thread_id e)
-        (texpr1 env @@ P.create_threaded ~thread_id e')
+        (texpr1 (fun v -> v) env e1)
+        (texpr1 (fun v -> v) env e2)
         Texpr1.Int Texpr1.Zero in
     match rel with
     | P.Eq -> Tcons1.make (expr e1 e2) Tcons1.EQ
@@ -161,7 +161,7 @@ module Make (N : Numerical) : Domain.Inner = struct
       | P.ArithRel (rel, e1, e2) ->
         let earray = Tcons1.array_make env 1 in
         Tcons1.array_set earray 0
-          (tcons1 cons.P.thread_id env rel.L.item e1.L.item e2.L.item);
+          (tcons1 env rel.L.item e1.L.item e2.L.item);
         Abstract1.meet_tcons_array man abstr earray
       | P.LogicBinop (op, c1, c2) ->
         begin match op.L.item with
@@ -171,12 +171,12 @@ module Make (N : Numerical) : Domain.Inner = struct
               (aux abstr c1.L.item)
               (aux abstr c2.L.item)
         end
-    in aux abstr cons.P.elem
+    in aux abstr cons
 
-  let assign_expr abstr var expr =
+  let assign_expr abstr var_tid var exp_tid exp =
     Abstract1.assign_texpr man abstr
-      (ap_var var)
-      (texpr1 (Abstract1.env abstr) expr)
+      (ap_var @@ P.create_var_view ~thread_id:var_tid var)
+      (texpr1 (P.create_var_view ~thread_id:exp_tid) (Abstract1.env abstr) exp)
       None
 
   let widening abstr1 abstr2 =

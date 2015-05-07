@@ -6,46 +6,46 @@ module P = Program
 
 module Point = struct
   include Map.Make (struct
-      type t = P.var P.threaded
+      type t = P.var_view
       let compare = Pervasives.compare
     end)
 
-  let rec get_expr p { P.elem = expr; thread_id } = match expr with
+  let rec get_expr view p { L.item = expr; _ } = match expr with
     | P.Int n -> Some n.L.item
-    | P.Var v -> find (P.create_threaded ~thread_id v.L.item) p
+    | P.Var v -> find (view v.L.item) p
     | P.ArithUnop (op, e) ->
       Option.map
         (P.fun_of_arith_unop op.L.item)
-        (get_expr p @@ P.create_threaded ~thread_id e.L.item)
+        (get_expr view p e)
     | P.ArithBinop (op, e1, e2) ->
       option_map2
         (P.fun_of_arith_binop op.L.item)
-        (get_expr p @@ P.create_threaded ~thread_id e1.L.item)
-        (get_expr p @@ P.create_threaded ~thread_id e2.L.item)
+        (get_expr view p e1)
+        (get_expr view p e2)
 
-  let sat_cons p { P.elem = cons; thread_id } =
-    let rec aux = function
-      | P.Bool b -> b.L.item
-      | P.LogicUnop (op, c) ->
-        P.fun_of_logic_unop op.L.item (aux c.L.item)
-      | P.LogicBinop (op, c1, c2) ->
-        P.fun_of_logic_binop op.L.item (aux c1.L.item) (aux c2.L.item)
-      | P.ArithRel (rel, e1, e2) ->
-        option_map2
-          (P.fun_of_arith_rel rel.L.item)
-          (get_expr p @@ P.create_threaded ~thread_id e1.L.item)
-          (get_expr p @@ P.create_threaded ~thread_id e2.L.item)
-        |> Option.default true
-    in aux cons
+  let rec sat_cons p { L.item = cons; _ } = match cons with
+    | P.Bool b -> b.L.item
+    | P.LogicUnop (op, c) ->
+      P.fun_of_logic_unop
+        op.L.item
+        (sat_cons p c)
+    | P.LogicBinop (op, c1, c2) ->
+      P.fun_of_logic_binop
+        op.L.item
+        (sat_cons p c1)
+        (sat_cons p c2)
+    | P.ArithRel (rel, e1, e2) ->
+      option_map2
+        (P.fun_of_arith_rel rel.L.item)
+        (get_expr (fun v -> v) p e1)
+        (get_expr (fun v -> v) p e2)
+      |> Option.default true
 
-  let assign_expr p var expr =
-    add var (get_expr p expr) p
-
-  let assign_expr_array p vars exprs =
-    let vars = Array.enum vars in
-    let exprs = Array.enum exprs in
-    let exprs = Enum.map (get_expr p) exprs in
-    Enum.fold2 add p vars exprs
+  let assign_expr p var_tid var exp_tid exp =
+    add
+      (P.create_var_view ~thread_id:var_tid var)
+      (get_expr (P.create_var_view ~thread_id:exp_tid) p exp)
+      p
 
   let init program =
     let module LL = LazyList in
@@ -54,7 +54,7 @@ module Point = struct
       List.fold_lefti
         (fun acc thread_id thread ->
            LL.cons
-             (P.create_threaded ~thread_id (P.shared_var x), Some n)
+             (P.create_var_view ~thread_id (P.shared_var x), Some n)
              acc)
         acc
         program.P.threads in
@@ -69,7 +69,7 @@ module Point = struct
       Symbol.Set.fold
         (fun x acc ->
            LL.cons
-             (P.create_threaded ~thread_id (P.local_var x), None)
+             (P.create_var_view ~thread_id (P.local_var x), None)
              acc)
         thread.Program.locals
         acc in
@@ -110,23 +110,18 @@ let join_array =
   Array.fold_left join D.empty
 
 let meet_cons d cons =
-  D.filter (fun p -> Point.sat_cons p cons) d
+  D.filter (fun p -> Point.sat_cons p @@ L.mkdummy cons) d
 
-let meet_cons_array =
-  Array.fold_left meet_cons
-
-let assign_expr d var expr =
-  D.map (fun p -> Point.assign_expr p var expr) d
-
-let assign_expr_array d ?(dest=None) vars exprs =
-  let d' = D.map (fun p -> Point.assign_expr_array p vars exprs) d in
-  Option.map_default (meet d') d' dest
+let assign_expr d var_tid var exp_tid exp =
+  D.map
+    (fun p -> Point.assign_expr p var_tid var exp_tid (L.mkdummy exp))
+    d
 
 let print output =
   D.print
     ~first:"" ~last:"" ~sep:";\n"
     (Point.print
        ~first:"" ~sep:", " ~last:"" ~kvsep:" = "
-       (Program.print_threaded Program.print_var)
+       Program.print_var_view
        print_int_option)
     output

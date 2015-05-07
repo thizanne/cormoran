@@ -17,7 +17,7 @@ module Bufs : sig
   val compare : t -> t -> int
   val nth : t -> int -> buf
   val write : t -> Program.thread_id -> Symbol.t -> t
-  val init : Program.t -> t
+  val init : Program.var Program.t -> t
   val flush : t -> Program.thread_id -> t
   val all_flush_list : t -> Symbol.t -> Program.thread_id list list
   val get_no_var : t -> Symbol.t -> Program.thread_id list
@@ -126,22 +126,21 @@ module Make (Inner : Domain.Inner) = struct
        key is already present *)
     M.modify_def abstr bufs (Inner.join abstr) d
 
-  let flush t bufs abstr d =
+  let flush tid bufs abstr d =
     (* Updates the abstract domain d to take into account the flush of
        the oldest entry of the t-th buffer from the numerical domain
        abstr *)
-    let var_x = P.shared_var @@ Bufs.last @@ Bufs.nth bufs t in
-    let x i = P.create_threaded ~thread_id:i var_x in
-    let x_t = P.create_threaded ~thread_id:t (P.var (L.mkdummy var_x)) in
+    let var_x = P.shared_var @@ Bufs.last @@ Bufs.nth bufs tid in
+    let x_t_exp = P.var (L.mkdummy var_x) in
     (* Assign the value of x_t to every x_i in the numerical domain
        abstr where x_i is not present in buffer i *)
     let abstr =
       List.fold_left
-        (fun acc i -> Inner.assign_expr acc (x i) x_t)
+        (fun acc tid' -> Inner.assign_expr acc tid' var_x tid x_t_exp)
         abstr
         (Bufs.get_no_var bufs var_x.P.var_name) in
     (* Make the joins *)
-    add_join (Bufs.flush bufs t) abstr d
+    add_join (Bufs.flush bufs tid) abstr d
 
   let flush_mop x bufs abstr d =
     (* Updates the abstract domain d to take into account every possible
@@ -160,18 +159,15 @@ module Make (Inner : Domain.Inner) = struct
        operation on the shared variable x *)
     M.fold (flush_mop x) d d
 
-  let transfer d { P.thread_id; elem = ins } =
-    match ins with
+  let transfer op d =
+    match op with
     | O.Identity -> d
-    | O.MFence ->
-      M.filter (fun bufs _ -> Bufs.is_empty (Bufs.nth bufs thread_id)) d
-    | O.Assign (x, expr) ->
+    | O.MFence tid ->
+      M.filter (fun bufs _ -> Bufs.is_empty (Bufs.nth bufs tid)) d
+    | O.Assign (tid, x, expr) ->
       let d = (* Make the assignation on inner abstract variables *)
         M.map
-          (fun abstr ->
-             Inner.assign_expr abstr
-               (P.create_threaded ~thread_id x)
-               (P.create_threaded ~thread_id expr))
+          (fun abstr -> Inner.assign_expr abstr tid x tid expr)
           d in
       let d = (* Add x to the tid-th buffer if it's a write *)
         match x.P.var_type with
@@ -180,7 +176,7 @@ module Make (Inner : Domain.Inner) = struct
           M.Labels.fold
             ~f:(fun ~key:bufs ~data:abstr acc ->
                 add_join
-                  (Bufs.write bufs thread_id x.P.var_name)
+                  (Bufs.write bufs tid x.P.var_name)
                   abstr
                   acc)
             ~init:M.empty
@@ -195,8 +191,7 @@ module Make (Inner : Domain.Inner) = struct
       in d
     | O.Filter cond ->
       M.map
-        (fun abstr ->
-           Inner.meet_cons abstr @@ P.create_threaded ~thread_id cond)
+        (fun abstr -> Inner.meet_cons abstr cond)
         d
       |> normalize
 
@@ -214,10 +209,4 @@ module Make (Inner : Domain.Inner) = struct
          | _, None -> failwith "Abstract.widening"
          | Some abstr1, Some abstr2 ->
            Some (Inner.widening abstr1 abstr2))
-
-  let satisfies { P.thread_id; elem = cond } d =
-    let not_cond =
-      P.create_threaded ~thread_id
-        (P.LogicUnop (L.mkdummy P.Not, L.mkdummy cond)) in
-    is_bottom @@ M.map (fun inner -> Inner.meet_cons inner not_cond) d
 end

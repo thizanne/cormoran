@@ -4,13 +4,11 @@ open Cmdliner
 module Parse = struct
   let parse_litmus lexbuf =
     LexerLitmus.drop_prelude lexbuf;
-    ParserLitmus.program LexerLitmus.lexer lexbuf,
-    []
+    ParserLitmus.program LexerLitmus.lexer lexbuf
 
   let parse_imp lexbuf =
     Parser.program Lexer.lexer lexbuf
-    |> Typing.type_program,
-    []
+    |> Typing.type_program
 
   let parse_lexbuf use_litmus =
     if use_litmus
@@ -25,7 +23,7 @@ module Parse = struct
     lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
     lexbuf
 
-  let parse_filename use_litmus filename =
+  let parse_filename ~use_litmus filename =
     parse_lexbuf use_litmus @@ get_lexbuf filename
 end
 

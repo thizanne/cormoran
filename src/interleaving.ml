@@ -12,7 +12,7 @@ module Make (D : Domain.Outer) = struct
     let join = D.join
 
     let analyze (_, op, _) d =
-      D.transfer d op
+      D.transfer op d
 
     let widening = D.widening
   end

@@ -105,7 +105,7 @@ module Make (D : Domain.Outer) = struct
     let neg_condition = P.LogicUnop (L.mkdummy P.Not, L.mkdummy condition) in
     D.is_bottom (D.transfer (Cfg.Operation.Filter neg_condition) abstr)
 
-  let satisfies { zone; condition } property g data =
+  let satisfies { zone; condition } g data =
     let all_data = match zone with
       | None -> [data g.Cfg.final_state |> full_flush g]
       | Some zone -> List.map data @@ list_zone zone g
