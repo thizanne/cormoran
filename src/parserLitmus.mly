@@ -26,6 +26,21 @@
     Symbol.Map.modify_opt
       k (function None -> Some v | Some v' -> Some v') map
 
+  let rec get_local { L.item = body; _ } = match body with
+    | P.Nothing
+    | P.Pass
+    | P.MFence -> Symbol.Set.empty
+    | P.Seq (b1, b2) -> Symbol.Set.union (get_local b1) (get_local b2)
+    | P.Assign (x, e) ->
+      if P.is_local x.L.item
+      then Symbol.Set.singleton x.L.item.P.var_name
+      else begin
+        match P.local_in_expr e.L.item with
+        | [y] -> Symbol.Set.singleton y
+        | _ -> Symbol.Set.empty
+      end
+    | _ -> failwith "ParserLitmus.get_local"
+
   let get_shared acc threads =
     (* Finds all shared variables of the program, including those
        which were not initialised (meaning they should be initialised
@@ -33,6 +48,8 @@
        that litmus programs only contain sequences of
        assignations/fences (and enforces it with an exception) *)
     let rec scan_body body acc = match body with
+      | P.Nothing
+      | P.Pass
       | P.MFence -> acc
       | P.Seq (b1, b2) ->
         acc |> scan_body b1.L.item |> scan_body b2.L.item
@@ -67,12 +84,12 @@
 | x = X { L.mk x $startpos $endpos }
 
 program :
-| init = init_dec threads = code property = exists Eof {
+| init = init_dec threads = code properties = exists Eof {
     {
       P.initial = get_shared init threads;
       threads;
     },
-    [Property.always_false]
+    properties
   }
 | error {
     let open Error in
@@ -93,10 +110,10 @@ init_var :
 code :
 | lines = line+ {
     List.map
-      (fun { L.item = body; loc } ->
+      (fun body ->
          {
-           P.locals = Symbol.Set.empty;
-           body = { L.item = body; loc }
+           P.locals = get_local body;
+           body;
          })
       (transform lines)
   }
@@ -117,12 +134,44 @@ var :
 | x = Shared { P.shared_var (var_sym x) }
 
 exists :
-| Exists LPar eqs = separated_list(And, equality) RPar { eqs }
+| Exists LPar condition = condition RPar {
+    [{ Property.zone = None; condition }]
+  }
+
+condition :
+| { L.mkdummy @@ P.Bool (L.mkdummy true) }
+| eq = loc(equality) { eq }
+| eq = loc(equality) And eqs = condition {
+    L.mkdummy @@
+    P.LogicBinop (
+      L.mkdummy P.Or,
+      eq,
+      eqs
+    )
+  }
 
 equality :
-| v = threaded_var Equals x = Int { (v, x) }
+| var = loc(threaded_var) Equals n = loc(Int) {
+    (* Litmus properties are existential ones. As the verification
+       works with universal properties, we negate them and check their
+       opposite. Thus safe tests should have their properties verifies
+       if the analysis is precise, and relaxed tests should not have
+       their properties verified if the analysis is sound. *)
+    P.ArithRel (
+      L.mkdummy @@ P.Neq,
+      L.mkdummy @@ P.Var var,
+      L.mkdummy @@ P.Int n
+    )
+  }
 
-(* TODO: property parsing *)
 threaded_var :
-| Shared { }
-| ThreadedReg { }
+| var_name = Shared {
+    P.create_var_view ~thread_id:0 @@
+    P.shared_var @@ var_sym var_name
+  }
+
+| tid_var = ThreadedReg {
+    let thread_id, var_name = tid_var in
+    P.create_var_view ~thread_id @@
+    P.local_var @@ var_sym var_name
+  }
