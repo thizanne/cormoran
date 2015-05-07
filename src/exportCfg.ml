@@ -5,7 +5,6 @@ open Cfg
 
 let edge_label op =
   let output = IO.output_string () in
-  String.print output ":";
   begin match op with
     | Operation.Identity ->
       String.print output "Id"
