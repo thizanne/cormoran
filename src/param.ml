@@ -78,5 +78,5 @@ module CommandTerm = struct
 
   let outputfile =
     let doc = "Graph output file name." in
-    Arg.(value & opt (some non_dir_file) None & info ["o"; "output"] ~doc ~docv:"FILE")
+    Arg.(value & opt (some string) None & info ["o"; "output"] ~doc ~docv:"FILE")
 end
