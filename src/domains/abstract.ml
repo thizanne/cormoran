@@ -131,7 +131,7 @@ module Make (Inner : Domain.Inner) = struct
        the oldest entry of the t-th buffer from the numerical domain
        abstr *)
     let var_x = P.shared_var @@ Bufs.last @@ Bufs.nth bufs tid in
-    let x_t_exp = P.var (L.mkdummy var_x) in
+    let x_t_exp = P.Var (L.mkdummy var_x) in
     (* Assign the value of x_t to every x_i in the numerical domain
        abstr where x_i is not present in buffer i *)
     let abstr =
