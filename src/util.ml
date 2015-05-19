@@ -94,3 +94,5 @@ let fun_of_op op x y = match op with
   | _ -> failwith "fun_of_op"
 
 let ( @@@ ) f g x = f (g x)
+
+let flip f x y = f y x
