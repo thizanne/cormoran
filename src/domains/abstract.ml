@@ -19,7 +19,7 @@ module Bufs : sig
   val write : t -> Program.thread_id -> Symbol.t -> t
   val init : Program.var Program.t -> t
   val flush : t -> Program.thread_id -> t
-  val all_flush_list : t -> Symbol.t -> Program.thread_id list list
+  val flush_lists_after_mop : t -> Symbol.t -> Program.thread_id list list
   val get_no_var : t -> Symbol.t -> Program.thread_id list
   val print : 'a BatIO.output -> t -> unit
 end
@@ -32,6 +32,10 @@ struct
   let last buf = match Deque.rear buf with
     | Some (_, x) -> x
     | None -> raise Not_found
+
+  let is_last buf x =
+    try last buf = x
+    with Not_found -> false
 
   let is_absent buf x =
     Deque.find (( = ) x) buf = None
@@ -64,19 +68,58 @@ struct
          | None -> failwith "flush")
       bufs
 
-  let all_flush_list bufs x =
-    (* TODO can probably be done better *)
-    let t_list tid buf =
-      (* ~= List.make (Deque.length buf) t, if Deque.length existed *)
-      Deque.fold_left (fun acc _ -> tid :: acc) [] buf
+  let flush_lists_after_mop bufs x =
+    (* A flush list is a permutation of a part of a flush set. A flush
+       set is a set of buffers such that, for every shared variable y,
+       if y is present in a buffer of the set or y is x, then every
+       buffer having y in last (thus older) position is in the
+       set. This is computed iteratively as a least fixpoint.
+
+       TODO: It is unnecessary to consider every permutation of the
+       flush set. For instance, if the buffers are [x; y] and [y],
+       after a memory operation on x, the flush lists may not contain
+       [1]. This probably does not lead to a precision loss, but will
+       generate more computations.
+    *)
+
+    (* FIXME *)
+    let t_list tid =
+      List.make (Deque.size (nth bufs tid)) tid
     in
 
-    bufs
-    |> List.filteri_map
-      (fun tid buf ->
-         match Deque.rear buf with
-         | Some (_, y) when y = x -> Some (t_list tid buf)
-         | _ -> None)
+    let buf_presence = Array.make (List.length bufs) false in
+    let presence_changed = ref false in
+
+    let add_buffer vars tid already_present =
+      if already_present ||
+         not (Symbol.Set.exists (fun y -> is_last (nth bufs tid) y) vars)
+      then vars
+      else begin
+        buf_presence.(tid) <- true;
+        presence_changed := true;
+        Deque.fold_left
+          (flip Symbol.Set.add)
+          vars
+          (nth bufs tid)
+      end
+    in
+
+    let rec iter_flush_set vars =
+      let vars' = Array.fold_lefti add_buffer vars buf_presence in
+      if !presence_changed || not (Symbol.Set.equal vars vars')
+      then begin
+        presence_changed := false;
+        iter_flush_set vars'
+      end
+    in
+
+    iter_flush_set (Symbol.Set.singleton x);
+    buf_presence
+    |> Array.fold_lefti
+      (fun tid_list tid present ->
+         if present then tid :: tid_list else tid_list)
+      []
+    |> List.map t_list
     |> List.concat
     |> ordered_parts
     |> List.sort_uniq (List.compare Int.compare)
@@ -146,7 +189,7 @@ module Make (Inner : Domain.Inner) = struct
     (* Updates the abstract domain d to take into account every possible
        combination of flush from the numerical domain abstr after a memory
        operation on the variable x by the thread tid *)
-    let to_flush = Bufs.all_flush_list bufs x in
+    let to_flush = Bufs.flush_lists_after_mop bufs x in
     List.fold_left
       (fun acc ts ->
          List.fold_left
