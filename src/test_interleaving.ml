@@ -35,8 +35,8 @@ let domains : (string * (module Domain.Outer)) list = [
 
 let print_cfg file =
   try
-    let lexbuf = Lexing.from_channel @@ open_in file in
-    let program, _cond = Parse.parse use_litmus lexbuf in
+    let use_litmus = !use_litmus in
+    let program, _cond = Param.Parse.parse_filename ~use_litmus file in
     let module D = (val List.assoc !domain domains) in
     let g = Cfg.of_program program in
     let module Analysis = Interleaving.Make (D) in

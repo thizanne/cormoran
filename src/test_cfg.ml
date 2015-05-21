@@ -20,8 +20,8 @@ let data _ = Top.bottom
 
 let print_cfg file =
   try
-    let lexbuf = Lexing.from_channel @@ open_in file in
-    let program, _cond = Parse.parse use_litmus lexbuf in
+    let use_litmus = !use_litmus in
+    let program, _cond = Param.Parse.parse_filename ~use_litmus file in
     let g = Cfg.of_program program in
     Dot.output_graph IO.stdout data g
   with
