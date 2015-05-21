@@ -42,7 +42,7 @@ struct
       (Deque.of_list [x])
       buf
 
-  type t = buf list (* TODO: change list to persistent arrays *)
+  type t = buf list
 
   let compare = List.compare
       (fun dq1 dq2 ->

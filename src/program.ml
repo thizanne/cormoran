@@ -1,15 +1,6 @@
 open Batteries
 
-(* TODO: private *)
 type thread_id = int
-
-(* type 'a threaded = { *)
-(*   thread_id : thread_id; *)
-(*   elem : 'a [@main]; *)
-(* } [@@deriving create] *)
-
-(* let print_threaded print_elem output { thread_id; elem } = *)
-(*   Printf.fprintf output "%a:%d" print_elem elem thread_id *)
 
 type arith_unop =
   | Neg
@@ -112,31 +103,20 @@ type 'a expression =
 
 let var v = Var v
 
-(* TODO refactoring *)
-
-let rec shared_in_expr = function
+let rec predicate_var_in_expr f = function
   | Int _ -> []
   | Var v ->
-    if is_local v.Location.item
-    then []
-    else [v.Location.item.var_name]
-  | ArithUnop (_, e) ->
-    shared_in_expr e.Location.item
-  | ArithBinop (_, e1, e2) ->
-    shared_in_expr e1.Location.item @
-    shared_in_expr e2.Location.item
-
-let rec local_in_expr = function
-  | Int _ -> []
-  | Var v ->
-    if is_local v.Location.item
+    if f v.Location.item
     then [v.Location.item.var_name]
     else []
   | ArithUnop (_, e) ->
-    shared_in_expr e.Location.item
+    predicate_var_in_expr f e.Location.item
   | ArithBinop (_, e1, e2) ->
-    shared_in_expr e1.Location.item @
-    shared_in_expr e2.Location.item
+    predicate_var_in_expr f e1.Location.item @
+    predicate_var_in_expr f e2.Location.item
+
+let shared_in_expr = predicate_var_in_expr is_shared
+let local_in_expr = predicate_var_in_expr is_local
 
 type 'a condition =
   | Bool of bool Location.loc

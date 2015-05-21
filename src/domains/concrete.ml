@@ -230,9 +230,3 @@ let print_point output { regs; buf; mem } =
 let print output =
   D.print print_point output
     ~first:"" ~last:"" ~sep:"\n────────\n"
-
-let is_totally_flushed p =
-  List.for_all (( = ) []) p.buf
-
-let satisfies cond =
-  failwith "TODO"
