@@ -12,7 +12,7 @@ module L = Location
 module Bufs : sig
   type buf
   val is_empty : buf -> bool
-  val last : buf -> Symbol.t (* can raise Not_found *)
+  val last : buf -> Symbol.t option
   type t
   val compare : t -> t -> int
   val nth : t -> int -> buf
@@ -21,7 +21,7 @@ module Bufs : sig
   val flush : t -> Program.thread_id -> t
   val flush_lists_after_mop : t -> Symbol.t -> Program.thread_id list list
   val get_no_var : t -> Symbol.t -> Program.thread_id list
-  val print : 'a BatIO.output -> t -> unit
+  val print : 'a IO.output -> t -> unit
 end
 =
 struct
@@ -30,12 +30,8 @@ struct
   let is_empty = Deque.is_empty
 
   let last buf = match Deque.rear buf with
-    | Some (_, x) -> x
-    | None -> raise Not_found
-
-  let is_last buf x =
-    try last buf = x
-    with Not_found -> false
+    | None -> None
+    | Some (_, x) -> Some x
 
   let is_absent buf x =
     Deque.find (( = ) x) buf = None
@@ -69,57 +65,32 @@ struct
       bufs
 
   let flush_lists_after_mop bufs x =
-    (* A flush list is a permutation of a part of a flush set. A flush
-       set is a set of buffers such that, for every shared variable y,
-       if y is present in a buffer of the set or y is x, then every
-       buffer having y in last (thus older) position is in the
-       set. This is computed iteratively as a least fixpoint.
+    (* Returns the list of all the sequences of flush that must be
+       done on an element with the buffers bufs after a memory
+       operation on the shared variable x, to preserve the
+       closed-by-flush invariant property.
 
-       TODO: It is unnecessary to consider every permutation of the
-       flush set. For instance, if the buffers are [x; y] and [y],
-       after a memory operation on x, the flush lists may not contain
-       [1]. This probably does not lead to a precision loss, but will
-       generate more computations.
-    *)
+       Due to commutativity of flushes of different variables, some
+       different sequences may actually be equivalent (ie they lead to
+       the same flush results). Generating all of them should not lead
+       to any precision loss, but will increase the number of abstract
+       computations.
 
-    (* FIXME *)
+       For instance, when the buffers are [[x; y]; [x; y]], the sequence [0;
+       1; 0; 1] is equivalent to the sequence [0; 0; 1; 1].
+
+       TODO: the current implementation generates different equivalent
+       sequences. *)
+
     let t_list tid =
       List.make (Deque.size (nth bufs tid)) tid
     in
 
-    let buf_presence = Array.make (List.length bufs) false in
-    let presence_changed = ref false in
-
-    let add_buffer vars tid already_present =
-      if already_present ||
-         not (Symbol.Set.exists (fun y -> is_last (nth bufs tid) y) vars)
-      then vars
-      else begin
-        buf_presence.(tid) <- true;
-        presence_changed := true;
-        Deque.fold_left
-          (flip Symbol.Set.add)
-          vars
-          (nth bufs tid)
-      end
-    in
-
-    let rec iter_flush_set vars =
-      let vars' = Array.fold_lefti add_buffer vars buf_presence in
-      if !presence_changed || not (Symbol.Set.equal vars vars')
-      then begin
-        presence_changed := false;
-        iter_flush_set vars'
-      end
-    in
-
-    iter_flush_set (Symbol.Set.singleton x);
-    buf_presence
-    |> Array.fold_lefti
-      (fun tid_list tid present ->
-         if present then tid :: tid_list else tid_list)
-      []
-    |> List.map t_list
+    bufs
+    |> List.filteri_map
+      (fun tid buf -> match last buf with
+         | None -> None
+         | Some y -> if x = y then Some (t_list tid) else None)
     |> List.concat
     |> ordered_parts
     |> List.sort_uniq (List.compare Int.compare)
@@ -169,11 +140,10 @@ module Make (Inner : Domain.Inner) = struct
        key is already present *)
     M.modify_def abstr bufs (Inner.join abstr) d
 
-  let flush tid bufs abstr d =
-    (* Updates the abstract domain d to take into account the flush of
-       the oldest entry of the t-th buffer from the numerical domain
-       abstr *)
-    let var_x = P.shared_var @@ Bufs.last @@ Bufs.nth bufs tid in
+  let flush tid bufs abstr =
+    (* Returns the (bufs, abstr) element corresponding to the flush of
+       the older variable in the buffer of the thread tid *)
+    let var_x = P.shared_var @@ Option.get @@ Bufs.last @@ Bufs.nth bufs tid in
     let x_t_exp = P.Var (L.mkdummy var_x) in
     (* Assign the value of x_t to every x_i in the numerical domain
        abstr where x_i is not present in buffer i *)
@@ -182,8 +152,17 @@ module Make (Inner : Domain.Inner) = struct
         (fun acc tid' -> Inner.assign_expr acc tid' var_x tid x_t_exp)
         abstr
         (Bufs.get_no_var bufs var_x.P.var_name) in
-    (* Make the joins *)
-    add_join (Bufs.flush bufs tid) abstr d
+    Bufs.flush bufs tid, abstr
+
+  let rec join_flush_list tid_list bufs abstr d = match tid_list with
+    (* Takes a list of tids, an element of a domain, and adds the
+       successive results of flushing the first tid of the list to the
+       domain *)
+    | [] -> d
+    | tid :: tids ->
+      let (bufs, abstr) = flush tid bufs abstr in
+      let d = add_join bufs abstr d in
+      join_flush_list tids bufs abstr d
 
   let flush_mop x bufs abstr d =
     (* Updates the abstract domain d to take into account every possible
@@ -191,10 +170,7 @@ module Make (Inner : Domain.Inner) = struct
        operation on the variable x by the thread tid *)
     let to_flush = Bufs.flush_lists_after_mop bufs x in
     List.fold_left
-      (fun acc ts ->
-         List.fold_left
-           (fun acc tid -> flush tid bufs abstr acc)
-           acc ts)
+      (fun acc tid_list -> join_flush_list tid_list bufs abstr acc)
       d to_flush
 
   let close_after_mop x d =
