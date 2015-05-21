@@ -90,7 +90,6 @@ let list_zone zone ({ Cfg.labels; final_state; _ } as g) =
   |> List.n_cartesian_product
   |> List.map P.Control.State.from_label_list
 
-
 module Make (D : Domain.Outer) = struct
   let full_flush g abstr =
     List.fold_lefti

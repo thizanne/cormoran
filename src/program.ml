@@ -1,5 +1,6 @@
 open Batteries
 
+(* TODO: private *)
 type thread_id = int
 
 (* type 'a threaded = { *)
