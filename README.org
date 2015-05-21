@@ -1,8 +1,34 @@
 * Cormoran
 
-A concurrent TSO-relaxed memory program analyser.
+A Concurrent TSO-Relaxed Memory program static Analyser.
 
-* Dependencies
+[[https://cloud.githubusercontent.com/assets/1719378/7755936/f85888d4-fff7-11e4-80fa-1f9786e33982.jpg]]
+
+** How to build
+
+=ocamlbuild cormoran.native=
+
+** How to run
+
+- With default options: =./cormoran.native filename=
+- For more options: =./cormoran.native --help=
+
+** How to write source files
+
+See the directory =tests/= for syntax examples.
+
+Precautions:
+- Expressions must contain at most one shared variable.
+- Expressions in conditions must not contain any shared variable.
+
+The typing pass should explain clearly any other issue when writing
+a syntactically correct but semantically wrong file.
+
+[[http://diy.inria.fr][Litmus]] tests syntax is also accepted with the =--litmus= option. Use
+them with caution: they are expected to be correctly written (as they
+are usually automatically generated) and won't be typechecked.
+
+** Dependencies
 
 - apron
 - batteries
