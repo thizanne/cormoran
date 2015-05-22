@@ -1,11 +1,11 @@
+{ @@ not(0:r1 = 0 && 1:r2 = 0) }
+
 x = 0, y = 0
 
 #
 x := 1
 r1 := y
-mfence
 
 #
 y := 1
 r2 := x
-mfence
