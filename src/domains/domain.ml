@@ -33,17 +33,13 @@ module type Inner = sig
 end
 
 module type BufferAbstraction = sig
-  type buf
-  val is_empty : buf -> bool
-  val last : buf -> Symbol.t option
-
   type t
   val compare : t -> t -> int
-  val nth : t -> int -> buf
+  val nth_is_empty : t -> Program.thread_id -> bool
   val write : t -> Program.thread_id -> Symbol.t -> t
   val init : Program.var Program.t -> t
-  val flush : t -> Program.thread_id -> t
+  val flush : t -> Program.thread_id -> Symbol.t * t
   val flush_lists_after_mop : t -> Symbol.t -> Program.thread_id list list
-  val get_no_var : t -> Symbol.t -> Program.thread_id list
+  val with_no_var : t -> Symbol.t -> Program.thread_id list
   val print : 'a IO.output -> t -> unit
 end

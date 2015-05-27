@@ -12,9 +12,7 @@ module L = Location
 module Bufs : Domain.BufferAbstraction = struct
   type buf = Symbol.t Deque.t
 
-  let is_empty = Deque.is_empty
-
-  let last buf = match Deque.rear buf with
+  let older buf = match Deque.rear buf with
     | None -> None
     | Some (_, x) -> Some x
 
@@ -36,18 +34,25 @@ module Bufs : Domain.BufferAbstraction = struct
 
   let nth = List.at
 
+  let nth_is_empty bufs tid =
+    Deque.is_empty @@ List.at bufs tid
+
   let write bufs tid var =
     List.modify_at tid (move_to_head var) bufs
 
   let init prog =
     List.init (List.length prog.P.threads) (fun _ -> Deque.empty)
 
-  let flush bufs tid =
-    List.modify_at tid
-      (fun buf -> match Deque.rear buf with
-         | Some (buf', _) -> buf'
-         | None -> failwith "flush")
-      bufs
+  let rec flush bufs tid = match bufs, tid with
+    | [], _ -> raise @@ Invalid_argument "Bufs.flush: non existing tid"
+    | b :: bs, 0 ->
+      begin match Deque.rear b with
+        | Some (front, x) -> x, front :: bs
+        | None -> raise @@ Invalid_argument "Bufs.flush: empty buffer"
+      end
+    | b :: bs, _ ->
+      let x, bufs' = flush bs (pred tid) in
+      x, b :: bufs'
 
   let flush_lists_after_mop bufs x =
     (* Returns the list of all the sequences of flush that must be
@@ -73,14 +78,14 @@ module Bufs : Domain.BufferAbstraction = struct
 
     bufs
     |> List.filteri_map
-      (fun tid buf -> match last buf with
+      (fun tid buf -> match older buf with
          | None -> None
          | Some y -> if x = y then Some (t_list tid) else None)
     |> List.concat
     |> ordered_parts
     |> List.sort_uniq (List.compare Int.compare)
 
-  let get_no_var bufs x =
+  let with_no_var bufs x =
     (* Given buffers and a symbol x, returns the list of the thread ids
        whose buffer do not contain x *)
     List.filteri_map
@@ -128,7 +133,8 @@ module Make (Inner : Domain.Inner) = struct
   let flush tid bufs abstr =
     (* Returns the (bufs, abstr) element corresponding to the flush of
        the older variable in the buffer of the thread tid *)
-    let var_x = P.shared_var @@ Option.get @@ Bufs.last @@ Bufs.nth bufs tid in
+    let sym_x, flushed_bufs = Bufs.flush bufs tid in
+    let var_x = P.shared_var sym_x in
     let x_t_exp = P.Var (L.mkdummy var_x) in
     (* Assign the value of x_t to every x_i in the numerical domain
        abstr where x_i is not present in buffer i *)
@@ -136,8 +142,8 @@ module Make (Inner : Domain.Inner) = struct
       List.fold_left
         (fun acc tid' -> Inner.assign_expr acc tid' var_x tid x_t_exp)
         abstr
-        (Bufs.get_no_var bufs var_x.P.var_name) in
-    Bufs.flush bufs tid, abstr
+        (Bufs.with_no_var bufs var_x.P.var_name) in
+    flushed_bufs, abstr
 
   let rec join_flush_list tid_list bufs abstr d = match tid_list with
     (* Takes a list of tids, an element of a domain, and adds the
@@ -167,7 +173,7 @@ module Make (Inner : Domain.Inner) = struct
     match op with
     | O.Identity -> d
     | O.MFence tid ->
-      M.filter (fun bufs _ -> Bufs.is_empty (Bufs.nth bufs tid)) d
+      M.filter (fun bufs _ -> Bufs.nth_is_empty bufs tid) d
     | O.Assign (tid, x, expr) ->
       let d = (* Make the assignation on inner abstract variables *)
         M.map
