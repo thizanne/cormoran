@@ -9,22 +9,7 @@ module L = Location
    recent entries of each variable in this buffer.
 *)
 
-module Bufs : sig
-  type buf
-  val is_empty : buf -> bool
-  val last : buf -> Symbol.t option
-  type t
-  val compare : t -> t -> int
-  val nth : t -> int -> buf
-  val write : t -> Program.thread_id -> Symbol.t -> t
-  val init : Program.var Program.t -> t
-  val flush : t -> Program.thread_id -> t
-  val flush_lists_after_mop : t -> Symbol.t -> Program.thread_id list list
-  val get_no_var : t -> Symbol.t -> Program.thread_id list
-  val print : 'a IO.output -> t -> unit
-end
-=
-struct
+module Bufs : Domain.BufferAbstraction = struct
   type buf = Symbol.t Deque.t
 
   let is_empty = Deque.is_empty
