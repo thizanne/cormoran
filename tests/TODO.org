@@ -1,0 +1,5 @@
+- Lock producer/consumer.
+- Simpson Four-slot algorithm. :: Prove non-interference of
+     reader/writer and coherence of reads (writes 12345 are read in
+     the same order).
+- Filter lock (cf. mail Antoine)
