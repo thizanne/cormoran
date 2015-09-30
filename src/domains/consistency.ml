@@ -3,7 +3,7 @@ open Util
 
 module P = Program
 
-module UnsoundOrdered : Domain.BufferAbstraction = struct
+module UnsoundOrdered : Domain.ConsistencyAbstraction = struct
   type buf = Symbol.t Deque.t
 
   let older buf = match Deque.rear buf with
@@ -28,7 +28,7 @@ module UnsoundOrdered : Domain.BufferAbstraction = struct
 
   let nth = List.at
 
-  let nth_is_empty bufs tid =
+  let tid_is_consistent bufs tid =
     Deque.is_empty @@ List.at bufs tid
 
   let write bufs tid var =
@@ -37,34 +37,40 @@ module UnsoundOrdered : Domain.BufferAbstraction = struct
   let init prog =
     List.init (List.length prog.P.threads) (fun _ -> Deque.empty)
 
-  let rec flush bufs tid = match bufs, tid with
+  let rec make_update bufs { Domain.var; origin; destinations } = match bufs, origin with
+    (* TODO: assert that var is absent in every buffer of the
+       destinations and is the last one in origin *)
     | [], _ -> raise @@ Invalid_argument "Bufs.flush: non existing tid"
     | b :: bs, 0 ->
       begin match Deque.rear b with
-        | Some (front, x) -> x, front :: bs
+        | Some (front, _x) -> front :: bs
         | None -> raise @@ Invalid_argument "Bufs.flush: empty buffer"
       end
-    | b :: bs, _ ->
-      let x, bufs' = flush bs (pred tid) in
-      x, b :: bufs'
+    | b :: bs, _ -> b :: make_update bs { Domain.var; destinations; origin = pred origin }
 
-  let flush_lists_after_mop bufs x =
-    (* Returns the list of all the sequences of flush that must be
+  let get_destinations bufs var origin =
+    (* Get the destinations of an update of the older variable var in
+       the buffer origin. var is expected to be this older variable,
+       no additional check is made. *)
+    List.filteri_map
+      (fun dest buf -> if is_absent buf var then Some dest else None)
+      bufs
+
+  let rec create_updates bufs = function
+    | [] -> []
+    | origin :: origins ->
+      let var = Option.get @@ older @@ nth bufs origin in {
+        Domain.var;
+        origin;
+        destinations = get_destinations bufs var origin
+      } :: create_updates bufs origins
+
+  let get_mop_updates bufs _tid x =
+    (* Returns the list of all the sequences of updates that must be
        done on an element with the buffers bufs after a memory
        operation on the shared variable x, to preserve the
        closed-by-flush invariant property.
-
-       Due to commutativity of flushes of different variables, some
-       different sequences may actually be equivalent (ie they lead to
-       the same flush results). Generating all of them should not lead
-       to any precision loss, but will increase the number of abstract
-       computations.
-
-       For instance, when the buffers are [[x; y]; [x; y]], the sequence [0;
-       1; 0; 1] is equivalent to the sequence [0; 0; 1; 1].
-
-       TODO: the current implementation generates different equivalent
-       sequences. *)
+    *)
 
     let t_list tid =
       List.make (Deque.size (nth bufs tid)) tid
@@ -78,6 +84,7 @@ module UnsoundOrdered : Domain.BufferAbstraction = struct
     |> List.concat
     |> ordered_parts
     |> List.sort_uniq (List.compare Int.compare)
+    |> List.map (create_updates bufs)
 
   let with_no_var bufs x =
     (* Given buffers and a symbol x, returns the list of the thread ids

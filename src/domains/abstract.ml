@@ -9,13 +9,10 @@ module L = Location
    recent entries of each variable in this buffer.
 *)
 
-module Bufs : Domain.BufferAbstraction = Buffers.UnsoundOrdered
+module Coh : Domain.ConsistencyAbstraction = Consistency.UnsoundOrdered
 
 (* An abstract domain is the map from buffer abstractions to
    a numerical domain *)
-
-module Coh : Domain.ConsistencyAbstraction =
-  (val Obj.magic 0 : Domain.ConsistencyAbstraction)
 
 module M = Map.Make (Coh)
 
@@ -48,49 +45,34 @@ module Make (Inner : Domain.Inner) = struct
 
   let make_update (coh, abstr) update =
     (* Returns the (coh, abstr) corresponding to the update *)
-    let shared_var = P.shared_var update.Coh.var in
+    let shared_var = P.shared_var update.Domain.var in
     let var_exp = P.Var (L.mkdummy shared_var) in
     let abstr =
       List.fold_left
         (fun acc dest ->
-           Inner.assign_expr acc dest shared_var update.Coh.origin var_exp)
+           Inner.assign_expr acc dest shared_var update.Domain.origin var_exp)
         abstr
-        update.Coh.destinations
+        update.Domain.destinations
     in
-    Coh.update coh update, abstr
+    Coh.make_update coh update, abstr
 
-  (*
-let rec join_flush_list tid_list bufs abstr d = match tid_list with
-    (* Takes a list of tids, an element of a domain, and adds the
-       successive results of flushing the first tid of the list to the
-       domain *)
-    | [] -> d
-    | tid :: tids ->
-      let (bufs, abstr) = flush tid bufs abstr in
-      let d = add_join bufs abstr d in
-      join_flush_list tids bufs abstr d
-
-*)
-
-  let make_several_updates updates coh abstr d =
+  let add_update_sequence coh abstr d updates =
     (* Takes a list of updates, an element of the domain, and adds the
        result of the application of these updates to the domain *)
     let coh', abstr' = List.fold_left make_update (coh, abstr) updates
     in add_join coh' abstr' d
 
   let flush_mop tid x coh abstr d =
-    (* Updates the abstract domain d to take into account every possible
-       combination of flush from the numerical domain abstr after a memory
-       operation on the variable x by the thread tid *)
-    let updates = Coh.get_mop_updates tid coh x in
-    List.fold_left
-      (fun acc tid_list -> join_flush_list tid_list coh abstr acc)
-      d updates
+    (* Updates the abstract domain d to take into account every
+       possible combination of updates of the numerical domain abstr
+       after a memory operation on the variable x by the thread tid *)
+    let update_sequences = Coh.get_mop_updates coh tid x in
+    List.fold_left (add_update_sequence coh abstr) d update_sequences
 
-  let close_after_mop x d =
-    (* Compute the flush closure of the domain d after a memory
-       operation on the shared variable x *)
-    M.fold (flush_mop x) d d
+  let close_after_mop tid x d =
+    (* Compute the consistency closure of the domain d after a memory
+       operation on the shared variable x by the thread tid *)
+    M.fold (flush_mop tid x) d d
 
   let transfer op d =
     match op with
@@ -107,9 +89,9 @@ let rec join_flush_list tid_list bufs abstr d = match tid_list with
         | P.Local -> d
         | P.Shared ->
           M.Labels.fold
-            ~f:(fun ~key:bufs ~data:abstr acc ->
+            ~f:(fun ~key:coh ~data:abstr acc ->
                 add_join
-                  (Bufs.write bufs tid x.P.var_name)
+                  (Coh.write coh tid x.P.var_name)
                   abstr
                   acc)
             ~init:M.empty
@@ -117,8 +99,8 @@ let rec join_flush_list tid_list bufs abstr d = match tid_list with
       let d = (* Close by partial flush if needed *)
         begin match x.P.var_type, P.shared_in_expr expr with
           | P.Local, [] -> d
-          | P.Shared, [] -> close_after_mop x.P.var_name d
-          | P.Local, [y] -> close_after_mop y d
+          | P.Shared, [] -> close_after_mop tid x.P.var_name d
+          | P.Local, [y] -> close_after_mop tid y d
           | _ -> failwith "Abstract.transfer"
         end
       in d
