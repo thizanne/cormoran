@@ -9,7 +9,7 @@ module L = Location
    recent entries of each variable in this buffer.
 *)
 
-module Coh : Domain.ConsistencyAbstraction = Consistency.UnsoundOrdered
+module Coh : Domain.ConsistencyAbstraction = UnsoundOrdered
 
 (* An abstract domain is the map from buffer abstractions to
    a numerical domain *)

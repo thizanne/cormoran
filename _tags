@@ -3,6 +3,7 @@ true: package(ocamlgraph),package(batteries),package(ppx_deriving.std)
 true: package(cmdliner)
 <src>: include
 <src/*>: include
+<src/*/*>: include
 
 true: package(apron)
 true: package(apron.apron)
