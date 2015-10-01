@@ -47,4 +47,4 @@ let get_mop_updates bufs _issuer var =
   |> List.map (create_updates bufs var)
 
 let print output =
-  List.print (Set.print ~first:"{" ~last:"}" ~sep:"; " Symbol.print) output
+  List.print (Buf.print ~first:"{" ~last:"}" ~sep:"; " Symbol.print) output
