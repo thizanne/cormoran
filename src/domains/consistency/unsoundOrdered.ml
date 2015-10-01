@@ -54,6 +54,7 @@ let get_destinations bufs var =
     bufs
 
 let rec create_updates bufs = function
+  (* FIXME: remove a var from origin buffer once it has been flushed *)
   | [] -> []
   | origin :: origins ->
     let var = Option.get @@ older @@ nth bufs origin in {
