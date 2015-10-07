@@ -28,6 +28,10 @@ module type Inner = sig
   val meet : t -> t -> t
   val meet_cons : t -> Program.var_view Program.condition -> t
   val widening : t -> t -> t
+  val fold : t -> Program.var -> Program.var -> t
+  val expand : t -> Program.var -> Program.var -> t
+  val drop : t -> Program.var -> t
+  val add : t -> Program.var -> t
   val assign_expr :
     t ->
     Program.thread_id -> (* thread_id of the variable *)
