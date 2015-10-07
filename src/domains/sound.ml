@@ -1,22 +1,33 @@
 open Batteries
 
 module Key = struct
-  type slot =
+  type source =
     | Mem
     | TopBuffer
     | BottomBuffer
     [@@ deriving ord]
 
+  let down_source = function
+    | Mem -> TopBuffer
+    | TopBuffer -> BottomBuffer
+    | BottomBuffer -> BottomBuffer
+
+  let up_source = function
+    | Mem -> raise @@ Invalid_argument "up_source"
+    | TopBuffer -> Mem
+    | BottomBuffer -> TopBuffer
+
   module M = Symbol.Map
 
-  type thread_slots = slot M.t
+  type thread_sources = source M.t
 
-  type t = thread_slots list
+  type t = thread_sources list
 
   let compare =
-    List.compare (Symbol.Map.compare compare_slot)
+    List.compare (Symbol.Map.compare compare_source)
 
   let print _output _ = failwith "Sound.Key.print not implemented"
+
 end
 
 module Make (Inner : Domain.Inner) = struct
