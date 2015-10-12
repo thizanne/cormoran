@@ -1,6 +1,7 @@
 open Apron
 open Batteries
 open Printf
+open Util
 
 module P = Program
 module L = Location
@@ -10,7 +11,7 @@ module type Numerical = sig
   val manager : t Manager.t
 end
 
-module Make (N : Numerical) : Domain.Inner = struct
+module Make (N : Numerical) = struct
 
   type t = N.t Abstract1.t
 
@@ -29,21 +30,15 @@ module Make (N : Numerical) : Domain.Inner = struct
     | P.Mul -> Texpr1.Mul
     | P.Div -> Texpr1.Div
 
-  let ap_var_sym thread_id x =
-    (* We use the same to-string conversion for local and shared vars,
-       using the syntactic fact that variable names cannot contain
-       ':'. *)
-    Var.of_string (sprintf "%d:%s" thread_id @@ Symbol.name x)
+  let ap_var x =
+    Var.of_string @@ Symbol.name x
 
-  let ap_var { P.thread_id; var } =
-    ap_var_sym thread_id var.P.var_name
-
-  let texpr1 view env expr =
+  let texpr1 env expr =
     let rec to_expr = function
       | P.Int n ->
         Texpr1.Cst (Coeff.s_of_int n.L.item)
       | P.Var x ->
-        Texpr1.Var (ap_var @@ view x.L.item)
+        Texpr1.Var (ap_var x.L.item)
       | P.ArithUnop (op, expr) ->
         Texpr1.Unop (
           ap_unop op.L.item,
@@ -64,43 +59,19 @@ module Make (N : Numerical) : Domain.Inner = struct
   let int_texpr env n =
     Texpr1.cst env (Coeff.s_of_int n)
 
-  let init program =
-    let module LL = LazyList in
-    let add_shared_x x n acc =
-      (* appends (0:x, n); ...; (N:x, n) to acc *)
-      List.fold_lefti
-        (fun acc i _thread -> LL.cons (ap_var_sym i x, n) acc)
-        acc
-        program.P.threads in
-    let shared =
-      (* LazyList of (x_t, value of x) initial shared vars *)
-      Symbol.Map.fold
-        add_shared_x
-        program.P.initial
-        LL.nil in
-    let add_locals_thread acc tid thread =
-      (* appends locals of the thread to acc *)
-      Symbol.Set.fold
-        (fun x acc -> LL.cons (ap_var_sym tid x) acc)
-        thread.Program.locals
-        acc in
-    let locals =
-      (* LazyList of the local vars of program *)
-      List.fold_lefti
-        add_locals_thread
-        LL.nil
-        program.P.threads in
+  let maybe_add_initial env abstr (x, value) = match value with
+    | None -> abstr
+    | Some n ->
+      Abstract1.assign_texpr man abstr (ap_var x) (int_texpr env n) None
+
+  let init initials =
     let env = Environment.make
-        (LL.to_array @@ LL.append (LL.map fst shared) locals)
+        (Array.of_list @@ List.map (ap_var @@@ fst) initials)
         [||] (* No real variables *) in
-    LL.fold_left
-      (fun abstr (x, n) ->
-         Abstract1.assign_texpr
-           man abstr
-           x (int_texpr env n)
-           None)
+    List.fold_left
+      (maybe_add_initial env)
       (Abstract1.top man env)
-      shared
+      initials
 
   let join = Abstract1.join man
 
@@ -136,8 +107,8 @@ module Make (N : Numerical) : Domain.Inner = struct
     let expr e1 e2 =
       Texpr1.binop
         Texpr1.Sub
-        (texpr1 (fun v -> v) env e1)
-        (texpr1 (fun v -> v) env e2)
+        (texpr1 env e1)
+        (texpr1 env e2)
         Texpr1.Int Texpr1.Zero in
     match rel with
     | P.Eq -> Tcons1.make (expr e1 e2) Tcons1.EQ
@@ -147,7 +118,7 @@ module Make (N : Numerical) : Domain.Inner = struct
     | P.Gt -> Tcons1.make (expr e1 e2) Tcons1.SUP
     | P.Ge -> Tcons1.make (expr e1 e2) Tcons1.SUPEQ
 
-  let meet_cons abstr cons =
+  let meet_cons cons abstr =
     let env = Abstract1.env abstr in
     let rec aux abstr = function
       | P.Bool { L.item = true; _ } -> abstr
@@ -173,14 +144,29 @@ module Make (N : Numerical) : Domain.Inner = struct
         end
     in aux abstr cons
 
-  let assign_expr abstr var_tid var exp_tid exp =
+  let assign_expr var exp abstr =
     Abstract1.assign_texpr man abstr
-      (ap_var @@ P.create_var_view ~thread_id:var_tid var)
-      (texpr1 (P.create_var_view ~thread_id:exp_tid) (Abstract1.env abstr) exp)
+      (ap_var var)
+      (texpr1 (Abstract1.env abstr) exp)
       None
 
   let widening abstr1 abstr2 =
     Abstract1.widening man abstr1 abstr2
+
+  let fold dest source abstr =
+    Abstract1.fold man abstr [|ap_var dest; ap_var source|]
+
+  let expand source dest abstr =
+    Abstract1.expand man abstr (ap_var source) [|ap_var dest|]
+
+  let add var abstr =
+    let env = Abstract1.env abstr in
+    Abstract1.change_environment man abstr
+      (Environment.add env [|ap_var var|] [| |])
+      false
+
+  let drop var abstr =
+    Abstract1.forget_array man abstr [|ap_var var|] false
 
   let print output abstr =
     let fmt = Format.formatter_of_output output in

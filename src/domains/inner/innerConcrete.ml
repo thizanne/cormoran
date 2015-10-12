@@ -1,94 +1,114 @@
 open Batteries
 open Util
+open Printf
 
 module L = Location
 module P = Program
 
 module Point = struct
-  include Map.Make (struct
-      type t = P.var_view
-      let compare = Pervasives.compare
-    end)
+  (* A point is a mapping from variables to their optional value *)
+  module M = Symbol.Map
+  type t = int option M.t
 
-  let rec get_expr view p { L.item = expr; _ } = match expr with
+  let compare = M.compare @@ Option.compare ~cmp:Int.compare
+
+  let print = M.print
+
+  let get_var p x =
+    M.find x p
+
+  let rec get_expr p = function
     | P.Int n -> Some n.L.item
-    | P.Var v -> find (view v.L.item) p
+    | P.Var v -> M.find v.L.item p
     | P.ArithUnop (op, e) ->
       Option.map
         (P.fun_of_arith_unop op.L.item)
-        (get_expr view p e)
+        (get_expr_loc p e)
     | P.ArithBinop (op, e1, e2) ->
       option_map2
         (P.fun_of_arith_binop op.L.item)
-        (get_expr view p e1)
-        (get_expr view p e2)
+        (get_expr_loc p e1)
+        (get_expr_loc p e2)
 
-  let rec sat_cons p { L.item = cons; _ } = match cons with
+  and get_expr_loc p e = get_expr p e.L.item
+
+  let rec sat_cons p = function
     | P.Bool b -> b.L.item
     | P.LogicUnop (op, c) ->
       P.fun_of_logic_unop
         op.L.item
-        (sat_cons p c)
+        (sat_cons_loc p c)
     | P.LogicBinop (op, c1, c2) ->
       P.fun_of_logic_binop
         op.L.item
-        (sat_cons p c1)
-        (sat_cons p c2)
+        (sat_cons_loc p c1)
+        (sat_cons_loc p c2)
     | P.ArithRel (rel, e1, e2) ->
       option_map2
         (P.fun_of_arith_rel rel.L.item)
-        (get_expr (fun v -> v) p e1)
-        (get_expr (fun v -> v) p e2)
+        (get_expr_loc p e1)
+        (get_expr_loc p e2)
       |> Option.default true
 
-  let assign_expr p var_tid var exp_tid exp =
-    add
-      (P.create_var_view ~thread_id:var_tid var)
-      (get_expr (P.create_var_view ~thread_id:exp_tid) p exp)
-      p
+  and sat_cons_loc p cons = sat_cons p cons.L.item
 
-  let init program =
-    let module LL = LazyList in
-    let add_shared_x x n acc =
-      (* appends (0:x, Some n); ...; (N:x, Some n) to acc *)
-      List.fold_lefti
-        (fun acc thread_id thread ->
-           LL.cons
-             (P.create_var_view ~thread_id (P.shared_var x), Some n)
-             acc)
-        acc
-        program.P.threads in
-    let shared =
-      (* LazyList of (x_t, value of x) initial shared vars *)
-      Symbol.Map.fold
-        add_shared_x
-        program.P.initial
-        LL.nil in
-    let add_locals_thread acc thread_id thread =
-      (* appends locals of the thread to acc with None value *)
-      Symbol.Set.fold
-        (fun x acc ->
-           LL.cons
-             (P.create_var_view ~thread_id (P.local_var x), None)
-             acc)
-        thread.Program.locals
-        acc in
-    let locals =
-      (* LazyList of the local vars of program with None value *)
-      List.fold_lefti
-        add_locals_thread
-        LL.nil
-        program.P.threads in
-    LL.fold_left
-      (fun acc (x, v) -> add x v acc)
-      empty
-      (LL.append shared locals)
+  let assign_value var value point =
+    try
+      M.modify var (fun _ -> value) point
+    with Not_found ->
+      failwith @@
+      sprintf "Point.assign_value: unknown var %s" (Symbol.name var)
+
+  let new_var var value point =
+    try
+      ignore (M.find var point);
+      failwith @@ sprintf
+        "InnerConcrete expand: name collision on %s"
+        (Symbol.name var)
+    with Not_found ->
+      M.add var value point
+
+  let assign_expr var expr point =
+    try
+      M.modify var (fun _ -> get_expr point expr) point
+    with Not_found ->
+      failwith @@ sprintf
+        "InnerConcrete assign_expr: unknown var %s"
+        (Symbol.name var)
+
+  let init symbols =
+    List.fold_left
+      (fun acc (x, v) -> M.add x v acc)
+      M.empty
+      symbols
+
+  let drop x p =
+    M.remove x p
+
+  let add x p =
+    try
+      ignore (M.find x p);
+      failwith @@ sprintf
+        "InnerConcrete add: name collision on %s"
+        (Symbol.name x)
+    with Not_found ->
+      M.add x None p
+
+  let fold x y p =
+    let v, p1 = M.extract y p in
+    let p2 = M.add x v p1 in
+    p1, p2
+
+  let coincide_except_on x p1 p2 =
+    M.for_all
+      (fun y v ->
+         Symbol.Ord.compare x y == 0
+         || M.find x p1 = v)
+      p2
 end
 
-module D = Set.Make (struct
-    type t = int option Point.t
-    let compare = Point.compare (Option.compare ~cmp:Int.compare)
-  end)
+(* An "abstract" element is a set of point *)
+module D = Set.Make (Point)
 
 type t = D.t
 
@@ -109,19 +129,47 @@ let widening _abstr1 abstr2 =
 let join_array =
   Array.fold_left join D.empty
 
-let meet_cons d cons =
-  D.filter (fun p -> Point.sat_cons p @@ L.mkdummy cons) d
+let meet_cons cons d =
+  D.filter (fun p -> Point.sat_cons p cons) d
 
-let assign_expr d var_tid var exp_tid exp =
+let assign_expr var expr d =
   D.map
-    (fun p -> Point.assign_expr p var_tid var exp_tid (L.mkdummy exp))
+    (fun p -> Point.assign_expr var expr p)
     d
+
+let fold x y d =
+  D.Labels.fold
+    ~f:(fun p acc ->
+        let p1, p2 = Point.fold x y p
+        in acc |> D.add p1 |> D.add p2)
+    ~init:D.empty
+    d
+
+let rec expand x y d =
+  if D.is_empty d then D.empty
+  else
+    let p = D.choose d in
+    let d1, d2 = D.partition (Point.coincide_except_on x p) d in
+    let x_values = D.fold (fun p acc -> Point.get_var p x :: acc) d1 [] in
+    let couples = List.cartesian_product x_values x_values in
+    let expanded_points =
+      List.map
+        (fun (v1, v2) ->
+           Point.(assign_value x v1 @@ new_var y v2 @@ p))
+        couples in
+    List.fold_right D.add expanded_points @@ expand x y d2
+
+let drop x d =
+  D.map (Point.drop x) d
+
+let add x d =
+  D.map (Point.add x) d
 
 let print output =
   D.print
     ~first:"" ~last:"" ~sep:";\n"
     (Point.print
        ~first:"" ~sep:", " ~last:"" ~kvsep:" = "
-       Program.print_var_view
+       Symbol.print
        print_int_option)
     output

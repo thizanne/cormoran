@@ -8,7 +8,6 @@ type update = {
 
 module type Outer = sig
   type t
-
   val bottom : t
   val is_bottom : t -> bool
   val equal : t -> t -> bool
@@ -23,13 +22,13 @@ module type Inner = sig
   type t
   val is_bottom : t -> bool
   val equal : t -> t -> bool
-  val init : Symbol.t list -> t (* TODO: best input type *)
+  val init : (Symbol.t * int option) list -> t (* TODO: best input type *)
   val join : t -> t -> t
   val meet : t -> t -> t
   val meet_cons : Symbol.t Program.condition -> t -> t
   val widening : t -> t -> t
-  val fold : Symbol.t -> Symbol.t -> t -> t
-  val expand : Symbol.t -> Symbol.t -> t -> t
+  val fold : Symbol.t -> Symbol.t -> t -> t (* dest <- source *)
+  val expand : Symbol.t -> Symbol.t -> t -> t (* source -> dest *)
   val drop : Symbol.t -> t -> t
   val add : Symbol.t -> t -> t
   val assign_expr :

@@ -32,14 +32,14 @@ module Domain = struct
     | Polka
     | Oct
     | Top
-    | Order
+    | Mark
     | Concrete
 
   let get : _ -> (module Domain.Outer) = function
-    | Polka -> (module Abstract.Make (ApronAdapter.Polka))
-    | Oct -> (module Abstract.Make (ApronAdapter.Oct))
+    | Polka -> (module Sound.Make (ApronAdapter.Polka))
+    | Oct -> (module Sound.Make (ApronAdapter.Oct))
     | Top -> (module Top)
-    | Order -> (module Abstract.Make (InnerConcrete))
+    | Mark -> (module Sound.Make (InnerConcrete))
     | Concrete -> (module Concrete)
 end
 
@@ -55,7 +55,7 @@ module CommandTerm = struct
       "polka", Polka;
       "oct", Oct;
       "top", Top;
-      "order", Order;
+      "mark", Mark;
       "concrete", Concrete;
     ] in
     let alts = Arg.doc_alts_enum domains in
