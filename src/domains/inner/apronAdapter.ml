@@ -166,7 +166,11 @@ module Make (N : Numerical) = struct
       false
 
   let drop var abstr =
-    Abstract1.forget_array man abstr [|ap_var var|] false
+    (* Don't use Abstract1.forget, it doesn't work *)
+    let env = Abstract1.env abstr in
+    Abstract1.change_environment man abstr
+      (Environment.remove env [|ap_var var|])
+      false
 
   let print output abstr =
     let fmt = Format.formatter_of_output output in
