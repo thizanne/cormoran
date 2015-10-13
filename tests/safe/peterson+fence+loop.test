@@ -6,6 +6,7 @@ flag_0 = 0, flag_1 = 0, turn = 0
 
 while true {
     flag_0 := 1
+    mfence
     turn := 1
     mfence
 
@@ -26,6 +27,7 @@ while true {
 
 while true {
     flag_1 := 1
+    mfence
     turn := 0
     mfence
 
