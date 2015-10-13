@@ -102,8 +102,8 @@ module Point = struct
   let coincide_except_on x p1 p2 =
     M.for_all
       (fun y v ->
-         Symbol.Ord.compare x y == 0
-         || M.find x p1 = v)
+         Symbol.Ord.compare x y = 0 ||
+         M.find y p1 = v)
       p2
 end
 
