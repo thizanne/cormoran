@@ -36,10 +36,10 @@ module Domain = struct
     | Concrete
 
   let get : _ -> (module Domain.Outer) = function
-    | Polka -> (module Sound.Make (ApronAdapter.Polka))
-    | Oct -> (module Sound.Make (ApronAdapter.Oct))
+    | Polka -> (module Mark.Make (ApronAdapter.Polka))
+    | Oct -> (module Mark.Make (ApronAdapter.Oct))
     | Top -> (module Top)
-    | Mark -> (module Sound.Make (InnerConcrete))
+    | Mark -> (module Mark.Make (InnerConcrete))
     | Concrete -> (module Concrete)
 end
 

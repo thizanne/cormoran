@@ -323,7 +323,7 @@ module Make (Inner : Domain.Inner) = struct
             (read tid (sym_local tid x.P.var_name) y expr)
             d
           |> close_by_flush y
-        | _ -> raise @@ Invalid_argument "Sound.transfer"
+        | _ -> raise @@ Invalid_argument "Mark.transfer"
       end
 
   let join =
