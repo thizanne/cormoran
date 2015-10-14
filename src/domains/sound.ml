@@ -238,6 +238,7 @@ module Make (Inner : Domain.Inner) = struct
     let x_mem = sym_mem x in
     let x_top = sym_top tid x in
     let x_bot = sym_bot tid x in
+    let x_bot_expr = P.Var (L.mkdummy x_bot) in
     let x_top_expr = P.Var (L.mkdummy x_top) in
     let x_tmp = abstract_var_sym "::flush::" in
     let x_tmp_expr = P.Var (L.mkdummy x_tmp) in
@@ -260,11 +261,9 @@ module Make (Inner : Domain.Inner) = struct
       (* >1 -> 1 => x_mem := x_bot[*]; del x_bot *)
       let key_1 = Key.down tid x key in
       let abstr_1 =
-        (* x_tmp might not be needed here *)
+        (* x_tmp is not needed here *)
         abstr
-        |> Inner.expand x_bot x_tmp
-        |> Inner.assign_expr x_mem x_tmp_expr
-        |> Inner.drop x_tmp
+        |> Inner.assign_expr x_mem x_bot_expr
         |> Inner.drop x_bot in
       (* Make the joins *)
       acc
