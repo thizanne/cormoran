@@ -166,7 +166,6 @@ module Make (N : Numerical) = struct
       false
 
   let drop var abstr =
-    (* Don't use Abstract1.forget, it doesn't work *)
     let env = Abstract1.env abstr in
     Abstract1.change_environment man abstr
       (Environment.remove env [|ap_var var|])
