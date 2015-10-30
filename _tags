@@ -7,6 +7,7 @@ true: package(cmdliner)
 <src/*>: include
 <src/*/*>: include
 
+true: package(bddapron)
 true: package(apron)
 true: package(apron.apron)
 true: package(apron.boxD)

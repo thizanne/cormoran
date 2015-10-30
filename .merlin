@@ -9,6 +9,7 @@ PKG batteries
 PKG ocamlgraph
 PKG ppx_deriving.std
 
+PKG bddapron
 PKG apron
 PKG apron.apron
 PKG apron.boxD
