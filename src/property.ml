@@ -101,7 +101,7 @@ module Make (D : Domain.Outer) = struct
       g.Cfg.program.P.threads
 
   let data_satisfies condition abstr =
-    let neg_condition = P.LogicUnop (L.mkdummy P.Not, L.mkdummy condition) in
+    let neg_condition = P.LogicUnop (L.mkdummy Operators.Not, L.mkdummy condition) in
     D.is_bottom (D.transfer (Cfg.Operation.Filter neg_condition) abstr)
 
   let satisfies { zone; condition } g data =

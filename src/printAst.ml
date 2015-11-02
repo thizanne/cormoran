@@ -1,6 +1,7 @@
 open Batteries
 open Program
 open Location
+open Operators
 
 let string_of_arith_unop = function
   | Neg -> "-"

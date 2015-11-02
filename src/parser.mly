@@ -40,28 +40,28 @@ var_sym :
 | x = Id { var_sym x }
 
 %inline arith_unop :
-| Minus { Program.Neg }
+| Minus { Operators.Neg }
 
 %inline logic_unop :
-| Not { Program.Not }
+| Not { Operators.Not }
 
 %inline arith_binop :
-| Plus { Program.Add }
-| Minus { Program.Sub }
-| Times { Program.Mul }
-| Divide { Program.Div }
+| Plus { Operators.Add }
+| Minus { Operators.Sub }
+| Times { Operators.Mul }
+| Divide { Operators.Div }
 
 %inline arith_rel :
-| Eq { Program.Eq }
-| Neq { Program.Neq }
-| Lt { Program.Lt }
-| Gt { Program.Gt }
-| Le { Program.Le }
-| Ge { Program.Ge }
+| Eq { Operators.Eq }
+| Neq { Operators.Neq }
+| Lt { Operators.Lt }
+| Gt { Operators.Gt }
+| Le { Operators.Le }
+| Ge { Operators.Ge }
 
 %inline logic_binop :
-| And { Program.And }
-| Or { Program.Or }
+| And { Operators.And }
+| Or { Operators.Or }
 
 program :
 | properties = property_def

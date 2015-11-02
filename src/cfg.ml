@@ -1,6 +1,7 @@
 open Batteries
 open Graph
 
+module O = Operators
 module L = Location
 
 module ThreadState = struct
@@ -78,7 +79,7 @@ let cfg_of_thread thread_id { Program.body; _ } =
 
   let filter_not cond =
     (* Turns a var condition into the negation of its var_view condition *)
-    Filter (cond_view (P.LogicUnop (L.mkdummy P.Not, cond)))
+    Filter (cond_view (P.LogicUnop (L.mkdummy O.Not, cond)))
   in
 
   let filter_rel rel i exp =
@@ -167,7 +168,7 @@ let cfg_of_thread thread_id { Program.body; _ } =
         cfg_of_body (acc, labels, succ @@ succ offset) body in
       let iplus1 =
         P.ArithBinop (
-          L.mkdummy P.Add,
+          L.mkdummy O.Add,
           L.mkdummy @@ P.Var (L.mkdummy i.L.item),
           L.mkdummy @@ P.Int (L.mkdummy 1)
         ) in
@@ -176,10 +177,10 @@ let cfg_of_thread thread_id { Program.body; _ } =
       |> add_op_edge (Assign (thread_id, i.L.item, exp_from.L.item))
         offset
         (succ offset)
-      |> add_op_edge (filter_rel P.Le i exp_to)
+      |> add_op_edge (filter_rel O.Le i exp_to)
         (succ offset)
         (succ @@ succ offset)
-      |> add_op_edge (filter_rel P.Gt i exp_to)
+      |> add_op_edge (filter_rel O.Gt i exp_to)
         (succ offset)
         (succ offset')
       |> add_op_edge (Assign (thread_id, i.L.item, iplus1))

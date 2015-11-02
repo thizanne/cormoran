@@ -2,56 +2,6 @@ open Batteries
 
 type thread_id = int
 
-type arith_unop =
-  | Neg
-
-let fun_of_arith_unop = function
-  | Neg -> ( ~- )
-
-type logic_unop =
-  | Not
-
-let fun_of_logic_unop = function
-  | Not -> ( not )
-
-type arith_binop =
-  | Add
-  | Sub
-  | Mul
-  | Div
-
-let fun_of_arith_binop = function
-  | Add -> ( + )
-  | Sub -> ( - )
-  | Mul -> ( * )
-  | Div -> ( / )
-
-type arith_rel =
-  | Eq
-  | Neq
-  | Lt
-  | Gt
-  | Le
-  | Ge
-
-let fun_of_arith_rel =
-  let open Int in
-  function
-  | Eq -> ( = )
-  | Neq -> ( <> )
-  | Lt -> ( < )
-  | Gt -> ( > )
-  | Le -> ( <= )
-  | Ge  -> ( >= )
-
-type logic_binop =
-  | And
-  | Or
-
-let fun_of_logic_binop = function
-  | And -> ( && )
-  | Or -> ( || )
-
 type var_type =
   | Local
   | Shared
@@ -94,10 +44,10 @@ type 'a expression =
   | Int of int Location.loc
   | Var of 'a Location.loc
   | ArithUnop of
-      arith_unop Location.loc *
+      Operators.arith_one Location.loc *
       'a expression Location.loc
   | ArithBinop of
-      arith_binop Location.loc *
+      Operators.arith_two Location.loc *
       'a expression Location.loc *
       'a expression Location.loc
 
@@ -121,14 +71,14 @@ let local_in_expr = predicate_var_in_expr is_local
 type 'a condition =
   | Bool of bool Location.loc
   | LogicUnop of
-      logic_unop Location.loc *
+      Operators.logic_one Location.loc *
       'a condition Location.loc
   | LogicBinop of
-      logic_binop Location.loc *
+      Operators.logic_two Location.loc *
       'a condition Location.loc *
       'a condition Location.loc
   | ArithRel of
-      arith_rel Location.loc *
+      Operators.logic_arith_two Location.loc *
       'a expression Location.loc *
       'a expression Location.loc
 

@@ -4,6 +4,7 @@ open Printf
 
 module L = Location
 module P = Program
+module O = Operators
 
 module Point = struct
   (* A point is a mapping from variables to their optional value *)
@@ -22,11 +23,11 @@ module Point = struct
     | P.Var v -> M.find v.L.item p
     | P.ArithUnop (op, e) ->
       Option.map
-        (P.fun_of_arith_unop op.L.item)
+        (O.arith_one_fun op.L.item)
         (get_expr_loc p e)
     | P.ArithBinop (op, e1, e2) ->
       option_map2
-        (P.fun_of_arith_binop op.L.item)
+        (O.arith_two_fun op.L.item)
         (get_expr_loc p e1)
         (get_expr_loc p e2)
 
@@ -35,17 +36,17 @@ module Point = struct
   let rec sat_cons p = function
     | P.Bool b -> b.L.item
     | P.LogicUnop (op, c) ->
-      P.fun_of_logic_unop
+      O.logic_one_fun
         op.L.item
         (sat_cons_loc p c)
     | P.LogicBinop (op, c1, c2) ->
-      P.fun_of_logic_binop
+      O.logic_two_fun
         op.L.item
         (sat_cons_loc p c1)
         (sat_cons_loc p c2)
     | P.ArithRel (rel, e1, e2) ->
       option_map2
-        (P.fun_of_arith_rel rel.L.item)
+        (O.logic_arith_two_fun rel.L.item)
         (get_expr_loc p e1)
         (get_expr_loc p e2)
       |> Option.default true

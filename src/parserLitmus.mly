@@ -1,6 +1,7 @@
 %{
   open Lexing
 
+  module O = Operators
   module P = Program
   module L = Location
 
@@ -144,7 +145,7 @@ condition :
 | eq = loc(equality) And eqs = condition {
     L.mkdummy @@
     P.LogicBinop (
-      L.mkdummy P.Or,
+      L.mkdummy O.Or,
       eq,
       eqs
     )
@@ -158,7 +159,7 @@ equality :
        if the analysis is precise, and relaxed tests should not have
        their properties verified if the analysis is sound. *)
     P.ArithRel (
-      L.mkdummy @@ P.Neq,
+      L.mkdummy @@ O.Neq,
       L.mkdummy @@ P.Var var,
       L.mkdummy @@ P.Int n
     )

@@ -3,6 +3,7 @@ open Batteries
 open Printf
 open Util
 
+module O = Operators
 module P = Program
 module L = Location
 
@@ -22,13 +23,13 @@ module Make (N : Numerical) = struct
   let equal = Abstract1.is_eq man
 
   let ap_unop = function
-    | P.Neg -> Texpr1.Neg
+    | O.Neg -> Texpr1.Neg
 
   let ap_binop = function
-    | P.Add -> Texpr1.Add
-    | P.Sub -> Texpr1.Sub
-    | P.Mul -> Texpr1.Mul
-    | P.Div -> Texpr1.Div
+    | O.Add -> Texpr1.Add
+    | O.Sub -> Texpr1.Sub
+    | O.Mul -> Texpr1.Mul
+    | O.Div -> Texpr1.Div
 
   let ap_var x =
     Var.of_string @@ Symbol.name x
@@ -78,29 +79,29 @@ module Make (N : Numerical) = struct
   let meet = Abstract1.meet man
 
   let not_rel = function
-    | P.Eq -> P.Neq
-    | P.Neq -> P.Eq
-    | P.Lt -> P.Ge
-    | P.Gt -> P.Le
-    | P.Le -> P.Gt
-    | P.Ge -> P.Lt
+    | O.Eq -> O.Neq
+    | O.Neq -> O.Eq
+    | O.Lt -> O.Ge
+    | O.Gt -> O.Le
+    | O.Le -> O.Gt
+    | O.Ge -> O.Lt
 
   let not_op = function
-    | P.And -> P.Or
-    | P.Or -> P.And
+    | O.And -> O.Or
+    | O.Or -> O.And
 
   let reduce_not = function
     | P.Bool b ->
       P.Bool (L.comap ( not ) b)
     | P.ArithRel (rel, expr1, expr2) ->
       P.ArithRel (L.comap not_rel rel, expr1, expr2)
-    | P.LogicUnop ({ L.item = P.Not; _}, cond) ->
+    | P.LogicUnop ({ L.item = O.Not; _}, cond) ->
       cond.L.item
     | P.LogicBinop (op, cond1, cond2) ->
       P.LogicBinop (
         L.comap not_op op,
-        L.mkdummy @@ P.LogicUnop (L.mkdummy P.Not, cond1),
-        L.mkdummy @@ P.LogicUnop (L.mkdummy P.Not, cond2)
+        L.mkdummy @@ P.LogicUnop (L.mkdummy O.Not, cond1),
+        L.mkdummy @@ P.LogicUnop (L.mkdummy O.Not, cond2)
       )
 
   let tcons1 env rel e1 e2 =
@@ -111,24 +112,24 @@ module Make (N : Numerical) = struct
         (texpr1 env e2)
         Texpr1.Int Texpr1.Zero in
     match rel with
-    | P.Eq -> Tcons1.make (expr e1 e2) Tcons1.EQ
-    | P.Neq -> Tcons1.make (expr e1 e2) Tcons1.DISEQ
-    | P.Lt -> Tcons1.make (expr e2 e1) Tcons1.SUP
-    | P.Le -> Tcons1.make (expr e2 e1) Tcons1.SUPEQ
-    | P.Gt -> Tcons1.make (expr e1 e2) Tcons1.SUP
-    | P.Ge -> Tcons1.make (expr e1 e2) Tcons1.SUPEQ
+    | O.Eq -> Tcons1.make (expr e1 e2) Tcons1.EQ
+    | O.Neq -> Tcons1.make (expr e1 e2) Tcons1.DISEQ
+    | O.Lt -> Tcons1.make (expr e2 e1) Tcons1.SUP
+    | O.Le -> Tcons1.make (expr e2 e1) Tcons1.SUPEQ
+    | O.Gt -> Tcons1.make (expr e1 e2) Tcons1.SUP
+    | O.Ge -> Tcons1.make (expr e1 e2) Tcons1.SUPEQ
 
   let meet_cons cons abstr =
     let env = Abstract1.env abstr in
     let rec aux abstr = function
       | P.Bool { L.item = true; _ } -> abstr
       | P.Bool { L.item = false; _ } -> Abstract1.bottom man env
-      | P.LogicUnop ({ L.item = P.Not; _ }, c) ->
+      | P.LogicUnop ({ L.item = O.Not; _ }, c) ->
         aux abstr (reduce_not c.L.item)
-      | P.ArithRel ({ L.item = P.Neq; loc }, e1, e2) ->
+      | P.ArithRel ({ L.item = O.Neq; loc }, e1, e2) ->
         join (* meet with Diseq does not work in Apron *)
-          (aux abstr @@ P.ArithRel ({ L.item = P.Lt; loc}, e1, e2))
-          (aux abstr @@ P.ArithRel ({ L.item = P.Gt; loc}, e1, e2))
+          (aux abstr @@ P.ArithRel ({ L.item = O.Lt; loc}, e1, e2))
+          (aux abstr @@ P.ArithRel ({ L.item = O.Gt; loc}, e1, e2))
       | P.ArithRel (rel, e1, e2) ->
         let earray = Tcons1.array_make env 1 in
         Tcons1.array_set earray 0
@@ -136,8 +137,8 @@ module Make (N : Numerical) = struct
         Abstract1.meet_tcons_array man abstr earray
       | P.LogicBinop (op, c1, c2) ->
         begin match op.L.item with
-          | P.And -> aux (aux abstr c1.L.item) c2.L.item
-          | P.Or ->
+          | O.And -> aux (aux abstr c1.L.item) c2.L.item
+          | O.Or ->
             join
               (aux abstr c1.L.item)
               (aux abstr c2.L.item)

@@ -2,6 +2,7 @@ open Batteries
 open Util
 open Location
 
+module O = Operators
 module Op = Cfg.Operation
 module P = Program
 
@@ -136,13 +137,13 @@ let rec get_expr get_var =
   | P.Var { Location.item = v; _ } -> get_var v
   | P.ArithUnop (op, expr) ->
     Option.map
-      (P.fun_of_arith_unop op.Location.item)
+      (O.arith_one_fun op.Location.item)
       (get_expr get_var expr.Location.item)
   | P.ArithBinop (op, expr1, expr2) ->
     begin
       try
         option_map2
-          (P.fun_of_arith_binop op.Location.item)
+          (O.arith_two_fun op.Location.item)
           (get_expr get_var expr1.Location.item)
           (get_expr get_var expr2.Location.item)
       with
@@ -155,10 +156,10 @@ let rec validates_cond p =
   function
   | Bool b -> b.item
   | LogicUnop (op, c) ->
-    fun_of_logic_unop op.item
+    O.logic_one_fun op.item
       (validates_cond p c.item)
   | LogicBinop (op, c1, c2) ->
-    fun_of_logic_binop op.item
+    O.logic_two_fun op.item
       (validates_cond p c1.item)
       (validates_cond p c2.item)
   | ArithRel (rel, e1, e2) ->
@@ -168,7 +169,7 @@ let rec validates_cond p =
       with
       | None, _ -> true
       | _, None -> true
-      | Some n1, Some n2 -> fun_of_arith_rel rel.item n1 n2
+      | Some n1, Some n2 -> O.logic_arith_two_fun rel.item n1 n2
     end
 
 let transfer op domain = match op with
