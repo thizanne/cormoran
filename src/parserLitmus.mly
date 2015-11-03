@@ -5,7 +5,7 @@
   module P = Program
   module L = Location
 
-  let var_sym = Symbol.namespace ()
+  let var_sym = Sym.namespace ()
 
   let rec transform = function
     | [] -> failwith "transform"
@@ -24,21 +24,21 @@
         line bodies
 
   let add_preserve k v map =
-    Symbol.Map.modify_opt
+    Sym.Map.modify_opt
       k (function None -> Some v | Some v' -> Some v') map
 
   let rec get_local { L.item = body; _ } = match body with
     | P.Nothing
     | P.Pass
-    | P.MFence -> Symbol.Set.empty
-    | P.Seq (b1, b2) -> Symbol.Set.union (get_local b1) (get_local b2)
+    | P.MFence -> Sym.Set.empty
+    | P.Seq (b1, b2) -> Sym.Set.union (get_local b1) (get_local b2)
     | P.Assign (x, e) ->
       if P.is_local x.L.item
-      then Symbol.Set.singleton x.L.item.P.var_name
+      then Sym.Set.singleton x.L.item.P.var_name
       else begin
         match P.local_in_expr e.L.item with
-        | [y] -> Symbol.Set.singleton y
-        | _ -> Symbol.Set.empty
+        | [y] -> Sym.Set.singleton y
+        | _ -> Sym.Set.empty
       end
     | _ -> failwith "ParserLitmus.get_local"
 
@@ -59,7 +59,7 @@
         then add_preserve x.L.item.P.var_name 0 acc
         else begin
           match P.shared_in_expr e.L.item with
-          | [y] -> Symbol.Map.add y 0 acc
+          | [y] -> Sym.Map.add y 0 acc
           | _ -> failwith "ParserLitmus.globals"
         end
       | _ -> failwith "ParserLitmus.get_shared"
@@ -102,7 +102,7 @@ init_dec :
   (* Due to a hack with LexerLitmus.drop_prelude, LCurly is actually
      dropped *)
 | LCurly? li = separated_list(Semi, init_var) RCurly {
-    Symbol.Map.of_enum @@ BatList.enum @@ li
+    Sym.Map.of_enum @@ BatList.enum @@ li
   }
 
 init_var :

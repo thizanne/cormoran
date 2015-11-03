@@ -1,7 +1,7 @@
 %{
   open Lexing
-  let var_sym = Symbol.namespace ()
-  let lbl_sym = Symbol.namespace ()
+  let var_sym = Sym.namespace ()
+  let lbl_sym = Sym.namespace ()
 %}
 
 %token LPar RPar LCurly RCurly
@@ -23,7 +23,7 @@
 %left Times Divide
 
 %start
-  <Symbol.t Program.t * (Program.thread_id option * Symbol.t) Property.t list>
+  <Sym.t Program.t * (Program.thread_id option * Sym.t) Property.t list>
   program
 
 %%
@@ -120,7 +120,7 @@ interval :
 shared_decs :
 | vars = separated_list(Comma, shared_dec) {
     let open Batteries in
-    vars |> List.enum |> Symbol.Map.of_enum
+    vars |> List.enum |> Sym.Map.of_enum
   }
 
 shared_dec :
@@ -130,7 +130,7 @@ shared_dec :
 
 thread :
 | body = loc(body) {
-    { Program.locals = Symbol.Set.empty; body }
+    { Program.locals = Sym.Set.empty; body }
   }
 
 body :

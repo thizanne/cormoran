@@ -4,7 +4,7 @@ open Util
 module P = Program
 
 (* A buffer is abstracted by keeping only the information of the variables present in it *)
-module Buf = Symbol.Set
+module Buf = Sym.Set
 
 type t = Buf.t list
 
@@ -47,4 +47,4 @@ let get_mop_updates bufs _issuer var =
   |> List.map (create_updates bufs var)
 
 let print output =
-  List.print (Buf.print ~first:"{" ~last:"}" ~sep:"; " Symbol.print) output
+  List.print (Buf.print ~first:"{" ~last:"}" ~sep:"; " Sym.print) output

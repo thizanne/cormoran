@@ -7,7 +7,7 @@ open Util
 module L = Location
 
 let add_local_if_absent x env =
-  Symbol.Map.modify_opt x
+  Sym.Map.modify_opt x
     (function
       | None -> Some Local
       | Some typ -> Some typ)
@@ -15,13 +15,13 @@ let add_local_if_absent x env =
 
 let base_type_var env ({ L.item = var_name; loc = var_loc } as var) =
   let var_type, shared =
-    match Symbol.Map.Exceptionless.find var_name env with
+    match Sym.Map.Exceptionless.find var_name env with
     | Some Local -> Local, 0
     | Some Shared -> Shared, 1
     | None ->
       type_error var @@
       sprintf "Var %s is not defined"
-        (Symbol.name var_name)
+        (Sym.name var_name)
   in { var_name; var_type }, shared
 
 let rec type_expression type_var { L.item = exp; loc } =
@@ -86,24 +86,24 @@ let rec type_body ((env, labels) as info) { L.item = b; loc } =
   | Pass -> { L.item = Pass; loc }, info
   | MFence -> { L.item = MFence; loc }, info
   | Label lbl ->
-    if Symbol.Set.mem lbl.L.item labels
+    if Sym.Set.mem lbl.L.item labels
     then name_error lbl "Label already defined on this thread"
     else {
       L.item = Label lbl;
       loc;
-    }, (env, Symbol.Set.add lbl.L.item labels)
+    }, (env, Sym.Set.add lbl.L.item labels)
   | Seq (b1, b2) ->
     let b1', info' = type_body info b1 in
     let b2', info'' = type_body info' b2 in
     { L.item = Seq (b1', b2'); loc }, info''
   | Assign ({ L.item = var_name; loc = var_loc }, exp) ->
     let var_type, (exp', nb_shared), env', add_shared =
-      match Symbol.Map.Exceptionless.find var_name env with
+      match Sym.Map.Exceptionless.find var_name env with
       | Some Local
       | None ->
         Local,
         type_expression (base_type_var env) exp,
-        Symbol.Map.add var_name Local env,
+        Sym.Map.add var_name Local env,
         0
       | Some Shared ->
         Shared,
@@ -124,7 +124,7 @@ let rec type_body ((env, labels) as info) { L.item = b; loc } =
     { L.item = While (cond', body'); loc }, info'
   | For ({ L.item = i_name; loc = i_loc } as i, exp_from, exp_to, body) ->
     let env_i =
-      match Symbol.Map.Exceptionless.find i_name env with
+      match Sym.Map.Exceptionless.find i_name env with
       | None
       | Some Local ->
         add_local_if_absent i_name env
@@ -148,11 +148,11 @@ let check_bound labels bound =
   match bound with
   | None -> ()
   | Some label ->
-    if not (Symbol.Set.mem label.L.item labels)
+    if not (Sym.Set.mem label.L.item labels)
     then
       name_error label @@
       sprintf "Label %s undefined"
-        (Symbol.name label.L.item)
+        (Sym.name label.L.item)
 
 let check_interval labels { Property.initial; final } =
   check_bound labels initial;
@@ -190,7 +190,7 @@ let type_property all_labels shared_env thread_envs
       type_error var_loc @@
       sprintf
         "Non threaded var %s is not allowed in a zoned property"
-        (Symbol.name var_name) in
+        (Sym.name var_name) in
 
   let type_var ({ L.item = (tid, var_name); loc } as var) =
     let var, _ = base_type_var (typing_env var) { L.item = var_name; loc } in
@@ -202,10 +202,10 @@ let type_property all_labels shared_env thread_envs
   { Property.zone; condition }
 
 let type_program ({ initial; threads }, properties) =
-  let shared_env = Symbol.Map.map (fun _ -> Shared) initial in
+  let shared_env = Sym.Map.map (fun _ -> Shared) initial in
   let thread_results =
     List.map
-      (fun t -> type_body (shared_env, Symbol.Set.empty) t.body)
+      (fun t -> type_body (shared_env, Sym.Set.empty) t.body)
       threads in
 
   (* Yup, this is non-optimal. Who cares, it's fast anyway. *)
@@ -222,9 +222,9 @@ let type_program ({ initial; threads }, properties) =
     body;
     locals =
       thread_env
-      |> Symbol.Map.filterv (( = ) Local)
-      |> Symbol.Map.keys
-      |> Symbol.Set.of_enum;
+      |> Sym.Map.filterv (( = ) Local)
+      |> Sym.Map.keys
+      |> Sym.Set.of_enum;
   } in
 
   {

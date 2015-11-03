@@ -8,7 +8,7 @@ module O = Operators
 
 module Point = struct
   (* A point is a mapping from variables to their optional value *)
-  module M = Symbol.Map
+  module M = Sym.Map
   type t = int option M.t
 
   let compare = M.compare @@ Option.compare ~cmp:Int.compare
@@ -58,14 +58,14 @@ module Point = struct
       M.modify var (fun _ -> value) point
     with Not_found ->
       failwith @@
-      sprintf "Point.assign_value: unknown var %s" (Symbol.name var)
+      sprintf "Point.assign_value: unknown var %s" (Sym.name var)
 
   let new_var var value point =
     try
       ignore (M.find var point);
       failwith @@ sprintf
         "InnerConcrete expand: name collision on %s"
-        (Symbol.name var)
+        (Sym.name var)
     with Not_found ->
       M.add var value point
 
@@ -75,7 +75,7 @@ module Point = struct
     with Not_found ->
       failwith @@ sprintf
         "InnerConcrete assign_expr: unknown var %s"
-        (Symbol.name var)
+        (Sym.name var)
 
   let init symbols =
     List.fold_left
@@ -91,7 +91,7 @@ module Point = struct
       ignore (M.find x p);
       failwith @@ sprintf
         "InnerConcrete add: name collision on %s"
-        (Symbol.name x)
+        (Sym.name x)
     with Not_found ->
       M.add x None p
 
@@ -103,7 +103,7 @@ module Point = struct
   let coincide_except_on x p1 p2 =
     M.for_all
       (fun y v ->
-         Symbol.Ord.compare x y = 0 ||
+         Sym.Ord.compare x y = 0 ||
          M.find y p1 = v)
       p2
 end
@@ -171,6 +171,6 @@ let print output =
     ~first:"" ~last:"" ~sep:";\n"
     (Point.print
        ~first:"" ~sep:", " ~last:"" ~kvsep:" = "
-       Symbol.print
+       Sym.print
        print_int_option)
     output

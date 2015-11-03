@@ -31,17 +31,17 @@ module Key = struct
     | One -> String.print output "1"
     | MoreThanOne -> String.print output ">1"
 
-  module M = Symbol.Map
+  module M = Sym.Map
 
   type thread_presences = presence M.t
 
   type t = thread_presences list
 
   let compare =
-    List.compare (Symbol.Map.compare compare_presence)
+    List.compare (Sym.Map.compare compare_presence)
 
   let init_thread_presences prog =
-    Symbol.Map.map
+    Sym.Map.map
       (fun _init -> Zero)
       prog.Program.initial
 
@@ -70,7 +70,7 @@ module Key = struct
   let print output =
     List.print ~first:"[" ~last:"]" ~sep:"]\n["
       (M.print ~first:"" ~last:"" ~sep:";" ~kvsep:"→"
-         Symbol.print print_presence)
+         Sym.print print_presence)
       output
 end
 
@@ -96,28 +96,28 @@ module Make (Inner : Domain.Inner) = struct
       ~first:"" ~last:"" ~kvsep:":\n\n" ~sep:"\n────────\n"
       Key.print Inner.print output
 
-  let abstract_var_sym = Symbol.namespace ()
+  let abstract_var_sym = Sym.namespace ()
 
   let sym_local tid reg =
-    abstract_var_sym @@ Printf.sprintf "%d:%s" tid (Symbol.name reg)
+    abstract_var_sym @@ Printf.sprintf "%d:%s" tid (Sym.name reg)
 
   let sym_local_var tid var =
     sym_local tid var.P.var_name
 
   let sym_thread_locals tid { P.locals; _ } =
-    Symbol.Set.fold
+    Sym.Set.fold
       (fun sym acc -> (sym_local tid sym, None) :: acc)
       locals
       []
 
   let sym_mem var =
-    abstract_var_sym @@ Printf.sprintf "%s:mem" (Symbol.name var)
+    abstract_var_sym @@ Printf.sprintf "%s:mem" (Sym.name var)
 
   let sym_top tid var =
-    abstract_var_sym @@ Printf.sprintf "%s:top:%d" (Symbol.name var) tid
+    abstract_var_sym @@ Printf.sprintf "%s:top:%d" (Sym.name var) tid
 
   let sym_bot tid var =
-    abstract_var_sym @@ Printf.sprintf "%s:bot:%d" (Symbol.name var) tid
+    abstract_var_sym @@ Printf.sprintf "%s:bot:%d" (Sym.name var) tid
 
   let add_join bufs abstr d =
     (* Adds (bufs, abstr) as a d element, making a join if the bufs
@@ -131,7 +131,7 @@ module Make (Inner : Domain.Inner) = struct
         []
         prog.P.threads in
     let mem_syms =
-      Symbol.Map.fold
+      Sym.Map.fold
         (fun var init acc -> (sym_mem var, Some init) :: acc)
         prog.P.initial
         []
@@ -207,13 +207,13 @@ module Make (Inner : Domain.Inner) = struct
       |> Inner.assign_expr x_top e
 
   let sym_hybrid_expr tid x sym_x =
-    (* Symbolize an expression of Program.var which may contain
+    (* Symize an expression of Program.var which may contain
        a shared variable x. The other variables are symbolized as
        registers. *)
     let sym { P.var_name; var_type } = match var_type with
       | P.Local -> sym_local tid var_name
       | P.Shared ->
-        if Symbol.Ord.compare var_name x == 0
+        if Sym.Ord.compare var_name x == 0
         then sym_x x
         else raise @@ Invalid_argument "sym_hybrid_expr"
     in

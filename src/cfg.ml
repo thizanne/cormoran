@@ -42,7 +42,7 @@ module G =
 type t = {
   program : Program.var Program.t;
   graph : G.t;
-  labels : Program.Control.Label.t Symbol.Map.t array;
+  labels : Program.Control.Label.t Sym.Map.t array;
   final_state : Program.Control.State.t;
 }
 
@@ -138,7 +138,7 @@ let cfg_of_thread thread_id { Program.body; _ } =
     | P.Nothing ->
       acc, labels, offset
     | P.Label lbl ->
-      acc, Symbol.Map.add lbl.L.item offset labels, offset
+      acc, Sym.Map.add lbl.L.item offset labels, offset
     | P.Pass ->
       add_single_edge Identity (acc, labels, offset)
     | P.MFence ->
@@ -190,7 +190,7 @@ let cfg_of_thread thread_id { Program.body; _ } =
 
   cfg_of_body (
     ThreadG.add_vertex ThreadG.empty Program.Control.Label.initial,
-    Symbol.Map.empty,
+    Sym.Map.empty,
     Program.Control.Label.initial
   ) body
 

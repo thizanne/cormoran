@@ -32,7 +32,7 @@ module Make (N : Numerical) = struct
     | O.Div -> Texpr1.Div
 
   let ap_var x =
-    Var.of_string @@ Symbol.name x
+    Var.of_string @@ Sym.name x
 
   let texpr1 env expr =
     let rec to_expr = function

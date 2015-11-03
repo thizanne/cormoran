@@ -15,7 +15,7 @@ let edge_label op =
     | Operation.Assign (thread_id, x, e) ->
       Printf.fprintf output "%d:%a := %a"
         thread_id
-        Symbol.print x.Program.var_name
+        Sym.print x.Program.var_name
         (PrintAst.print_expression Program.print_var) e
   end;
   IO.close_out output

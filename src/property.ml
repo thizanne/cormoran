@@ -8,8 +8,8 @@ module P = Program
  * No final label means the end of the thread.
 *)
 type interval = {
-  initial : Symbol.t L.loc option;
-  final : Symbol.t L.loc option;
+  initial : Sym.t L.loc option;
+  final : Sym.t L.loc option;
 }
 
 let whole_interval = {
@@ -47,11 +47,11 @@ let enum_interval interval t_labels t_final_label =
   (* Enumerates the control labels of an interval *)
   let initial = match interval.initial with
     | None -> P.Control.Label.initial
-    | Some { L.item = label; _ } -> Symbol.Map.find label t_labels
+    | Some { L.item = label; _ } -> Sym.Map.find label t_labels
   in
   let final = match interval.final with
     | None -> t_final_label
-    | Some { L.item = label; _ } -> Symbol.Map.find label t_labels
+    | Some { L.item = label; _ } -> Sym.Map.find label t_labels
   in
   P.Control.Label.enum ~initial ~final
 

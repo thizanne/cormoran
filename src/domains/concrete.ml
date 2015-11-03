@@ -7,9 +7,9 @@ module Op = Cfg.Operation
 module P = Program
 
 type state = {
-  regs : (Symbol.t * int option) list list;
-  mem : (Symbol.t * int option) list;
-  buf : (Symbol.t * int option) list list;
+  regs : (Sym.t * int option) list list;
+  mem : (Sym.t * int option) list;
+  buf : (Sym.t * int option) list list;
 }
 
 module D = Set.Make (struct type t = state let compare = compare end)
@@ -193,15 +193,15 @@ let transfer op domain = match op with
     List.fold_right D.add domain D.empty
 
 let initial_vars program =
-  Symbol.Map.map Option.some program.P.initial
-  |> Symbol.Map.enum
+  Sym.Map.map Option.some program.P.initial
+  |> Sym.Map.enum
   |> List.of_enum
 
 let initial_state program = {
   regs =
     List.map
       (fun { P.locals; _ } ->
-         Symbol.Set.fold
+         Sym.Set.fold
            (fun x acc -> (x, None) :: acc)
            locals [])
       program.P.threads;
@@ -213,7 +213,7 @@ let init program = D.singleton (initial_state program)
 
 let val_print output (x, n) =
   Printf.fprintf output "%a=%a"
-    Symbol.print x
+    Sym.print x
     print_int_option n
 
 let print_mem output =

@@ -8,11 +8,11 @@ type var_type =
 
 type var = {
   var_type : var_type;
-  var_name : Symbol.t;
+  var_name : Sym.t;
 }
 
 let print_var output x =
-  Symbol.print output x.var_name
+  Sym.print output x.var_name
 
 type var_view = {
   thread_id : thread_id;
@@ -86,7 +86,7 @@ type 'a body =
   | Nothing
   | Pass
   | MFence
-  | Label of Symbol.t Location.loc
+  | Label of Sym.t Location.loc
   | Seq of
       'a body Location.loc *
       'a body Location.loc
@@ -111,12 +111,12 @@ let seq body1 body2 =
     Location.(body2.loc.endpos)
 
 type 'a thread = {
-  locals : Symbol.Set.t;
+  locals : Sym.Set.t;
   body : 'a body Location.loc;
 }
 
 type 'a t = {
-  initial : int Symbol.Map.t;
+  initial : int Sym.Map.t;
   threads : 'a thread list;
 }
 

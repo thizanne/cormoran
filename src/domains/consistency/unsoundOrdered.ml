@@ -3,7 +3,7 @@ open Util
 
 module P = Program
 
-type buf = Symbol.t Deque.t
+type buf = Sym.t Deque.t
 
 let older buf = match Deque.rear buf with
   | None -> None
@@ -22,7 +22,7 @@ type t = buf list
 
 let compare = List.compare
     (fun dq1 dq2 ->
-       Enum.compare Symbol.Ord.compare
+       Enum.compare Sym.Ord.compare
          (Deque.enum dq1) (Deque.enum dq2))
 
 let nth = List.at
@@ -93,4 +93,4 @@ let with_no_var bufs x =
        else None) bufs
 
 let print output =
-  List.print (Deque.print Symbol.print) output
+  List.print (Deque.print Sym.print) output

@@ -31,7 +31,7 @@ module G : Graph.Sig.P
 type t = private {
   program : Program.var Program.t;
   graph : G.t;
-  labels : Program.Control.Label.t Symbol.Map.t array;
+  labels : Program.Control.Label.t Sym.Map.t array;
   final_state : Program.Control.State.t;
 }
 
