@@ -4,13 +4,13 @@ type _ var_type =
   | Int : int var_type
   | Bool : bool var_type
 
-type origin =
+type var_origin =
   | Local
   | Shared
 
 type 'a var = {
   var_type : 'a var_type;
-  var_origin : origin;
+  var_origin : var_origin;
   var_name : Sym.t;
 }
 
@@ -84,7 +84,7 @@ type thread = {
   body : body Location.loc;
 }
 
-type t = {
+type program = {
   initial : int Sym.Map.t;
   threads : thread list;
 }

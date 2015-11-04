@@ -58,7 +58,7 @@ type thread = {
   body : body Location.loc;
 }
 
-type t = {
+type program = {
   initial : int Sym.Map.t;
   threads : thread list;
 }
