@@ -53,7 +53,7 @@ module Expression = struct
 
   module InProgram = Make (Context.Identity)
 
-  module InProperty = Make (Context.Threaded)
+  module InProperty = Make (Context.MaybeThreaded)
 end
 
 type body =
