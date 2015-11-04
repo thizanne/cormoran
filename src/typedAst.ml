@@ -14,39 +14,47 @@ type 'a var = {
   var_name : Sym.t;
 }
 
-type _ expression =
-  | Int :
-      int Location.loc ->
-    int expression
-  | Bool :
-      bool Location.loc ->
-    bool expression
-  | Var :
-      'a var Location.loc ->
-    'a expression
-  | ArithUnop :
-      Operators.arith_one Location.loc *
-      int expression Location.loc ->
-    int expression
-  | ArithBinop :
-      Operators.arith_two Location.loc *
-      int expression Location.loc *
-      int expression Location.loc ->
-    int expression
-  | LogicUnop :
-      Operators.logic_one Location.loc *
-      bool expression Location.loc ->
-    bool expression
-  | LogicBinop :
-      Operators.logic_two Location.loc *
-      bool expression Location.loc *
-      bool expression Location.loc ->
-    bool expression
-  | ArithRel :
-      Operators.logic_arith_two Location.loc *
-      int expression Location.loc *
-      int expression Location.loc ->
-    bool expression
+module Expression = struct
+  module Make (Context : Context.Context) = struct
+    type _ t =
+      | Int :
+          int Location.loc ->
+        int t
+      | Bool :
+          bool Location.loc ->
+        bool t
+      | Var :
+          'a var Context.t Location.loc ->
+        'a t
+      | ArithUnop :
+          Operators.arith_one Location.loc *
+          int t Location.loc ->
+        int t
+      | ArithBinop :
+          Operators.arith_two Location.loc *
+          int t Location.loc *
+          int t Location.loc ->
+        int t
+      | LogicUnop :
+          Operators.logic_one Location.loc *
+          bool t Location.loc ->
+        bool t
+      | LogicBinop :
+          Operators.logic_two Location.loc *
+          bool t Location.loc *
+          bool t Location.loc ->
+        bool t
+      | ArithRel :
+          Operators.logic_arith_two Location.loc *
+          int t Location.loc *
+          int t Location.loc ->
+        bool t
+  end
+
+  module InProgram = Make (Context.Identity)
+
+  module InProperty = Make (Context.Threaded)
+end
 
 type body =
   | Nothing
@@ -58,18 +66,18 @@ type body =
       body Location.loc
   | Assign :
       'a var Location.loc *
-      'a expression Location.loc ->
+      'a Expression.InProgram.t Location.loc ->
     body
   | If of
-      bool expression Location.loc * (* Condition *)
+      bool Expression.InProgram.t Location.loc * (* Condition *)
       body Location.loc (* Body *)
   | While of
-      bool expression Location.loc * (* Condition *)
+      bool Expression.InProgram.t Location.loc * (* Condition *)
       body Location.loc (* Body *)
   | For of
       int var Location.loc * (* Indice *)
-      int expression Location.loc * (* From *)
-      int expression Location.loc * (* To *)
+      int Expression.InProgram.t Location.loc * (* From *)
+      int Expression.InProgram.t Location.loc * (* To *)
       body Location.loc (* Body *)
 
 type thread = {

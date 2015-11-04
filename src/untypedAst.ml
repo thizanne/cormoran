@@ -1,29 +1,35 @@
 open Batteries
 
-type expression =
-  | Int of int Location.loc
-  | Var of Sym.t Location.loc
-  | ArithUnop of
-      Operators.arith_one Location.loc *
-      expression Location.loc
-  | ArithBinop of
-      Operators.arith_two Location.loc *
-      expression Location.loc *
-      expression Location.loc
+module Expression = struct
+  module Make (Context : Context.Context) = struct
+    type t =
+      | Int of int Location.loc
+      | Bool of bool Location.loc
+      | Var of Sym.t Context.t Location.loc
+      | ArithUnop of
+          Operators.arith_one Location.loc *
+          t Location.loc
+      | ArithBinop of
+          Operators.arith_two Location.loc *
+          t Location.loc *
+          t Location.loc
+      | LogicUnop of
+          Operators.logic_one Location.loc *
+          t Location.loc
+      | LogicBinop of
+          Operators.logic_two Location.loc *
+          t Location.loc *
+          t Location.loc
+      | ArithRel of
+          Operators.logic_arith_two Location.loc *
+          t Location.loc *
+          t Location.loc
+  end
 
-type condition =
-  | Bool of bool Location.loc
-  | LogicUnop of
-      Operators.logic_one Location.loc *
-      condition Location.loc
-  | LogicBinop of
-      Operators.logic_two Location.loc *
-      condition Location.loc *
-      condition Location.loc
-  | ArithRel of
-      Operators.logic_arith_two Location.loc *
-      expression Location.loc *
-      expression Location.loc
+  module InProgram = Make (Context.Identity)
+
+  module InProperty = Make (Context.Threaded)
+end
 
 type body =
   | Nothing
@@ -35,17 +41,17 @@ type body =
       body Location.loc
   | Assign of
       Sym.t Location.loc *
-      expression Location.loc
+      Expression.InProgram.t Location.loc
   | If of
-      condition Location.loc * (* Condition *)
+      Expression.InProgram.t Location.loc * (* Condition *)
       body Location.loc (* Body *)
   | While of
-      condition Location.loc * (* Condition *)
+      Expression.InProgram.t Location.loc * (* Condition *)
       body Location.loc (* Body *)
   | For of
       Sym.t Location.loc * (* Indice *)
-      expression Location.loc * (* From *)
-      expression Location.loc * (* To *)
+      Expression.InProgram.t Location.loc * (* From *)
+      Expression.InProgram.t Location.loc * (* To *)
       body Location.loc (* Body *)
 
 type thread = {
