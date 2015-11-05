@@ -1,0 +1,61 @@
+/* With Mark/Polka, needs 3 steps before widening */
+
+{ @ (0:bp1, 1:bp2) 0:latch1 = 1 or 1:latch2 = 1 }
+
+/* The assertion is that at label (bp1, bp2), latch1 and latch2 cannot
+be BOTH false, otherwise the program will enter an infinite loop in
+both procs.*/
+
+
+latch1 = 1, flag1 = 1, flag2 = 0, latch2 = 0
+
+##### thread worker_1 #####
+
+while (true) {
+    llatch1 := latch1
+    while (llatch1 = 0) {
+         llatch1 := latch1
+         label bp1
+    }
+
+    latch1 := 0
+    // mfence
+    lflag1 := flag1
+    if (lflag1 = 1) {
+        flag1 := 0
+        // mfence
+        flag2 := 1			// there has to be a store-store barrier here for sure.
+        mfence
+        latch2 := 1
+        mfence
+    }
+}
+
+##### thread worker_2 #####
+
+while (true) {
+    llatch2 := latch2
+    while (llatch2 = 0) {
+        llatch2 := latch2
+        label bp2
+    }
+
+    latch2 := 0
+    // mfence
+    lflag2 := flag2
+    if (lflag2 = 1) {
+        flag2 := 0
+        // mfence
+        flag1 := 1			// there has to be a store-store barrier here for sure.
+        mfence
+        latch1 := 1
+        mfence
+    }
+}
+
+/* We probably need more barriers to be correct for this example for
+PSO. */
+
+/* I tried this example with integers ranging from 0 to 1 and it did
+not seem to work for SC so I used booleans.  A note here is that the
+numerical domain adds disjunctions when using booleans.*/

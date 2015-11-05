@@ -1,0 +1,29 @@
+/* With mark, may need a widening of at least 6 */
+
+{ @ (0:bp, 1:bp) 1:i = 5 and 0:j = 5 }
+
+i = 42, j = 42
+
+### thread T0 ###
+
+i := 0
+mfence
+t := i
+while t <= 4 {
+  t := t + 1
+  i := t
+  mfence
+}
+label bp
+
+### thread T1 ###
+
+j := 0
+mfence
+u := j
+while u <= 4 {
+  u := u + 1
+  j := u
+  mfence
+}
+label bp

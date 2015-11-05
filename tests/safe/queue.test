@@ -1,0 +1,29 @@
+/* With Mark/Polka, needs one step before widening */
+
+{ @ (0:bp, 1:bp) 1:tail < 0:h1 }
+
+head = 0
+
+### thread T0 ###
+
+/* ENQ */
+while true {
+    h1 := head
+    label bp
+    h1 := h1 + 1
+    head := h1
+    mfence
+}
+
+### thread T1 ###
+
+tail := head
+/* DEQ */
+while true {
+    h2 := head
+    while (tail >= h2) {
+        h2 := head
+    }
+    label bp
+    tail := tail + 1
+}
