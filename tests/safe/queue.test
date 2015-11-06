@@ -1,4 +1,5 @@
-/* With Mark/Polka, needs one step before widening */
+/* Easiest way to verify: Mark/Oct, 1 step before widening */
+/* See the explanations in commentary for details */
 
 { @ (0:bp, 1:bp) 1:tail < 0:h1 }
 
@@ -12,7 +13,27 @@ while true {
     label bp
     h1 := h1 + 1
     head := h1
-    mfence
+
+    /*
+      The property to be checked is true whether the following fence
+      is present or not.
+
+      However:
+
+      The analyser can verify it (with Mark, as of 6th Nov 2015) if :
+      - Octagons are used, one step before widening
+      - Polka is used and :
+        - fence is present, one step before widening
+        - fence is absent, `while` replaced by a `for` of 100
+          iterations, 101 steps before widening
+
+      The analyser cannot verify it if :
+      - fence is present, Polka is used (non termination)
+      - fence is absent, loop is a for-100, polka is used, less than
+        101 steps before widening (terminates on a failure)
+    */
+
+    // mfence
 }
 
 ### thread T1 ###
