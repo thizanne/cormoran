@@ -1,20 +1,12 @@
 open Batteries
 
-type _ var_type =
-  | Int : int var_type
-  | Bool : bool var_type
-
-type var_origin =
-  | Local
-  | Shared
-
 type ('id, 't) var = {
-  var_type : 't var_type;
-  var_origin : var_origin;
+  var_type : 't Types.t;
+  var_origin : Types.origin;
   var_id : 'id;
 }
 
-type (_, _) expression=
+type (_, _) expression =
   (* (type of variables identifiers, type of the expression) *)
   | Int :
       int Location.loc ->
