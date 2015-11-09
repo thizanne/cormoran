@@ -1,10 +1,12 @@
 open Batteries
-open Printf
 open Error
-open Program
 open Util
+open Program
 
 module L = Location
+module T = TypedAst
+module U = UntypedAst
+module Ty = Types
 
 let add_local_if_absent x env =
   Sym.Map.modify_opt x
@@ -20,9 +22,36 @@ let base_type_var env ({ L.item = var_name; loc = var_loc } as var) =
     | Some Shared -> Shared, 1
     | None ->
       type_error var @@
-      sprintf "Var %s is not defined"
+      Printf.sprintf "Var %s is not defined"
         (Sym.name var_name)
   in { var_name; var_type }, shared
+
+let type_var_loc _ = failwith "TODO"
+
+let rec type_expression
+    (type t)
+    (env : ('t Ty.t * Ty.origin) Sym.Map.t)
+    (ty : t Ty.t)
+    (expr : 'id U.expression)
+    (type_var : 'id -> t Ty.t)
+  : ('id, t) T.expression =
+  match ty, expr with
+  | Ty.Int, U.Int n -> T.Int n
+  | Ty.Bool, U.Bool b -> T.Bool b
+  | t, U.Var v ->
+    let v_ty = type_var_loc v in
+    if Ty.equal t v_ty
+    then T.Var (failwith "TODO")
+    else failwith "type error TODO"
+  | _, U.ArithUnop (_,_) -> failwith "TODO"
+  | _, U.ArithBinop (_,_,_) -> failwith "TODO"
+  | _, U.LogicUnop (_,_) -> failwith "TODO"
+  | _, U.LogicBinop (_,_,_) -> failwith "TODO"
+  | _, U.ArithRel (_,_,_) -> failwith "TODO"
+  | _, _ -> failwith "TODO TODO TODO"
+
+and type_expression_loc type_var { L.item = exp; loc } =
+  { L.item = type_expression type_var exp; loc }
 
 let rec type_expression type_var { L.item = exp; loc } =
   (* Returns (typed expression, number of present shared variables) *)
@@ -151,7 +180,7 @@ let check_bound labels bound =
     if not (Sym.Set.mem label.L.item labels)
     then
       name_error label @@
-      sprintf "Label %s undefined"
+      Printf.sprintf "Label %s undefined"
         (Sym.name label.L.item)
 
 let check_interval labels { Property.initial; final } =
@@ -169,7 +198,7 @@ let check_zone all_labels zone =
        if tid_found.(tid)
        then
          type_error tid_loc @@
-         sprintf "Thread id %d already present in zone definition" tid
+         Printf.sprintf "Thread id %d already present in zone definition" tid
        else tid_found.(tid) <- true;
 
        (* Check that labels are correct *)
@@ -188,7 +217,7 @@ let type_property all_labels shared_env thread_envs
     | _, Some tid -> List.nth thread_envs tid
     | Some _, None ->
       type_error var_loc @@
-      sprintf
+      Printf.sprintf
         "Non threaded var %s is not allowed in a zoned property"
         (Sym.name var_name) in
 
