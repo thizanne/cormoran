@@ -8,53 +8,46 @@ type var_origin =
   | Local
   | Shared
 
-type 'a var = {
-  var_type : 'a var_type;
+type ('id, 't) var = {
+  var_type : 't var_type;
   var_origin : var_origin;
-  var_name : Sym.t;
+  var_id : 'id;
 }
 
-module Expression = struct
-  module Make (Context : Context.Context) = struct
-    type _ t =
-      | Int :
-          int Location.loc ->
-        int t
-      | Bool :
-          bool Location.loc ->
-        bool t
-      | Var :
-          'a var Context.t Location.loc ->
-        'a t
-      | ArithUnop :
-          Operators.arith_one Location.loc *
-          int t Location.loc ->
-        int t
-      | ArithBinop :
-          Operators.arith_two Location.loc *
-          int t Location.loc *
-          int t Location.loc ->
-        int t
-      | LogicUnop :
-          Operators.logic_one Location.loc *
-          bool t Location.loc ->
-        bool t
-      | LogicBinop :
-          Operators.logic_two Location.loc *
-          bool t Location.loc *
-          bool t Location.loc ->
-        bool t
-      | ArithRel :
-          Operators.logic_arith_two Location.loc *
-          int t Location.loc *
-          int t Location.loc ->
-        bool t
-  end
-
-  module InProgram = Make (Context.Identity)
-
-  module InProperty = Make (Context.MaybeThreaded)
-end
+type (_, _) expression=
+  (* (type of variables identifiers, type of the expression) *)
+  | Int :
+      int Location.loc ->
+    ('a, int) expression
+  | Bool :
+      bool Location.loc ->
+    ('a, bool) expression
+  | Var :
+      ('id, 't) var Location.loc ->
+    ('id, 't) expression
+  | ArithUnop :
+      Operators.arith_one Location.loc *
+      ('a, int) expression Location.loc ->
+    ('a, int) expression
+  | ArithBinop :
+      Operators.arith_two Location.loc *
+      ('a, int) expression Location.loc *
+      ('a, int) expression Location.loc ->
+    ('a, int) expression
+  | LogicUnop :
+      Operators.logic_one Location.loc *
+      ('a, bool) expression Location.loc ->
+    ('a, bool) expression
+  | LogicBinop :
+      Operators.logic_two Location.loc *
+      ('a, bool) expression Location.loc *
+      ('a, bool) expression Location.loc ->
+    ('a, bool) expression
+  | ArithRel :
+      Operators.logic_arith_two Location.loc *
+      ('a, int) expression Location.loc *
+      ('a, int) expression Location.loc ->
+    ('a, bool) expression
 
 type body =
   | Nothing
@@ -65,19 +58,19 @@ type body =
       body Location.loc *
       body Location.loc
   | Assign :
-      'a var Location.loc *
-      'a Expression.InProgram.t Location.loc ->
+      (Sym.t, 't) var Location.loc *
+      (Sym.t, 't) expression Location.loc ->
     body
   | If of
-      bool Expression.InProgram.t Location.loc * (* Condition *)
+      (Sym.t, bool) expression Location.loc * (* Condition *)
       body Location.loc (* Body *)
   | While of
-      bool Expression.InProgram.t Location.loc * (* Condition *)
+      (Sym.t, bool) expression Location.loc * (* Condition *)
       body Location.loc (* Body *)
   | For of
-      int var Location.loc * (* Indice *)
-      int Expression.InProgram.t Location.loc * (* From *)
-      int Expression.InProgram.t Location.loc * (* To *)
+      (Sym.t, int) var Location.loc * (* Indice *)
+      (Sym.t, int) expression Location.loc * (* From *)
+      (Sym.t, int) expression Location.loc * (* To *)
       body Location.loc (* Body *)
 
 type thread = {
