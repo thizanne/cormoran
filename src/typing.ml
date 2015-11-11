@@ -1,5 +1,4 @@
 open Batteries
-open Error
 open Util
 open Program
 
@@ -21,37 +20,91 @@ let base_type_var env ({ L.item = var_name; loc = var_loc } as var) =
     | Some Local -> Local, 0
     | Some Shared -> Shared, 1
     | None ->
-      type_error var @@
+      Error.type_error var @@
       Printf.sprintf "Var %s is not defined"
         (Sym.name var_name)
   in { var_name; var_type }, shared
 
-let type_var_loc _ = failwith "TODO"
+type 'id var_loc_typer =
+  (* We need higher order polymorphism in type_expression *)
+  { f : 't. 't Ty.t -> 'id L.loc -> ('id, 't) T.var L.loc }
 
-let rec type_expression
-    (type t)
-    (env : ('t Ty.t * Ty.origin) Sym.Map.t)
-    (ty : t Ty.t)
-    (expr : 'id U.expression)
-    (type_var : 'id -> t Ty.t)
-  : ('id, t) T.expression =
-  match ty, expr with
-  | Ty.Int, U.Int n -> T.Int n
-  | Ty.Bool, U.Bool b -> T.Bool b
-  | t, U.Var v ->
-    let v_ty = type_var_loc v in
-    if Ty.equal t v_ty
-    then T.Var (failwith "TODO")
-    else failwith "type error TODO"
-  | _, U.ArithUnop (_,_) -> failwith "TODO"
-  | _, U.ArithBinop (_,_,_) -> failwith "TODO"
-  | _, U.LogicUnop (_,_) -> failwith "TODO"
-  | _, U.LogicBinop (_,_,_) -> failwith "TODO"
-  | _, U.ArithRel (_,_,_) -> failwith "TODO"
-  | _, _ -> failwith "TODO TODO TODO"
+let rec type_program_var_loc env expected_type { L.item = var_sym; loc } =
+  match Sym.Map.Exceptionless.find var_sym env with
+  | None ->
+    Error.type_loc_error loc @@
+    Printf.sprintf "Var %s is not defined"
+      (Sym.name var_sym)
+  | Some (found_type, found_origin) ->
+    if Ty.equal found_type expected_type
+    then
+      let var = {
+        T.var_type = found_type;
+        var_origin = found_origin;
+        var_id = var_sym;
+      }
+      in { L.item = var; loc }
+    else
+      Error.type_loc_error loc @@
+      Printf.sprintf "Var %s has type %s but type %s was expected"
+        (Sym.name var_sym)
+        (Ty.to_string found_type)
+        (Ty.to_string expected_type)
 
-and type_expression_loc type_var { L.item = exp; loc } =
-  { L.item = type_expression type_var exp; loc }
+let rec type_expression :
+  type t.
+  t Ty.t ->
+  'id var_loc_typer ->
+  L.t ->
+  'id U.expression ->
+  ('id, t) T.expression =
+  fun ty var_loc_typer loc expr ->
+    match ty, expr with
+    | Ty.Int, U.Int n -> T.Int n
+    | Ty.Bool, U.Bool b -> T.Bool b
+    | _, U.Var var ->
+      T.Var (var_loc_typer.f ty var)
+    | Ty.Int, U.ArithUnop (op, exp) ->
+      T.ArithUnop (
+        op,
+        type_expression_loc Ty.Int var_loc_typer exp
+      )
+    | Ty.Int, U.ArithBinop (op, exp1, exp2) ->
+      T.ArithBinop (
+        op,
+        type_expression_loc Ty.Int var_loc_typer exp1,
+        type_expression_loc Ty.Int var_loc_typer exp2
+      )
+    | Ty.Bool, U.LogicUnop (op, exp) ->
+      T.LogicUnop (
+        op,
+        type_expression_loc Ty.Bool var_loc_typer exp
+      )
+    | Ty.Bool, U.LogicBinop (op, exp1, exp2) ->
+      T.LogicBinop (
+        op,
+        type_expression_loc Ty.Bool var_loc_typer exp1,
+        type_expression_loc Ty.Bool var_loc_typer exp2
+      )
+    | Ty.Bool, U.ArithRel (op, exp1, exp2) ->
+      T.ArithRel (
+        op,
+        type_expression_loc Ty.Int var_loc_typer exp1,
+        type_expression_loc Ty.Int var_loc_typer exp2
+      )
+    | expected_type, _ ->
+      Error.type_loc_error loc @@
+      Printf.sprintf "This expression cannot have type %s"
+        (Ty.to_string expected_type)
+
+and type_expression_loc :
+    type t.
+    t Ty.t ->
+    'id var_loc_typer ->
+    'id U.expression L.loc ->
+    ('id, t) T.expression L.loc =
+  fun ty var_loc_typer { L.item = exp; loc } ->
+    { L.item = type_expression ty var_loc_typer loc exp; loc }
 
 let rec type_expression type_var { L.item = exp; loc } =
   (* Returns (typed expression, number of present shared variables) *)
@@ -84,7 +137,7 @@ let check_shared loc nb_max nb_shared =
   | None -> ()
   | Some nb_max ->
     if nb_shared > nb_max
-    then type_loc_error loc "Too many shared variables"
+    then Error.type_loc_error loc "Too many shared variables"
 
 let rec type_condition type_var shared_max { L.item = cond; loc } =
   match cond with
@@ -116,7 +169,7 @@ let rec type_body ((env, labels) as info) { L.item = b; loc } =
   | MFence -> { L.item = MFence; loc }, info
   | Label lbl ->
     if Sym.Set.mem lbl.L.item labels
-    then name_error lbl "Label already defined on this thread"
+    then Error.name_error lbl "Label already defined on this thread"
     else {
       L.item = Label lbl;
       loc;
@@ -158,7 +211,7 @@ let rec type_body ((env, labels) as info) { L.item = b; loc } =
       | Some Local ->
         add_local_if_absent i_name env
       | Some Shared ->
-        type_error i "For indices must not be shared variables"
+        Error.type_error i "For indices must not be shared variables"
     in
     let var_i = {
       L.item = { var_name = i_name; var_type = Local };
@@ -179,7 +232,7 @@ let check_bound labels bound =
   | Some label ->
     if not (Sym.Set.mem label.L.item labels)
     then
-      name_error label @@
+      Error.name_error label @@
       Printf.sprintf "Label %s undefined"
         (Sym.name label.L.item)
 
@@ -197,7 +250,7 @@ let check_zone all_labels zone =
        (* Check that each tid is present at most once*)
        if tid_found.(tid)
        then
-         type_error tid_loc @@
+         Error.type_error tid_loc @@
          Printf.sprintf "Thread id %d already present in zone definition" tid
        else tid_found.(tid) <- true;
 
@@ -216,7 +269,7 @@ let type_property all_labels shared_env thread_envs
     | None, None -> shared_env
     | _, Some tid -> List.nth thread_envs tid
     | Some _, None ->
-      type_error var_loc @@
+      Error.type_error var_loc @@
       Printf.sprintf
         "Non threaded var %s is not allowed in a zoned property"
         (Sym.name var_name) in
