@@ -5,6 +5,9 @@ type _ t =
   | Bool : bool t
   | Arrow : 'a t * 'b t -> ('a -> 'b) t
 
+let ( @-> ) a b =
+  Arrow (a, b)
+
 let rec equal : type a b. a t -> b t -> bool =
   fun t1 t2 -> match t1, t2 with
     | Int, Int -> true
