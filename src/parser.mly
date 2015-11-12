@@ -3,7 +3,8 @@
   let var_sym = Sym.namespace ()
   let lbl_sym = Sym.namespace ()
 
-  module Expression = UntypedAst.Expression
+  module U = UntypedAst
+
 %}
 
 %token LPar RPar LCurly RCurly
@@ -29,7 +30,7 @@
 %start
 <UntypedAst.program *
    (Property.zone option *
-      UntypedAst.Expression.InProperty.t Location.loc)
+      Sym.t Context.MaybeThreaded.t UntypedAst.expression Location.loc)
      list>
   program
 
@@ -46,29 +47,23 @@ lbl_sym :
 var_sym :
 | x = Id { var_sym x }
 
-%inline arith_unop :
-| Minus { Operators.Neg }
+%inline unop :
+| Minus { U.Neg }
+| Not { U.Not }
 
-%inline logic_unop :
-| Not { Operators.Not }
-
-%inline arith_binop :
-| Plus { Operators.Add }
-| Minus { Operators.Sub }
-| Times { Operators.Mul }
-| Divide { Operators.Div }
-
-%inline arith_rel :
-| Eq { Operators.Eq }
-| Neq { Operators.Neq }
-| Lt { Operators.Lt }
-| Gt { Operators.Gt }
-| Le { Operators.Le }
-| Ge { Operators.Ge }
-
-%inline logic_binop :
-| And { Operators.And }
-| Or { Operators.Or }
+%inline binop :
+| Plus { U.Add }
+| Minus { U.Sub }
+| Times { U.Mul }
+| Divide { U.Div }
+| Eq { U.Eq }
+| Neq { U.Neq }
+| Lt { U.Lt }
+| Gt { U.Gt }
+| Le { U.Le }
+| Ge { U.Ge }
+| And { U.And }
+| Or { U.Or }
 
 program :
 | properties = property_def
@@ -175,61 +170,22 @@ instruction :
     UntypedAst.For (i, from_exp, to_exp, body)
   }
 
-(* A lot of duplication here because we cannot easily parameterize a rule
-  over a module. Going back to expressions being a simple
-  parameterized type over the types of variables might be the good
-  option. *)
+program_expression:
+| e = expression (var_sym) { e }
 
-program_expression :
-| n = loc(Int) { Expression.InProgram.Int n }
-| b = loc(Bool) { Expression.InProgram.Bool b }
-| x = loc(var_sym) { Expression.InProgram.Var x }
-| LPar e = program_expression RPar { e }
-| o = loc(arith_unop) e = loc(program_expression) {
-    Expression.InProgram.ArithUnop (o, e)
-  }
-| e1 = loc(program_expression)
-  o = loc(arith_binop)
-  e2 = loc(program_expression) {
-    Expression.InProgram.ArithBinop (o, e1, e2)
-  }
-| o = loc(logic_unop) c = loc(program_expression) {
-    Expression.InProgram.LogicUnop (o, c)
-  }
-| c1 = loc(program_expression)
-  o = loc(logic_binop)
-  c2 = loc(program_expression) {
-    Expression.InProgram.LogicBinop (o, c1, c2)
-  }
-| e1 = loc(program_expression)
-  r = loc(arith_rel)
-  e2 = loc(program_expression) {
-    Expression.InProgram.ArithRel (r, e1, e2)
-  }
+property_expression:
+| e = expression(maybe_threaded(var_sym)) { e}
 
-property_expression :
-| n = loc(Int) { Expression.InProperty.Int n }
-| b = loc(Bool) { Expression.InProperty.Bool b }
-| x = loc(maybe_threaded(var_sym)) { Expression.InProperty.Var x }
-| LPar e = property_expression RPar { e }
-| o = loc(arith_unop) e = loc(property_expression) {
-    Expression.InProperty.ArithUnop (o, e)
+expression(var_id) :
+| n = loc(Int) { U.Int n }
+| b = loc(Bool) { U.Bool b }
+| x = loc(var_id) { U.Var x }
+| LPar e = expression(var_id) RPar { e }
+| o = loc(unop) e = loc(expression(var_id)) {
+    U.Unop (o, e)
   }
-| e1 = loc(property_expression)
-  o = loc(arith_binop)
-  e2 = loc(property_expression) {
-    Expression.InProperty.ArithBinop (o, e1, e2)
-  }
-| o = loc(logic_unop) c = loc(property_expression) {
-    Expression.InProperty.LogicUnop (o, c)
-  }
-| c1 = loc(property_expression)
-  o = loc(logic_binop)
-  c2 = loc(property_expression) {
-    Expression.InProperty.LogicBinop (o, c1, c2)
-  }
-| e1 = loc(property_expression)
-  r = loc(arith_rel)
-  e2 = loc(property_expression) {
-    Expression.InProperty.ArithRel (r, e1, e2)
+| e1 = loc(expression(var_id))
+  o = loc(binop)
+  e2 = loc(expression(var_id)) {
+    U.Binop (o, e1, e2)
   }

@@ -6,6 +6,45 @@ type ('id, 't) var = {
   var_id : 'id;
 }
 
+type _ unop =
+  | Neg : (int -> int) unop
+  | Not : (bool -> bool) unop
+
+let unop_fun : type a b. (a -> b) unop -> a -> b =
+  function
+  | Neg -> ( ~- )
+  | Not -> ( not )
+
+type _ binop =
+  | Add : (int -> int -> int) binop
+  | Sub : (int -> int -> int) binop
+  | Mul : (int -> int -> int) binop
+  | Div : (int -> int -> int) binop
+  | Eq : (int -> int -> bool) binop
+  | Neq : (int -> int -> bool) binop
+  | Lt : (int -> int -> bool) binop
+  | Gt : (int -> int -> bool) binop
+  | Le : (int -> int -> bool) binop
+  | Ge : (int -> int -> bool) binop
+  | And : (bool -> bool -> bool) binop
+  | Or : (bool -> bool -> bool) binop
+
+let binop_fun : type a b c. (a -> b -> c) binop -> a -> b -> c =
+  let open Int in
+  function
+  | Add -> ( + )
+  | Sub -> ( - )
+  | Mul -> ( * )
+  | Div -> ( / )
+  | Eq -> ( = )
+  | Neq -> ( <> )
+  | Lt -> ( < )
+  | Gt -> ( > )
+  | Le -> ( <= )
+  | Ge  -> ( >= )
+  | And -> ( && )
+  | Or -> ( || )
+
 type (_, _) expression =
   (* (type of variables identifiers, type of the expression) *)
   | Int :
@@ -17,29 +56,15 @@ type (_, _) expression =
   | Var :
       ('id, 't) var Location.loc ->
     ('id, 't) expression
-  | ArithUnop :
-      Operators.arith_one Location.loc *
-      ('a, int) expression Location.loc ->
-    ('a, int) expression
-  | ArithBinop :
-      Operators.arith_two Location.loc *
-      ('a, int) expression Location.loc *
-      ('a, int) expression Location.loc ->
-    ('a, int) expression
-  | LogicUnop :
-      Operators.logic_one Location.loc *
-      ('a, bool) expression Location.loc ->
-    ('a, bool) expression
-  | LogicBinop :
-      Operators.logic_two Location.loc *
-      ('a, bool) expression Location.loc *
-      ('a, bool) expression Location.loc ->
-    ('a, bool) expression
-  | ArithRel :
-      Operators.logic_arith_two Location.loc *
-      ('a, int) expression Location.loc *
-      ('a, int) expression Location.loc ->
-    ('a, bool) expression
+  | Unop :
+      ('a -> 'b) unop Location.loc *
+      ('id, 'a) expression Location.loc ->
+    ('id, 'b) expression
+  | Binop :
+      ('a -> 'b -> 'c) binop Location.loc *
+      ('id, 'a) expression Location.loc *
+      ('id, 'b) expression Location.loc ->
+    ('id, 'c) expression
 
 type body =
   | Nothing

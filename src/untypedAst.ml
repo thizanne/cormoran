@@ -1,25 +1,32 @@
 open Batteries
 
+type unop =
+  | Neg
+  | Not
+
+type binop =
+  | Add
+  | Sub
+  | Mul
+  | Div
+  | Eq
+  | Neq
+  | Lt
+  | Gt
+  | Le
+  | Ge
+  | And
+  | Or
+
 type 'var expression =
   | Int of int Location.loc
   | Bool of bool Location.loc
   | Var of 'var Location.loc
-  | ArithUnop of
-      Operators.arith_one Location.loc *
+  | Unop of
+      unop Location.loc *
       'var expression Location.loc
-  | ArithBinop of
-      Operators.arith_two Location.loc *
-      'var expression Location.loc *
-      'var expression Location.loc
-  | LogicUnop of
-      Operators.logic_one Location.loc *
-      'var expression Location.loc
-  | LogicBinop of
-      Operators.logic_two Location.loc *
-      'var expression Location.loc *
-      'var expression Location.loc
-  | ArithRel of
-      Operators.logic_arith_two Location.loc *
+  | Binop of
+      binop Location.loc *
       'var expression Location.loc *
       'var expression Location.loc
 
