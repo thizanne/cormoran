@@ -46,65 +46,104 @@ let rec type_program_var_loc env expected_type { L.item = var_sym; loc } =
       in { L.item = var; loc }
     else
       Error.type_loc_error loc @@
-      Printf.sprintf "Var %s has type %s but type %s was expected"
+      Printf.sprintf2 "Var %s has type %a but type %a was expected"
         (Sym.name var_sym)
-        (Ty.to_string found_type)
-        (Ty.to_string expected_type)
+        Ty.print found_type
+        Ty.print expected_type
+
+let type_arith_unop_loc =
+  L.comap (
+    function
+    | U.Neg -> T.Neg
+  )
+
+let type_logic_unop_loc =
+  L.comap (
+    function
+    | U.Not -> T.Not
+  )
+
+let type_arith_binop_loc =
+  L.comap (
+    function
+    | U.Add -> T.Add
+    | U.Sub -> T.Sub
+    | U.Mul -> T.Mul
+    | U.Div -> T.Div
+  )
+
+let type_logic_binop_loc =
+  L.comap (
+    function
+    | U.And -> T.And
+    | U.Or -> T.Or
+  )
+
+let type_arith_relop_loc =
+  L.comap (
+    function
+    | U.Eq -> T.Eq
+    | U.Neq -> T.Neq
+    | U.Lt -> T.Lt
+    | U.Gt -> T.Gt
+    | U.Le -> T.Le
+    | U.Ge -> T.Ge
+  )
 
 let rec type_expression :
   type t.
-  t Ty.t ->
   'id var_loc_typer ->
+  t Ty.t ->
   L.t ->
   'id U.expression ->
   ('id, t) T.expression =
-  fun ty var_loc_typer loc expr ->
-    match ty, expr with
+  fun var_loc_typer expected_type loc expr ->
+    match expected_type, expr with
     | Ty.Int, U.Int n -> T.Int n
     | Ty.Bool, U.Bool b -> T.Bool b
     | _, U.Var var ->
-      T.Var (var_loc_typer.f ty var)
+      T.Var (var_loc_typer.f expected_type var)
     | Ty.Int, U.ArithUnop (op, exp) ->
-      T.ArithUnop (
-        op,
-        type_expression_loc Ty.Int var_loc_typer exp
-      )
-    | Ty.Int, U.ArithBinop (op, exp1, exp2) ->
-      T.ArithBinop (
-        op,
-        type_expression_loc Ty.Int var_loc_typer exp1,
-        type_expression_loc Ty.Int var_loc_typer exp2
+      T.Unop (
+        type_arith_unop_loc op,
+        type_expression_loc var_loc_typer Ty.Int exp
       )
     | Ty.Bool, U.LogicUnop (op, exp) ->
-      T.LogicUnop (
-        op,
-        type_expression_loc Ty.Bool var_loc_typer exp
+      T.Unop (
+        type_logic_unop_loc op,
+        type_expression_loc var_loc_typer Ty.Bool exp
+      )
+    | Ty.Int, U.ArithBinop (op, exp1, exp2) ->
+      T.Binop (
+        type_arith_binop_loc op,
+        type_expression_loc var_loc_typer Ty.Int exp1,
+        type_expression_loc var_loc_typer Ty.Int exp2
       )
     | Ty.Bool, U.LogicBinop (op, exp1, exp2) ->
-      T.LogicBinop (
-        op,
-        type_expression_loc Ty.Bool var_loc_typer exp1,
-        type_expression_loc Ty.Bool var_loc_typer exp2
+      T.Binop (
+        type_logic_binop_loc op,
+        type_expression_loc var_loc_typer Ty.Bool exp1,
+        type_expression_loc var_loc_typer Ty.Bool exp2
       )
-    | Ty.Bool, U.ArithRel (op, exp1, exp2) ->
-      T.ArithRel (
-        op,
-        type_expression_loc Ty.Int var_loc_typer exp1,
-        type_expression_loc Ty.Int var_loc_typer exp2
+    | Ty.Bool, U.ArithRelop (op, exp1, exp2) ->
+      T.Binop (
+        type_arith_relop_loc op,
+        type_expression_loc var_loc_typer Ty.Int exp1,
+        type_expression_loc var_loc_typer Ty.Int exp2
       )
-    | expected_type, _ ->
+    | _ ->
       Error.type_loc_error loc @@
-      Printf.sprintf "This expression cannot have type %s"
-        (Ty.to_string expected_type)
+      Printf.sprintf2 "This expression cannot have type %a"
+        Ty.print expected_type
 
 and type_expression_loc :
-    type t.
-    t Ty.t ->
-    'id var_loc_typer ->
-    'id U.expression L.loc ->
-    ('id, t) T.expression L.loc =
-  fun ty var_loc_typer { L.item = exp; loc } ->
-    { L.item = type_expression ty var_loc_typer loc exp; loc }
+  type t.
+  'id var_loc_typer ->
+  t Ty.t ->
+  'id U.expression L.loc ->
+  ('id, t) T.expression L.loc =
+  fun var_loc_typer ty { L.item = exp; loc } ->
+    { L.item = type_expression var_loc_typer ty loc exp; loc }
 
 let rec type_expression type_var { L.item = exp; loc } =
   (* Returns (typed expression, number of present shared variables) *)

@@ -47,23 +47,29 @@ lbl_sym :
 var_sym :
 | x = Id { var_sym x }
 
-%inline unop :
+%inline arith_unop :
 | Minus { U.Neg }
+
+%inline logic_unop :
 | Not { U.Not }
 
-%inline binop :
+%inline arith_binop :
 | Plus { U.Add }
 | Minus { U.Sub }
 | Times { U.Mul }
 | Divide { U.Div }
+
+%inline logic_binop :
+| And { U.And }
+| Or { U.Or }
+
+%inline arith_relop :
 | Eq { U.Eq }
 | Neq { U.Neq }
 | Lt { U.Lt }
 | Gt { U.Gt }
 | Le { U.Le }
 | Ge { U.Ge }
-| And { U.And }
-| Or { U.Or }
 
 program :
 | properties = property_def
@@ -181,11 +187,24 @@ expression(var_id) :
 | b = loc(Bool) { U.Bool b }
 | x = loc(var_id) { U.Var x }
 | LPar e = expression(var_id) RPar { e }
-| o = loc(unop) e = loc(expression(var_id)) {
-    U.Unop (o, e)
+| o = loc(arith_unop) e = loc(expression(var_id)) {
+    U.ArithUnop (o, e)
+  }
+| o = loc(logic_unop) e = loc(expression(var_id)) {
+    U.LogicUnop (o, e)
   }
 | e1 = loc(expression(var_id))
-  o = loc(binop)
+  o = loc(arith_binop)
   e2 = loc(expression(var_id)) {
-    U.Binop (o, e1, e2)
+    U.ArithBinop (o, e1, e2)
+  }
+| e1 = loc(expression(var_id))
+  o = loc(logic_binop)
+  e2 = loc(expression(var_id)) {
+    U.LogicBinop (o, e1, e2)
+  }
+| e1 = loc(expression(var_id))
+  o = loc(arith_relop)
+  e2 = loc(expression(var_id)) {
+    U.ArithRelop (o, e1, e2)
   }

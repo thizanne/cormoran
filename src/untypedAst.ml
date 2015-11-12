@@ -1,32 +1,49 @@
 open Batteries
 
-type unop =
+type arith_unop =
   | Neg
+
+type logic_unop =
   | Not
 
-type binop =
+type arith_binop =
   | Add
   | Sub
   | Mul
   | Div
+
+type logic_binop =
+  | And
+  | Or
+
+type arith_relop =
   | Eq
   | Neq
   | Lt
   | Gt
   | Le
   | Ge
-  | And
-  | Or
 
 type 'var expression =
   | Int of int Location.loc
   | Bool of bool Location.loc
   | Var of 'var Location.loc
-  | Unop of
-      unop Location.loc *
+  | ArithUnop of
+      arith_unop Location.loc *
       'var expression Location.loc
-  | Binop of
-      binop Location.loc *
+  | ArithBinop of
+      arith_binop Location.loc *
+      'var expression Location.loc *
+      'var expression Location.loc
+  | LogicUnop of
+      logic_unop Location.loc *
+      'var expression Location.loc
+  | LogicBinop of
+      logic_binop Location.loc *
+      'var expression Location.loc *
+      'var expression Location.loc
+  | ArithRelop of
+      arith_relop Location.loc *
       'var expression Location.loc *
       'var expression Location.loc
 
