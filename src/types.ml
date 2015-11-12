@@ -12,10 +12,13 @@ let rec equal : type a b. a t -> b t -> bool =
     | Arrow (a, b), Arrow (c, d) -> equal a c && equal b d
     | _, _ -> false
 
-let rec to_string : type a. a t -> string = function
-  | Int -> "Int"
-  | Bool -> "Bool"
-  | Arrow (a, b) -> to_string a ^ " -> " ^ to_string b
+let rec print : type a. 'b IO.output -> a t -> unit =
+  fun output ty ->
+    match ty with
+    | Int -> String.print output "Int"
+    | Bool -> String.print output "Bool"
+    | Arrow (a, b) ->
+      Printf.fprintf output "%a -> %a" print a print b
 
 type origin =
   | Local
