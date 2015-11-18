@@ -1,10 +1,16 @@
 open Batteries
 
+module L = Location
+
 type ('id, 't) var = {
   var_type : 't Types.t;
   var_origin : Types.origin;
   var_id : 'id;
 }
+
+let is_shared { var_origin; _ } = match var_origin with
+  | Types.Local -> false
+  | Types.Shared -> true
 
 type _ unop =
   | Neg : (int -> int) unop
@@ -66,6 +72,20 @@ type (_, _) expression =
       ('id, 'b) expression Location.loc ->
     ('id, 'c) expression
 
+type ('id, 'acc) var_folder = {
+  f : 'a. ('id, 'a) var -> 'acc -> 'acc
+}
+
+let rec fold_expr :
+  type a. ('id, 'acc) var_folder -> 'acc -> ('id, a) expression -> 'acc =
+  fun f acc exp ->
+    match exp with
+    | Int _ -> acc
+    | Bool _ -> acc
+    | Var v -> f.f v.L.item acc
+    | Unop (_, exp) -> fold_expr f acc exp.L.item
+    | Binop (_, exp1, exp2) -> fold_expr f (fold_expr f acc exp2.L.item) exp1.L.item
+
 type body =
   | Nothing
   | Pass
@@ -91,6 +111,7 @@ type body =
       body Location.loc (* Body *)
 
 type thread = {
+  locals : Sym.Set.t;
   body : body Location.loc;
 }
 

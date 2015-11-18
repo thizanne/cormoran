@@ -6,50 +6,32 @@ module L = Location
 module T = TypedAst
 module U = UntypedAst
 module Ty = Types
-
-let add_local_if_absent x env =
-  Sym.Map.modify_opt x
-    (function
-      | None -> Some Local
-      | Some typ -> Some typ)
-    env
-
-let base_type_var env ({ L.item = var_name; loc = var_loc } as var) =
-  let var_type, shared =
-    match Sym.Map.Exceptionless.find var_name env with
-    | Some Local -> Local, 0
-    | Some Shared -> Shared, 1
-    | None ->
-      Error.type_error var @@
-      Printf.sprintf "Var %s is not defined"
-        (Sym.name var_name)
-  in { var_name; var_type }, shared
+module MT = Context.MaybeThreaded
 
 type 'id var_loc_typer =
   (* We need higher order polymorphism in type_expression *)
   { f : 't. 't Ty.t -> 'id L.loc -> ('id, 't) T.var L.loc }
 
-let rec type_program_var_loc env expected_type { L.item = var_sym; loc } =
-  match Sym.Map.Exceptionless.find var_sym env with
-  | None ->
-    Error.type_loc_error loc @@
-    Printf.sprintf "Var %s is not defined"
-      (Sym.name var_sym)
-  | Some (found_type, found_origin) ->
-    if Ty.equal found_type expected_type
-    then
-      let var = {
-        T.var_type = found_type;
-        var_origin = found_origin;
-        var_id = var_sym;
-      }
-      in { L.item = var; loc }
+let type_program_var env expected_type loc var_sym =
+    let found_type, found_origin = Env.get_entry loc var_sym env in
+    if Env.are_compatible_types found_type expected_type
+    then {
+      T.var_type = expected_type;
+      var_origin = found_origin;
+      var_id = var_sym;
+    }
     else
       Error.type_loc_error loc @@
       Printf.sprintf2 "Var %s has type %a but type %a was expected"
         (Sym.name var_sym)
-        Ty.print found_type
+        Env.print_ty found_type
         Ty.print expected_type
+
+let type_program_var_loc env expected_type { L.item = var_sym; loc } =
+  { L.item = type_program_var env expected_type loc var_sym; loc }
+
+let program_var_loc_typer env =
+  { f = fun ty var_loc -> type_program_var_loc env ty var_loc }
 
 let type_arith_unop_loc =
   L.comap (
@@ -89,6 +71,16 @@ let type_arith_relop_loc =
     | U.Le -> T.Le
     | U.Ge -> T.Ge
   )
+
+let exp_loc_type_expected env exp_loc = match exp_loc.L.item with
+  | U.Bool _ -> Env.Bool
+  | U.Int _ -> Env.Int
+  | U.Var v -> Env.get_loc_type v env
+  | U.ArithUnop _ -> Env.Int
+  | U.ArithBinop _ -> Env.Int
+  | U.LogicUnop _ -> Env.Bool
+  | U.LogicBinop _ -> Env.Bool
+  | U.ArithRelop _ -> Env.Bool
 
 let rec type_expression :
   type t.
@@ -145,127 +137,73 @@ and type_expression_loc :
   fun var_loc_typer ty { L.item = exp; loc } ->
     { L.item = type_expression var_loc_typer ty loc exp; loc }
 
-let rec type_expression type_var { L.item = exp; loc } =
-  (* Returns (typed expression, number of present shared variables) *)
-  match exp with
-  | Int n -> { L.item = Int n; loc }, 0
-  | Var v ->
-    let var, nb_shared = type_var v in
-    {
-      L.item = Var { L.item = var; loc = v.L.loc };
-      loc = loc;
-    }, nb_shared
-  | ArithUnop (op, exp1) ->
-    let exp1', nb_shared = type_expression type_var exp1 in
-    {
-      L.item = ArithUnop (op, exp1');
-      loc;
-    },
-    nb_shared
-  | ArithBinop (op, exp1, exp2) ->
-    let exp1', nb_shared1 = type_expression type_var exp1 in
-    let exp2', nb_shared2 = type_expression type_var exp2 in
-    {
-      L.item = ArithBinop (op, exp1', exp2');
-      loc;
-    },
-    (nb_shared1 + nb_shared2)
-
-let check_shared loc nb_max nb_shared =
-  match nb_max with
-  | None -> ()
-  | Some nb_max ->
-    if nb_shared > nb_max
-    then Error.type_loc_error loc "Too many shared variables"
-
-let rec type_condition type_var shared_max { L.item = cond; loc } =
-  match cond with
-  | Bool b -> { L.item = Bool b; loc }
-  | LogicUnop (op, c) ->
-    let c' = type_condition type_var shared_max c in {
-      L.item = LogicUnop (op, c');
-      loc;
-    }
-  | LogicBinop (op, c1, c2) ->
-    let c1' = type_condition type_var shared_max c1 in
-    let c2' = type_condition type_var shared_max c2 in {
-      L.item = LogicBinop (op, c1', c2');
-      loc;
-    }
-  | ArithRel (rel, e1, e2) ->
-    let e1', nb_shared1 = type_expression type_var e1 in
-    let e2', nb_shared2 = type_expression type_var e2 in
-    check_shared loc shared_max (nb_shared1 + nb_shared2);
-    {
-      L.item = ArithRel (rel, e1', e2');
-      loc;
-    }
-
-let rec type_body ((env, labels) as info) { L.item = b; loc } =
-  match b with
-  | Nothing -> { L.item = Nothing; loc }, info
-  | Pass -> { L.item = Pass; loc }, info
-  | MFence -> { L.item = MFence; loc }, info
-  | Label lbl ->
+let rec type_body ((env, labels) as info) = function
+  | U.Nothing -> T.Nothing, (env, labels)
+  | U.Pass -> T.Pass, (env, labels)
+  | U.MFence -> T.MFence, (env, labels)
+  | U.Label lbl ->
     if Sym.Set.mem lbl.L.item labels
     then Error.name_error lbl "Label already defined on this thread"
-    else {
-      L.item = Label lbl;
-      loc;
-    }, (env, Sym.Set.add lbl.L.item labels)
-  | Seq (b1, b2) ->
-    let b1', info' = type_body info b1 in
-    let b2', info'' = type_body info' b2 in
-    { L.item = Seq (b1', b2'); loc }, info''
-  | Assign ({ L.item = var_name; loc = var_loc }, exp) ->
-    let var_type, (exp', nb_shared), env', add_shared =
-      match Sym.Map.Exceptionless.find var_name env with
-      | Some Local
-      | None ->
-        Local,
-        type_expression (base_type_var env) exp,
-        Sym.Map.add var_name Local env,
-        0
-      | Some Shared ->
-        Shared,
-        type_expression (base_type_var env) exp,
-        env,
-        1
-    in
-    check_shared loc (Some 1) (nb_shared + add_shared);
-    let var = { L.item = { var_type; var_name }; loc = var_loc } in
-    { L.item = Assign (var, exp'); loc }, (env', labels)
-  | If (cond, body) ->
-    let cond' = type_condition (base_type_var env) (Some 0) cond in
-    let body', info' = type_body info body in
-    { L.item = If (cond', body'); loc }, info'
-  | While (cond, body) ->
-    let cond' = type_condition (base_type_var env) (Some 0) cond in
-    let body', info' = type_body info body in
-    { L.item = While (cond', body'); loc }, info'
-  | For ({ L.item = i_name; loc = i_loc } as i, exp_from, exp_to, body) ->
-    let env_i =
-      match Sym.Map.Exceptionless.find i_name env with
-      | None
-      | Some Local ->
-        add_local_if_absent i_name env
-      | Some Shared ->
-        Error.type_error i "For indices must not be shared variables"
-    in
-    let var_i = {
-      L.item = { var_name = i_name; var_type = Local };
-      loc = i_loc
-    } in
-    let exp_from', nb_from = type_expression (base_type_var env_i) exp_from in
-    let exp_to', nb_to = type_expression (base_type_var env_i) exp_to in
-    check_shared exp_from.L.loc (Some 0) nb_from;
-    check_shared exp_to.L.loc (Some 0) nb_to;
-    let body', info' = type_body (env_i, labels) body in {
-      L.item = For (var_i, exp_from', exp_to', body');
-      loc
-    }, info'
+    else T.Label lbl, (env, Sym.Set.add lbl.L.item labels)
+  | U.Seq (first, second) ->
+    let first, info = type_body_loc info first in
+    let second, info = type_body_loc info second in
+    T.Seq (first, second), info
+  | U.Assign (var, exp) ->
+    let var_type, var_origin =
+      match Env.get_loc_entry_option var env with
+      | None -> exp_loc_type_expected env exp, Ty.Local
+      | Some entry -> entry in
+    let env = Env.add var.L.item var_type var_origin env in
+    begin
+      match var_type with
+      | Env.Int ->
+        T.Assign (
+          type_program_var_loc env Ty.Int var,
+          type_expression_loc (program_var_loc_typer env) Ty.Int exp
+        )
+      | Env.Bool ->
+        T.Assign (
+          type_program_var_loc env Ty.Bool var,
+          type_expression_loc (program_var_loc_typer env) Ty.Bool exp
+        )
+    end, (env, labels)
+  | U.If (condition, body) ->
+    let body, info = type_body_loc info body in
+    T.If (
+      type_expression_loc (program_var_loc_typer env) Ty.Bool condition,
+      body
+    ), info
+  | U.While (condition, body) ->
+    let body, info = type_body_loc info body in
+    T.While (
+      type_expression_loc (program_var_loc_typer env) Ty.Bool condition,
+      body
+    ), info
+  | U.For (var, exp_from, exp_to, body) ->
+    let env =  match Env.get_loc_entry_option var env with
+      | None -> Env.add var.L.item Env.Int Ty.Local env
+      | Some (Env.Int, _) -> env
+      | Some (Env.Bool, _ ) ->
+        Error.type_error var "A `for` indice must have type Int, not Bool" in
+    let var = type_program_var_loc env Ty.Int var in
+    let exp_from =
+      type_expression_loc (program_var_loc_typer env) Ty.Int exp_from in
+    let exp_to =
+      type_expression_loc (program_var_loc_typer env) Ty.Int exp_to in
+    let body, info = type_body_loc (env, labels) body in
+    T.For (var, exp_from, exp_to, body), info
 
-let check_bound labels bound =
+and type_body_loc info { L.item = body; loc } =
+  let body, info = type_body info body in
+  { L.item = body; loc }, info
+
+let count_shared =
+  T.fold_expr
+    { T.f = fun var acc -> if T.is_shared var then succ acc else acc }
+    0
+
+let check_label_defined labels bound =
   match bound with
   | None -> ()
   | Some label ->
@@ -276,8 +214,8 @@ let check_bound labels bound =
         (Sym.name label.L.item)
 
 let check_interval labels { Property.initial; final } =
-  check_bound labels initial;
-  check_bound labels final
+  check_label_defined labels initial;
+  check_label_defined labels final
 
 let check_thread_zone labels thread_zone =
   List.iter (check_interval labels) thread_zone
@@ -286,7 +224,7 @@ let check_zone all_labels zone =
   let tid_found = Array.make (List.length all_labels) false in
   List.iter
     (fun ({ L.item = tid; _ } as tid_loc, thread_zone) ->
-       (* Check that each tid is present at most once*)
+       (* Check that each tid is present at most once *)
        if tid_found.(tid)
        then
          Error.type_error tid_loc @@
@@ -296,6 +234,21 @@ let check_zone all_labels zone =
        (* Check that labels are correct *)
        check_thread_zone (List.nth all_labels tid) thread_zone)
     zone
+
+let type_property_var env expected_type loc { MT.item = var_sym; thread_id } =
+    let found_type, found_origin = Env.get_entry loc var_sym env in
+    if Env.are_compatible_types found_type expected_type
+    then {
+      T.var_type = expected_type;
+      var_origin = found_origin;
+      var_id = var_sym;
+    }
+    else
+      Error.type_loc_error loc @@
+      Printf.sprintf2 "Var %s has type %a but type %a was expected"
+        (Sym.name var_sym)
+        Env.print_ty found_type
+        Ty.print expected_type
 
 let type_property all_labels shared_env thread_envs
     { Property.zone; condition } =
