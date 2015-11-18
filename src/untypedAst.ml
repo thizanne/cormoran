@@ -80,7 +80,11 @@ type thread = {
   body : body Location.loc;
 }
 
+type constant =
+  | ConstInt of int
+  | ConstBool of bool
+
 type program = {
-  initial : int Sym.Map.t;
+  initial : constant Sym.Map.t;
   threads : thread list;
 }

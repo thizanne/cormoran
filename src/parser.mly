@@ -137,7 +137,11 @@ shared_decs :
   }
 
 shared_dec :
-| x = var_sym Eq n = Int { x, n }
+| x = var_sym Eq init = const { x, init }
+
+const :
+| b = Bool { UntypedAst.ConstBool b }
+| n = Int { UntypedAst.ConstInt n }
 
 (* Program code *)
 
