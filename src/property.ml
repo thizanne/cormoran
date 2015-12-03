@@ -2,6 +2,9 @@ open Batteries
 
 module L = Location
 module P = Program
+module MT = Context.MaybeThreaded
+module T = TypedAst
+module Ty = Types
 
 (* A thread code portion delimited by two labels.
  * No initial label means 0.
@@ -25,20 +28,20 @@ type thread_zone = interval list
  * a zone. *)
 type zone = (P.thread_id L.loc * thread_zone) list
 
-type 'a t = {
+type t = {
   zone : zone option;
   (* None means end of the program, once flushed *)
-  condition : 'a P.condition L.loc;
+  condition : (Sym.t MT.t, bool) T.expression L.loc;
 }
 
 let always_true = {
   zone = None;
-  condition = L.mkdummy @@ P.Bool (Location.mkdummy true);
+  condition = L.mkdummy @@ T.Bool (Location.mkdummy true);
 }
 
 let always_false = {
   zone = None;
-  condition = L.mkdummy @@ P.Bool (Location.mkdummy false);
+  condition = L.mkdummy @@ T.Bool (Location.mkdummy false);
 }
 
 (* Getting control states from a labelled zone *)
@@ -95,14 +98,14 @@ module Make (D : Domain.Outer) = struct
     List.fold_lefti
       (fun abstr_acc thread_id _thread ->
          D.transfer
-           (Cfg.Operation.MFence thread_id)
+           (Operation.MFence thread_id)
            abstr_acc)
       abstr
       g.Cfg.program.P.threads
 
   let data_satisfies condition abstr =
-    let neg_condition = P.LogicUnop (L.mkdummy Operators.Not, L.mkdummy condition) in
-    D.is_bottom (D.transfer (Cfg.Operation.Filter neg_condition) abstr)
+    let neg_condition = T.Unop (L.mkdummy T.Not, L.mkdummy condition) in
+    D.is_bottom (D.transfer (Operation.Filter neg_condition) abstr)
 
   let satisfies { zone; condition } g data =
     let all_data = match zone with

@@ -12,7 +12,7 @@ module type Outer = sig
   val is_bottom : t -> bool
   val equal : t -> t -> bool
   val init : Program.var Program.t -> t
-  val transfer : Cfg.Operation.t -> t -> t
+  val transfer : Operation.t -> t -> t
   val join : t -> t -> t
   val widening : t -> t -> t
   val print : 'a IO.output -> t -> unit

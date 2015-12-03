@@ -80,7 +80,7 @@ type thread = {
   body : body Location.loc;
 }
 
-type constant =
+type constant = (* TODO: make initial values an initial property *)
   | ConstInt of int
   | ConstBool of bool
 

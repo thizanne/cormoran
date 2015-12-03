@@ -4,5 +4,5 @@ val type_program :
    Sym.t Context.MaybeThreaded.t UntypedAst.expression Location.loc)
     list ->
 
-  Program.var Program.t *
-  Program.var_view Property.t list
+  TypedAst.program *
+  Property.t list

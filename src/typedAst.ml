@@ -8,6 +8,10 @@ type ('id, 't) var = {
   var_id : 'id;
 }
 
+type 't program_var = (Sym.t, 't) var
+
+type 't property_var = (Sym.t Context.MaybeThreaded.t, 't) var
+
 let is_shared { var_origin; _ } = match var_origin with
   | Types.Local -> false
   | Types.Shared -> true
@@ -72,6 +76,10 @@ type (_, _) expression =
       ('id, 'b) expression Location.loc ->
     ('id, 'c) expression
 
+type 't program_expression = (Sym.t, 't) expression
+
+type property_condition = (Sym.t Context.MaybeThreaded.t, bool) expression
+
 type ('id, 'acc) var_folder = {
   f : 'a. ('id, 'a) var -> 'acc -> 'acc
 }
@@ -95,19 +103,19 @@ type body =
       body Location.loc *
       body Location.loc
   | Assign :
-      (Sym.t, 't) var Location.loc *
-      (Sym.t, 't) expression Location.loc ->
+      't program_var Location.loc *
+      't program_expression Location.loc ->
     body
   | If of
-      (Sym.t, bool) expression Location.loc * (* Condition *)
+      bool program_expression Location.loc * (* Condition *)
       body Location.loc (* Body *)
   | While of
-      (Sym.t, bool) expression Location.loc * (* Condition *)
+      bool program_expression Location.loc * (* Condition *)
       body Location.loc (* Body *)
   | For of
-      (Sym.t, int) var Location.loc * (* Indice *)
-      (Sym.t, int) expression Location.loc * (* From *)
-      (Sym.t, int) expression Location.loc * (* To *)
+      int program_var Location.loc * (* Indice *)
+      int program_expression Location.loc * (* From *)
+      int program_expression Location.loc * (* To *)
       body Location.loc (* Body *)
 
 type thread = {

@@ -1,6 +1,5 @@
 open Batteries
 open Util
-open Program
 
 module L = Location
 module T = TypedAst
@@ -235,51 +234,59 @@ let check_zone all_labels zone =
        check_thread_zone (List.nth all_labels tid) thread_zone)
     zone
 
-let type_property_var env expected_type loc { MT.item = var_sym; thread_id } =
-    let found_type, found_origin = Env.get_entry loc var_sym env in
-    if Env.are_compatible_types found_type expected_type
-    then {
-      T.var_type = expected_type;
-      var_origin = found_origin;
-      var_id = var_sym;
-    }
-    else
-      Error.type_loc_error loc @@
-      Printf.sprintf2 "Var %s has type %a but type %a was expected"
-        (Sym.name var_sym)
-        Env.print_ty found_type
-        Ty.print expected_type
+let type_property_var
+    (global_env, thread_envs)
+    expected_type loc ({ MT.item = var_sym; thread_id } as mt_var)
+  =
+  let env = match thread_id with
+    | None -> global_env
+    | Some tid -> List.nth thread_envs tid in
+  let found_type, found_origin = Env.get_entry loc var_sym env in
+  if Env.are_compatible_types found_type expected_type
+  then {
+    T.var_type = expected_type;
+    var_origin = found_origin;
+    var_id = mt_var;
+  }
+  else
+    Error.type_loc_error loc @@
+    Printf.sprintf2 "Var %s has type %a but type %a was expected"
+      (Sym.name var_sym)
+      Env.print_ty found_type
+      Ty.print expected_type
 
-let type_property all_labels shared_env thread_envs
-    { Property.zone; condition } =
+let type_property_var_loc all_envs expected_type { L.item = mt_var; loc } =
+  { L.item = type_property_var all_envs expected_type loc mt_var; loc }
+
+let property_var_loc_typer all_envs =
+  { f = fun ty var_loc -> type_property_var_loc all_envs ty var_loc }
+
+let type_property all_labels all_envs
+    (zone, condition) =
   let () = match zone with
     | None -> ()
     | Some zone -> check_zone all_labels zone in
 
-  let typing_env ({ L.item = (tid, var_name); loc } as var_loc) =
-    match zone, tid with
-    | None, None -> shared_env
-    | _, Some tid -> List.nth thread_envs tid
-    | Some _, None ->
-      Error.type_error var_loc @@
-      Printf.sprintf
-        "Non threaded var %s is not allowed in a zoned property"
-        (Sym.name var_name) in
-
-  let type_var ({ L.item = (tid, var_name); loc } as var) =
-    let var, _ = base_type_var (typing_env var) { L.item = var_name; loc } in
-    create_var_view ~thread_id:(Option.default 0 tid) var,
-    -1 (* We don't care if it's shared or not here *) in
-
-  let condition = type_condition type_var None condition in
+  let condition =
+    type_expression_loc
+      (property_var_loc_typer all_envs)
+      Ty.Bool condition in
 
   { Property.zone; condition }
 
-let type_program ({ initial; threads }, properties) =
-  let shared_env = Sym.Map.map (fun _ -> Shared) initial in
+let initial_constant_entry = function
+  | U.ConstInt _ -> Env.Int, Ty.Shared
+  | U.ConstBool _ -> Env.Bool, Ty.Shared
+
+let type_initial_constant = function
+  | U.ConstInt n -> T.ConstInt n
+  | U.ConstBool b -> T.ConstBool b
+
+let type_program ({ U.initial; threads }, properties) =
+  let shared_env = Sym.Map.map initial_constant_entry initial in
   let thread_results =
     List.map
-      (fun t -> type_body (shared_env, Sym.Set.empty) t.body)
+      (fun t -> type_body_loc (shared_env, Sym.Set.empty) t.U.body)
       threads in
 
   (* Yup, this is non-optimal. Who cares, it's fast anyway. *)
@@ -289,19 +296,20 @@ let type_program ({ initial; threads }, properties) =
 
   let properties =
     List.map
-      (type_property all_labels shared_env thread_envs)
+      (type_property all_labels (shared_env, thread_envs))
       properties in
 
   let thread thread_env body = {
-    body;
+    T.body;
     locals =
       thread_env
-      |> Sym.Map.filterv (( = ) Local)
+      |> Sym.Map.map snd
+      |> Sym.Map.filterv (( = ) Ty.Local)
       |> Sym.Map.keys
       |> Sym.Set.of_enum;
   } in
 
-  {
-    initial;
-    threads = List.map2 thread thread_envs bodies;
-  }, properties
+  let initial = Sym.Map.map type_initial_constant initial in
+  let threads = List.map2 thread thread_envs bodies in
+
+  { T.initial; threads }, properties
