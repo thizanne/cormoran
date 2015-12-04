@@ -18,21 +18,6 @@ module State = struct
   let equal = ( = )
 end
 
-module Operation = struct
-  type t =
-    | Identity
-    | MFence of Program.thread_id
-    | Filter of Program.var_view Program.condition
-    | Assign of
-        Program.thread_id *
-        Program.var *
-        Program.var Program.expression
-
-  let compare = Pervasives.compare
-
-  let default = Identity
-end
-
 module ThreadG =
   Persistent.Digraph.ConcreteLabeled (ThreadState) (Operation)
 
