@@ -80,6 +80,37 @@ type 't program_expression = (Sym.t, 't) expression
 
 type property_condition = (Sym.t Context.MaybeThreaded.t, bool) expression
 
+type ('id1, 'id2) var_mapper = {
+  f : 'a. ('id1, 'a) var -> ('id2, 'a) var
+}
+
+let rec map_expr :
+  type a.
+  ('id1, 'id2) var_mapper -> ('id1, a) expression -> ('id2, a) expression
+  =
+  fun mapper exp ->
+    match exp with
+    | Int n -> Int n
+    | Bool b -> Bool b
+    | Var v -> Var (L.comap mapper.f v)
+    | Unop (op, exp) ->
+      Unop (op, map_expr_loc mapper exp)
+    | Binop (op, exp1, exp2) ->
+      Binop (
+        op,
+        map_expr_loc mapper exp1,
+        map_expr_loc mapper exp2
+      )
+
+and map_expr_loc :
+  type a.
+  ('id1, 'id2) var_mapper ->
+  ('id1, a) expression L.loc ->
+  ('id2, a) expression L.loc
+  =
+  fun mapper ->
+    L.comap (map_expr mapper)
+
 type ('id, 'acc) var_folder = {
   f : 'a. ('id, 'a) var -> 'acc -> 'acc
 }
