@@ -1,6 +1,7 @@
 open Batteries
 
 module L = Location
+module MT = Context.MaybeThreaded
 
 type ('id, 't) var = {
   var_type : 't Types.t;
@@ -10,7 +11,7 @@ type ('id, 't) var = {
 
 type 't program_var = (Sym.t, 't) var
 
-type 't property_var = (Sym.t Context.MaybeThreaded.t, 't) var
+type 't property_var = (Sym.t MT.t, 't) var
 
 let is_shared { var_origin; _ } = match var_origin with
   | Types.Local -> false
@@ -78,7 +79,7 @@ type (_, _) expression =
 
 type 't program_expression = (Sym.t, 't) expression
 
-type property_condition = (Sym.t Context.MaybeThreaded.t, bool) expression
+type property_condition = (Sym.t MT.t, bool) expression
 
 type ('id1, 'id2) var_mapper = {
   f : 'a. ('id1, 'a) var -> ('id2, 'a) var
@@ -123,7 +124,8 @@ let rec fold_expr :
     | Bool _ -> acc
     | Var v -> f.f v.L.item acc
     | Unop (_, exp) -> fold_expr f acc exp.L.item
-    | Binop (_, exp1, exp2) -> fold_expr f (fold_expr f acc exp2.L.item) exp1.L.item
+    | Binop (_, exp1, exp2) ->
+      fold_expr f (fold_expr f acc exp2.L.item) exp1.L.item
 
 type body =
   | Nothing
