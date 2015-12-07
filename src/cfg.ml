@@ -1,7 +1,8 @@
 open Batteries
 open Graph
 
-module O = Operators
+module T = TypedAst
+module P = Program
 module L = Location
 
 module ThreadState = struct
@@ -25,55 +26,35 @@ module G =
   Persistent.Digraph.ConcreteLabeled (State) (Operation)
 
 type t = {
-  program : Program.var Program.t;
+  program : T.program;
   graph : G.t;
   labels : Program.Control.Label.t Sym.Map.t array;
   final_state : Program.Control.State.t;
 }
 
-let cfg_of_thread thread_id { Program.body; _ } =
+let cfg_of_thread thread_id { T.body; _ } =
 
   let open Operation in
-  let module P = Program in
   let open P.Control.Label in
 
-  let rec expr_view = function
-    (* Turns a var expression into a var_view expression *)
-    | P.Int n -> P.Int n
-    | P.Var v -> P.Var (L.comap (P.create_var_view ~thread_id) v)
-    | P.ArithUnop (op, exp') ->
-      P.ArithUnop (op, L.comap expr_view exp')
-    | P.ArithBinop (op, exp1, exp2) ->
-      P.ArithBinop (op, L.comap expr_view exp1, L.comap expr_view exp2)
-  in
-
-  let rec cond_view = function
-    (* Turns a var condition into a var_view condition *)
-    | P.Bool b -> P.Bool b
-    | P.LogicUnop (op, cond') ->
-      P.LogicUnop (op, L.comap cond_view cond')
-    | P.LogicBinop (op, cond1, cond2) ->
-      P.LogicBinop (op, L.comap cond_view cond1, L.comap cond_view cond2)
-    | P.ArithRel (rel, exp1, exp2) ->
-      P.ArithRel (rel, L.comap expr_view exp1, L.comap expr_view exp2)
-  in
+  let thread_cond = T.add_thread_info thread_id in
 
   let filter cond =
-    Filter (cond_view cond.L.item)
+    Filter (thread_cond cond.L.item)
   in
 
   let filter_not cond =
-    (* Turns a var condition into the negation of its var_view condition *)
-    Filter (cond_view (P.LogicUnop (L.mkdummy O.Not, cond)))
+    (* Turns a var condition into the negation of its threaded condition *)
+    Filter (thread_cond (T.Unop (L.mkdummy T.Not, cond)))
   in
 
-  let filter_rel rel i exp =
+  let for_filter rel i exp =
     (* Builds the Filter for continuing a for loop *)
     Filter (
-      cond_view (
-        P.ArithRel (
+      thread_cond (
+        T.Binop (
           L.mkdummy rel,
-          L.mkloc (P.Var i) i.L.loc,
+          L.mkloc (T.Var i) i.L.loc,
           exp
         )
       )
@@ -120,27 +101,27 @@ let cfg_of_thread thread_id { Program.body; _ } =
        specify the end of the graph to yield, thus making the bodies
        point on the structure head rather than on a new node linked to
        the head by Identity. *)
-    | P.Nothing ->
+    | T.Nothing ->
       acc, labels, offset
-    | P.Label lbl ->
+    | T.Label lbl ->
       acc, Sym.Map.add lbl.L.item offset labels, offset
-    | P.Pass ->
+    | T.Pass ->
       add_single_edge Identity (acc, labels, offset)
-    | P.MFence ->
+    | T.MFence ->
       add_single_edge (MFence thread_id) (acc, labels, offset)
-    | P.Assign (x, e) ->
+    | T.Assign (x, e) ->
       add_single_edge
         (Assign (thread_id, x.L.item, e.L.item))
         (acc, labels, offset)
-    | P.Seq (b1, b2) ->
+    | T.Seq (b1, b2) ->
       cfg_of_body (cfg_of_body (acc, labels, offset) b1) b2
-    | P.If (cond, body) ->
+    | T.If (cond, body) ->
       let acc', labels', offset' =
         cfg_of_body (acc, labels, succ offset) body in
       (acc', labels', offset')
       |> add_op_edge (filter cond) offset (succ offset)
       |> add_op_edge (filter_not cond) offset offset'
-    | P.While (cond, body) ->
+    | T.While (cond, body) ->
       let acc', labels', offset' =
         cfg_of_body (acc, labels, succ offset) body in
       (acc', labels', offset')
@@ -148,24 +129,24 @@ let cfg_of_thread thread_id { Program.body; _ } =
       |> add_op_edge Identity offset' offset
       |> add_op_edge (filter cond) offset (succ offset)
       |> add_op_edge (filter_not cond) offset (succ offset')
-    | P.For (i, exp_from, exp_to, body) ->
+    | T.For (i, exp_from, exp_to, body) ->
       let acc', labels', offset' =
         cfg_of_body (acc, labels, succ @@ succ offset) body in
       let iplus1 =
-        P.ArithBinop (
-          L.mkdummy O.Add,
-          L.mkdummy @@ P.Var (L.mkdummy i.L.item),
-          L.mkdummy @@ P.Int (L.mkdummy 1)
+        T.Binop (
+          L.mkdummy T.Add,
+          L.mkdummy @@ T.Var (L.mkdummy i.L.item),
+          L.mkdummy @@ T.Int (L.mkdummy 1)
         ) in
       (acc', labels', offset')
       |> add_single_vertex
       |> add_op_edge (Assign (thread_id, i.L.item, exp_from.L.item))
         offset
         (succ offset)
-      |> add_op_edge (filter_rel O.Le i exp_to)
+      |> add_op_edge (for_filter T.Le i exp_to)
         (succ offset)
         (succ @@ succ offset)
-      |> add_op_edge (filter_rel O.Gt i exp_to)
+      |> add_op_edge (for_filter T.Gt i exp_to)
         (succ offset)
         (succ offset')
       |> add_op_edge (Assign (thread_id, i.L.item, iplus1))
@@ -199,7 +180,7 @@ let combine (cfg1, labels1, final1) (cfg2, labels2, final2) =
   labels1 :: labels2,
   final1 ++ final2
 
-let cfg_of_program { Program.threads; _ } =
+let cfg_of_program { T.threads; _ } =
   List.fold_righti
     (fun thread body g -> combine (cfg_of_thread thread body) g)
     threads
