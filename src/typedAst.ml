@@ -9,6 +9,9 @@ type ('id, 't) var = {
   var_id : 'id;
 }
 
+let var_id_map f { var_type; var_origin; var_id } =
+  { var_type; var_origin; var_id = f var_id }
+
 type 't program_var = (Sym.t, 't) var
 
 type 't property_var = (Sym.t MT.t, 't) var
@@ -111,6 +114,11 @@ and map_expr_loc :
   =
   fun mapper ->
     L.comap (map_expr mapper)
+
+let add_thread_info tid expr =
+  let put_thread v = var_id_map (MT.create_some tid) v in
+  let mapper = { f = put_thread } in
+  map_expr mapper expr
 
 type ('id, 'acc) var_folder = {
   f : 'a. ('id, 'a) var -> 'acc -> 'acc
