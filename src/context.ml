@@ -18,4 +18,10 @@ module MaybeThreaded = struct
     item : 'a;
     thread_id : Program.thread_id option;
   }
+
+  let create thread_id item =
+    { thread_id; item }
+
+  let create_some thread_id item =
+    { thread_id = Some thread_id; item }
 end
