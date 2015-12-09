@@ -1,7 +1,6 @@
 open Batteries
 open Printf
 open Util
-open Cfg
 
 let edge_label op =
   let output = IO.output_string () in
@@ -9,14 +8,14 @@ let edge_label op =
     | Operation.Identity ->
       String.print output "Id"
     | Operation.MFence thread_id ->
-      Printf.fprintf output "%d:MFence" thread_id
+      Printf.fprintf output "%d :: MFence" thread_id
     | Operation.Filter c ->
-      PrintAst.print_condition Program.print_var_view output c
+      PrintAst.print_expression PrintAst.property_var_printer output c
     | Operation.Assign (thread_id, x, e) ->
-      Printf.fprintf output "%d:%a := %a"
+      Printf.fprintf output "%d :: %a := %a"
         thread_id
-        Sym.print x.Program.var_name
-        (PrintAst.print_expression Program.print_var) e
+        PrintAst.(program_var_printer.f) x
+        (PrintAst.print_expression PrintAst.program_var_printer) e
   end;
   IO.close_out output
 
