@@ -23,7 +23,7 @@ module Dot (D : Domain.Outer) = struct
 
   module DotParam
       (Data : sig
-         val data : Program.Control.State.t -> D.t
+         val data : Control.State.t -> D.t
        end)
   =
   struct
@@ -52,7 +52,7 @@ module Dot (D : Domain.Outer) = struct
 </TD>
 </TR>
 </TABLE>"
-            (print_to_string Program.Control.State.print v)
+            (print_to_string Control.State.print v)
             (label v)
         )
       ]
@@ -66,7 +66,7 @@ module Dot (D : Domain.Outer) = struct
     let default_edge_attributes _ = []
     let get_subgraph _ = None
     let vertex_name v =
-      "\"" ^ (print_to_string Program.Control.State.print v) ^ "\""
+      "\"" ^ (print_to_string Control.State.print v) ^ "\""
     let default_vertex_attributes _ = []
     let graph_attributes _ = []
   end

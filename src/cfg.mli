@@ -1,7 +1,7 @@
 open Batteries
 
 module State : sig
-  type t = Program.Control.State.t
+  type t = Control.State.t
 
   val compare : t -> t -> int
   val hash : t -> int
@@ -17,8 +17,8 @@ module G : Graph.Sig.P
 type t = private {
   program : TypedAst.program;
   graph : G.t;
-  labels : Program.Control.Label.t Sym.Map.t array;
-  final_state : Program.Control.State.t;
+  labels : Control.Label.t Sym.Map.t array;
+  final_state : Control.State.t;
 }
 
 val of_program : TypedAst.program -> t

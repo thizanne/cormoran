@@ -2,19 +2,18 @@ open Batteries
 open Graph
 
 module T = TypedAst
-module P = Program
 module L = Location
 
 module ThreadState = struct
-  type t = Program.Control.Label.t
-  let compare = Program.Control.Label.compare
+  type t = Control.Label.t
+  let compare = Control.Label.compare
   let hash = Hashtbl.hash
   let equal = ( = )
 end
 
 module State = struct
-  type t = Program.Control.State.t
-  let compare = Program.Control.State.compare
+  type t = Control.State.t
+  let compare = Control.State.compare
   let hash = Hashtbl.hash
   let equal = ( = )
 end
@@ -28,14 +27,14 @@ module G =
 type t = {
   program : T.program;
   graph : G.t;
-  labels : Program.Control.Label.t Sym.Map.t array;
-  final_state : Program.Control.State.t;
+  labels : Control.Label.t Sym.Map.t array;
+  final_state : Control.State.t;
 }
 
 let cfg_of_thread thread_id { T.body; _ } =
 
   let open Operation in
-  let open P.Control.Label in
+  let open Control.Label in
 
   let thread_cond = T.add_thread_info thread_id in
 
@@ -155,9 +154,9 @@ let cfg_of_thread thread_id { T.body; _ } =
   in
 
   cfg_of_body (
-    ThreadG.add_vertex ThreadG.empty Program.Control.Label.initial,
+    ThreadG.add_vertex ThreadG.empty Control.Label.initial,
     Sym.Map.empty,
-    Program.Control.Label.initial
+    Control.Label.initial
   ) body
 
 module Oper = Oper.Make (Builder.P (G))
@@ -166,7 +165,7 @@ let combine (cfg1, labels1, final1) (cfg2, labels2, final2) =
   (* Combines two CFG.
      cfg1 is the cfg of a single thread,
      cfg2 is the cfg of a program. *)
-  let ( ++ ) = Program.Control.State.add_label in
+  let ( ++ ) = Control.State.add_label in
   G.empty
   |> ThreadG.fold_vertex
     (fun i -> Oper.union (G.map_vertex (fun is -> i ++ is) cfg2))
@@ -184,9 +183,9 @@ let cfg_of_program { T.threads; _ } =
   List.fold_righti
     (fun thread body g -> combine (cfg_of_thread thread body) g)
     threads
-    (G.add_vertex G.empty Program.Control.State.empty,
+    (G.add_vertex G.empty Control.State.empty,
      [],
-     Program.Control.State.empty)
+     Control.State.empty)
 
 let of_program program =
   let graph, labels, final_state = cfg_of_program program in
