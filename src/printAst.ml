@@ -96,3 +96,13 @@ and print_expression :
         (string_of_binop op.L.item)
         (print_inside_prec (binop_precedence op.L.item) print_var)
         e2.L.item
+
+let program_var_printer = {
+  f = fun output { T.var_id; _ } ->
+    Sym.print output var_id
+}
+
+let property_var_printer = {
+  f = fun output { T.var_id; _ } ->
+    Context.MaybeThreaded.print Sym.print output var_id
+}

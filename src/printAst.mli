@@ -12,3 +12,6 @@ val print_expression :
   'a IO.output ->
   ('b, _) TypedAst.expression ->
   unit
+
+val program_var_printer : (_, Sym.t) var_printer
+val property_var_printer : (_, Sym.t Context.MaybeThreaded.t) var_printer
