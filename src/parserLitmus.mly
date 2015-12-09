@@ -1,18 +1,24 @@
 %{
   open Lexing
 
-  module O = Operators
-  module P = Program
+  module Ty = Types
+  module T = TypedAst
   module L = Location
 
   let var_sym = Sym.namespace ()
+
+  let seq_loc b1 b2 =
+    L.mk
+      (T.Seq (b1, b2))
+      L.(b1.loc.startpos)
+      L.(b2.loc.endpos)
 
   let rec transform = function
     | [] -> failwith "transform"
     | [line] ->
       List.map
         (function
-          | None -> L.mkdummy P.Nothing
+          | None -> L.mkdummy T.Nothing
           | Some i -> i)
         line
     | line :: lines ->
@@ -20,23 +26,41 @@
       List.map2
         (fun ins body -> match ins with
            | None -> body
-           | Some ins -> P.seq ins body)
+           | Some ins -> seq_loc ins body)
         line bodies
 
   let add_preserve k v map =
     Sym.Map.modify_opt
       k (function None -> Some v | Some v' -> Some v') map
 
+  let local_in_expr :
+  type t. (Sym.t, t) T.expression -> Sym.t list =
+    fun expression ->
+    T.fold_expr
+      { T.f =
+          fun var acc ->
+          if T.is_local var then var.T.var_id :: acc else acc }
+      [] expression
+
+  let shared_in_expr :
+  type t. (Sym.t, t) T.expression -> Sym.t list =
+    fun expression ->
+    T.fold_expr
+      { T.f =
+          fun var acc ->
+          if T.is_shared var then var.T.var_id :: acc else acc }
+      [] expression
+
   let rec get_local { L.item = body; _ } = match body with
-    | P.Nothing
-    | P.Pass
-    | P.MFence -> Sym.Set.empty
-    | P.Seq (b1, b2) -> Sym.Set.union (get_local b1) (get_local b2)
-    | P.Assign (x, e) ->
-      if P.is_local x.L.item
-      then Sym.Set.singleton x.L.item.P.var_name
+    | T.Nothing
+    | T.Pass
+    | T.MFence -> Sym.Set.empty
+    | T.Seq (b1, b2) -> Sym.Set.union (get_local b1) (get_local b2)
+    | T.Assign (x, e) ->
+      if T.is_local x.L.item
+      then Sym.Set.singleton x.L.item.T.var_id
       else begin
-        match P.local_in_expr e.L.item with
+        match local_in_expr e.L.item with
         | [y] -> Sym.Set.singleton y
         | _ -> Sym.Set.empty
       end
@@ -49,24 +73,31 @@
        that litmus programs only contain sequences of
        assignations/fences (and enforces it with an exception) *)
     let rec scan_body body acc = match body with
-      | P.Nothing
-      | P.Pass
-      | P.MFence -> acc
-      | P.Seq (b1, b2) ->
+      | T.Nothing
+      | T.Pass
+      | T.MFence -> acc
+      | T.Seq (b1, b2) ->
         acc |> scan_body b1.L.item |> scan_body b2.L.item
-      | P.Assign (x, e) ->
-        if P.is_shared x.L.item
-        then add_preserve x.L.item.P.var_name 0 acc
+      | T.Assign (x, e) ->
+        if T.is_shared x.L.item
+        then add_preserve x.L.item.T.var_id (T.ConstInt 0) acc
         else begin
-          match P.shared_in_expr e.L.item with
-          | [y] -> Sym.Map.add y 0 acc
+          match shared_in_expr e.L.item with
+          | [y] -> Sym.Map.add y (T.ConstInt 0) acc
           | _ -> failwith "ParserLitmus.globals"
         end
       | _ -> failwith "ParserLitmus.get_shared"
     in
     List.fold_left
-      (fun acc thread -> scan_body thread.P.body.L.item acc)
+      (fun acc thread -> scan_body thread.T.body.L.item acc)
       acc threads
+
+  let shared sym =
+    { T.var_id = sym; var_type = Ty.Int; var_origin = Ty.Shared }
+
+  let local sym =
+    { T.var_id = sym; var_type = Ty.Int; var_origin = Ty.Local }
+
 %}
 
 %token LCurly RCurly LPar RPar
@@ -77,7 +108,7 @@
 %token <string> Reg
 %token <int * string> ThreadedReg
 
-%start <Program.var Program.t * Program.var_view Property.t list> program
+%start <TypedAst.program * Property.t list> program
 
 %%
 
@@ -87,7 +118,7 @@
 program :
 | init = init_dec threads = code properties = exists Eof {
     {
-      P.initial = get_shared init threads;
+      T.initial = get_shared init threads;
       threads;
     },
     properties
@@ -106,14 +137,14 @@ init_dec :
   }
 
 init_var :
-| v = Shared Equals x = Int { var_sym v, x }
+| v = Shared Equals x = Int { var_sym v, T.ConstInt x }
 
 code :
 | lines = line+ {
     List.map
       (fun body ->
          {
-           P.locals = get_local body;
+           T.locals = get_local body;
            body;
          })
       (transform lines)
@@ -123,16 +154,16 @@ line :
 | ins = separated_nonempty_list(Pipe, loc(instruction)?) Semi { ins }
 
 instruction :
-| MFence { P.MFence }
-| Mov x = loc(var) Comma e = loc(expr) { P.Assign (x, e) }
+| MFence { T.MFence }
+| Mov x = loc(var) Comma e = loc(expr) { T.Assign (x, e) }
 
 expr :
-| n = loc(Int) { P.Int n }
-| x = loc(var) { P.Var x }
+| n = loc(Int) { T.Int n }
+| x = loc(var) { T.Var x }
 
 var :
-| r = Reg { P.local_var (var_sym r) }
-| x = Shared { P.shared_var (var_sym x) }
+| r = Reg { local @@ var_sym r }
+| x = Shared { shared @@ var_sym x }
 
 exists :
 | Exists LPar condition = condition RPar {
@@ -140,12 +171,12 @@ exists :
   }
 
 condition :
-| { L.mkdummy @@ P.Bool (L.mkdummy true) }
+| { L.mkdummy @@ T.Bool (L.mkdummy true) }
 | eq = loc(equality) { eq }
 | eq = loc(equality) And eqs = condition {
     L.mkdummy @@
-    P.LogicBinop (
-      L.mkdummy O.Or,
+    T.Binop (
+      L.mkdummy T.Or,
       eq,
       eqs
     )
@@ -155,24 +186,22 @@ equality :
 | var = loc(threaded_var) Equals n = loc(Int) {
     (* Litmus properties are existential ones. As the verification
        works with universal properties, we negate them and check their
-       opposite. Thus safe tests should have their properties verifies
+       opposite. Thus safe tests should have their properties verified
        if the analysis is precise, and relaxed tests should not have
        their properties verified if the analysis is sound. *)
-    P.ArithRel (
-      L.mkdummy @@ O.Neq,
-      L.mkdummy @@ P.Var var,
-      L.mkdummy @@ P.Int n
+    T.Binop (
+      L.mkdummy @@ T.Neq,
+      L.mkdummy @@ T.Var var,
+      L.mkdummy @@ T.Int n
     )
   }
 
 threaded_var :
 | var_name = Shared {
-    P.create_var_view ~thread_id:0 @@
-    P.shared_var @@ var_sym var_name
+    shared @@ Context.MaybeThreaded.create None @@ var_sym var_name
   }
 
 | tid_var = ThreadedReg {
     let thread_id, var_name = tid_var in
-    P.create_var_view ~thread_id @@
-    P.local_var @@ var_sym var_name
+    local @@ Context.MaybeThreaded.create_some thread_id @@ var_sym var_name
   }
