@@ -21,11 +21,10 @@
 
 %left Or
 %left And
-%nonassoc Not
 %left Eq Neq Gt Ge Lt Le
 %left Plus Minus
 %left Times Divide
-
+%nonassoc unop
 
 %start
 <UntypedAst.program *
@@ -193,10 +192,10 @@ expression(var_id) :
 | LPar e = expression(var_id) RPar { e }
 | o = loc(arith_unop) e = loc(expression(var_id)) {
     U.ArithUnop (o, e)
-  }
+  } %prec unop
 | o = loc(logic_unop) e = loc(expression(var_id)) {
     U.LogicUnop (o, e)
-  }
+  } %prec unop
 | e1 = loc(expression(var_id))
   o = loc(arith_binop)
   e2 = loc(expression(var_id)) {
