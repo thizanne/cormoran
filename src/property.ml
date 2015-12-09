@@ -1,10 +1,10 @@
 open Batteries
 
 module L = Location
-module P = Program
 module MT = Context.MaybeThreaded
 module T = TypedAst
 module Ty = Types
+module C = Control
 
 (* A thread code portion delimited by two labels.
  * No initial label means 0.
@@ -26,7 +26,7 @@ type thread_zone = interval list
 (* Program states set defined as a conjunction of thread zones.
  * Typing should check that a given thread is present at most once in
  * a zone. *)
-type zone = (P.thread_id L.loc * thread_zone) list
+type zone = (C.thread_id L.loc * thread_zone) list
 
 type t = {
   zone : zone option;
@@ -49,14 +49,14 @@ let always_false = {
 let enum_interval interval t_labels t_final_label =
   (* Enumerates the control labels of an interval *)
   let initial = match interval.initial with
-    | None -> P.Control.Label.initial
+    | None -> C.Label.initial
     | Some { L.item = label; _ } -> Sym.Map.find label t_labels
   in
   let final = match interval.final with
     | None -> t_final_label
     | Some { L.item = label; _ } -> Sym.Map.find label t_labels
   in
-  P.Control.Label.enum ~initial ~final
+  C.Label.enum ~initial ~final
 
 let enum_thread_zone t_zone t_labels t_final_label =
   (* Enumerates the control labels of a thread zone *)
@@ -88,10 +88,10 @@ let list_zone zone ({ Cfg.labels; final_state; _ } as g) =
   |> List.mapi
     (fun tid t_zone ->
        enum_thread_zone t_zone labels.(tid) @@
-       P.Control.State.tid_label final_state tid)
+       C.State.tid_label final_state tid)
   |> List.map List.of_enum
   |> List.n_cartesian_product
-  |> List.map P.Control.State.from_label_list
+  |> List.map C.State.from_label_list
 
 module Make (D : Domain.Outer) = struct
   let full_flush g abstr =
@@ -101,7 +101,7 @@ module Make (D : Domain.Outer) = struct
            (Operation.MFence thread_id)
            abstr_acc)
       abstr
-      g.Cfg.program.P.threads
+      g.Cfg.program.T.threads
 
   let data_satisfies condition abstr =
     let neg_condition = T.Unop (L.mkdummy T.Not, L.mkdummy condition) in
