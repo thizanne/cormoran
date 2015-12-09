@@ -197,11 +197,6 @@ and type_body_loc info { L.item = body; loc } =
   let body, info = type_body info body in
   { L.item = body; loc }, info
 
-let count_shared =
-  T.fold_expr
-    { T.f = fun var acc -> if T.is_shared var then succ acc else acc }
-    0
-
 let check_label_defined labels bound =
   match bound with
   | None -> ()
