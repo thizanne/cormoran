@@ -15,10 +15,10 @@ module G : Graph.Sig.P
    and type E.label = Operation.t
 
 type t = private {
-  program : Program.var Program.t;
+  program : TypedAst.program;
   graph : G.t;
   labels : Program.Control.Label.t Sym.Map.t array;
   final_state : Program.Control.State.t;
 }
 
-val of_program : Program.var Program.t -> t
+val of_program : TypedAst.program -> t
