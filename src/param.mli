@@ -9,7 +9,7 @@ module Parse : sig
   val parse_filename :
     use_litmus:bool ->
     string ->
-    Program.var Program.t * Program.var_view Property.t list
+    TypedAst.program * Property.t list
 end
 
 module Output : sig
