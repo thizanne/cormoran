@@ -1,111 +1,98 @@
 open Batteries
-open Program
-open Location
-open Operators
+open Printf
 
-let string_of_arith_unop = function
-  | Neg -> "-"
+module T = TypedAst
+module L = Location
 
-let string_of_logic_unop = function
-  | Not -> "!"
+type precedence = int
 
-let string_of_arith_binop = function
-  | Add -> "+"
-  | Sub -> "-"
-  | Mul -> "×"
-  | Div  -> "/"
+let string_of_unop :
+  type t. t T.unop -> string =
+  function
+  | T.Neg -> "-"
+  | T.Not -> "!"
 
-let string_of_arith_rel = function
-  | Eq -> "="
-  | Neq -> "≠"
-  | Lt -> "<"
-  | Gt -> ">"
-  | Le -> "≤"
-  | Ge  -> "≥"
+let string_of_binop :
+  type t. t T.binop -> string =
+  function
+  | T.Add -> "+"
+  | T.Sub -> "-"
+  | T.Mul -> "×"
+  | T.Div  -> "/"
+  | T.Eq -> "="
+  | T.Neq -> "≠"
+  | T.Lt -> "<"
+  | T.Gt -> ">"
+  | T.Le -> "≤"
+  | T.Ge  -> "≥"
+  | T.And -> "∧"
+  | T.Or -> "∨"
 
-let string_of_logic_binop = function
-  | And -> "∧"
-  | Or -> "∨"
+let or_precedence = 0
+let and_precedence = 1
+let rel_precedence = 2
+let add_precedence = 3
+let mul_precedence = 4
+let unop_precedence = 5
 
-let unop_priority = 2
+let binop_precedence :
+  type a. a T.binop -> precedence =
+  function
+  | T.Add -> add_precedence
+  | T.Sub -> add_precedence
+  | T.Mul -> mul_precedence
+  | T.Div -> mul_precedence
+  | T.Or -> or_precedence
+  | T.And -> and_precedence
+  | T.Eq -> rel_precedence
+  | T.Neq -> rel_precedence
+  | T.Gt -> rel_precedence
+  | T.Ge -> rel_precedence
+  | T.Lt -> rel_precedence
+  | T.Le -> rel_precedence
 
-let arith_op_priority = function
-  | Add
-  | Sub -> 0
-  | Mul
-  | Div -> 1
+let expr_precedence :
+  type t. (_, t) T.expression -> precedence =
+  function
+  | T.Int _ -> unop_precedence
+  | T.Bool _ -> unop_precedence
+  | T.Var _ -> unop_precedence
+  | T.Unop _ -> unop_precedence
+  | T.Binop ( op, _, _) ->
+    binop_precedence op.L.item
 
-let arith_priority = function
-  | Int _
-  | Var _
-  | ArithUnop _ -> unop_priority
-  | ArithBinop (op, _, _) -> arith_op_priority op.item
+type ('a, 'id) var_printer = {
+  f : 't. 'a IO.output -> ('id, 't) T.var -> unit
+}
 
-let logic_op_priority = function
-  | Or -> 0
-  | And -> 1
+let rec print_inside_prec :
+  type t. precedence -> _ -> _ -> (_, t) T.expression -> unit =
+  fun prec print_var output expr ->
+    fprintf output
+      (if expr_precedence expr > prec
+       then "%a"
+       else "(%a)")
+      (print_expression print_var) expr
 
-let logic_priority = function
-  | ArithRel _ -> 1
-  | Bool _
-  | LogicUnop _ -> unop_priority
-  | LogicBinop (op, _, _) -> logic_op_priority op.item
-
-let paren_print print output item =
-  Printf.fprintf output "(%a)"
-    print item
-
-let prio_print outer_prio get_inner_prio print output item =
-  if get_inner_prio item < outer_prio
-  then paren_print print output item
-  else print output item
-
-let rec print_expression print_var output = function
-  | Int n ->
-    Int.print output n.item
-  | Var x ->
-    print_var output x.item
-  | ArithUnop (op, e) ->
-    Printf.fprintf output "%s%a"
-      (string_of_arith_unop op.item)
-      (prio_print unop_priority arith_priority (print_expression print_var))
-      e.item
-  | ArithBinop (op, e1, e2) ->
-    Printf.fprintf output "%a %s %a"
-      (prio_print
-         (arith_op_priority op.item)
-         arith_priority
-         (print_expression print_var))
-      e1.item
-      (string_of_arith_binop op.item)
-      (prio_print
-         (arith_op_priority op.item)
-         arith_priority
-         (print_expression print_var))
-      e2.item
-
-let rec print_condition print_var output = function
-  | Bool b -> Bool.print output b.item
-  | LogicUnop (op, c) ->
-    Printf.fprintf output "%s %a"
-      (string_of_logic_unop op.item)
-      (prio_print unop_priority logic_priority @@ print_condition print_var)
-      c.item
-  | LogicBinop (op, e1, e2) ->
-    Printf.fprintf output "%a %s %a"
-      (prio_print
-         (logic_op_priority op.item)
-         logic_priority
-         (print_condition print_var))
-      e1.item
-      (string_of_logic_binop op.item)
-      (prio_print
-         (logic_op_priority op.item)
-         logic_priority
-         (print_condition print_var))
-      e2.item
-  | ArithRel (rel, e1, e2) ->
-    Printf.fprintf output "%a %s %a"
-      (print_expression print_var) e1.item
-      (string_of_arith_rel rel.item)
-      (print_expression print_var) e2.item
+and print_expression :
+  type t. _ -> _ -> (_, t) T.expression -> unit =
+  fun print_var output expression ->
+    match expression with
+    | T.Int n ->
+      Int.print output n.L.item
+    | T.Bool b ->
+      Bool.print output b.L.item
+    | T.Var x ->
+      print_var.f output x.L.item
+    | T.Unop (op, e) ->
+      fprintf output "%s%a"
+        (string_of_unop op.L.item)
+        (print_inside_prec unop_precedence print_var)
+        e.L.item
+    | T.Binop (op, e1, e2) ->
+      fprintf output "%a %s %a"
+        (print_inside_prec (binop_precedence op.L.item) print_var)
+        e1.L.item
+        (string_of_binop op.L.item)
+        (print_inside_prec (binop_precedence op.L.item) print_var)
+        e2.L.item
