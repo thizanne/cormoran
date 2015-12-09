@@ -20,6 +20,10 @@ let is_shared { var_origin; _ } = match var_origin with
   | Types.Local -> false
   | Types.Shared -> true
 
+let is_local { var_origin; _ } = match var_origin with
+  | Types.Local -> true
+  | Types.Shared -> false
+
 type _ unop =
   | Neg : (int -> int) unop
   | Not : (bool -> bool) unop
