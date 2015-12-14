@@ -18,7 +18,7 @@ module State : sig
   val from_label_list : Label.t list -> t
   val tid_label : t -> thread_id -> Label.t
   val is_initial : t -> bool
-  val initial : TypedAst.program -> t
+  val initial : int -> t
   val compare : t -> t -> int
   val print : 'a IO.output -> t -> unit
 end

@@ -8,29 +8,51 @@ module Identity = struct
   type 'a t = 'a
 end
 
-module Threaded = struct
+module AddSimpleContext (Ctx : sig type t end) = struct
+  type context = Ctx.t
+
   type 'a t = {
     item : 'a;
-    thread_id : Program.thread_id;
+    context : context;
   }
+
+  let create item context =
+    { item; context }
 end
 
-module MaybeThreaded = struct
-  type 'a t = {
-    item : 'a;
-    thread_id : Program.thread_id option;
-  }
+module Source = struct
+  type t =
+    | Local of Control.thread_id
+    | View of Control.thread_id
+    | Mem
+end
 
-  let create thread_id item =
-    { thread_id; item }
+module Sourced = struct
+  include AddSimpleContext (Source)
 
-  let create_some thread_id item =
-    { thread_id = Some thread_id; item }
-
-  let print print_item output { thread_id; item } =
-    match thread_id with
-    | None ->
+  let print print_item output { item; context } =
+    match context with
+    | Source.Mem ->
       Printf.fprintf output "%a:mem" print_item item
-    | Some thread_id ->
+    | Source.Local thread_id
+    | Source.View thread_id ->
       Printf.fprintf output "%a:%d" print_item item thread_id
+end
+
+module Visibility = struct
+  type t =
+    | Local
+    | Shared
+end
+
+module Visible = struct
+  include AddSimpleContext (Visibility)
+
+  let is_shared { context; _ } = match context with
+    | Visibility.Local -> false
+    | Visibility.Shared -> true
+
+  let is_local { context; _ } = match context with
+    | Visibility.Local -> true
+    | Visibility.Shared -> false
 end

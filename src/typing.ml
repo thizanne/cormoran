@@ -5,20 +5,19 @@ module L = Location
 module T = TypedAst
 module U = UntypedAst
 module Ty = Types
-module MT = Context.MaybeThreaded
+module O = Operators
 
-type 'id var_loc_typer =
+type ('src, 'dest) var_loc_typer =
   (* We need higher order polymorphism in type_expression *)
-  { f : 't. 't Ty.t -> 'id L.loc -> ('id, 't) T.var L.loc }
+  { f : 't. 't Ty.t -> 'src L.loc -> 'dest L.loc }
 
 let type_program_var env expected_type loc var_sym =
     let found_type, found_origin = Env.get_entry loc var_sym env in
     if Env.are_compatible_types found_type expected_type
-    then {
-      T.var_type = expected_type;
-      var_origin = found_origin;
-      var_id = var_sym;
-    }
+    then Context.Visible.create {
+        Var.var_type = expected_type;
+        var_sym;
+      } found_origin
     else
       Error.type_loc_error loc @@
       Printf.sprintf2 "Var %s has type %a but type %a was expected"
@@ -35,40 +34,40 @@ let program_var_loc_typer env =
 let type_arith_unop_loc =
   L.comap (
     function
-    | U.Neg -> T.Neg
+    | U.Neg -> O.Neg
   )
 
 let type_logic_unop_loc =
   L.comap (
     function
-    | U.Not -> T.Not
+    | U.Not -> O.Not
   )
 
 let type_arith_binop_loc =
   L.comap (
     function
-    | U.Add -> T.Add
-    | U.Sub -> T.Sub
-    | U.Mul -> T.Mul
-    | U.Div -> T.Div
+    | U.Add -> O.Add
+    | U.Sub -> O.Sub
+    | U.Mul -> O.Mul
+    | U.Div -> O.Div
   )
 
 let type_logic_binop_loc =
   L.comap (
     function
-    | U.And -> T.And
-    | U.Or -> T.Or
+    | U.And -> O.And
+    | U.Or -> O.Or
   )
 
 let type_arith_relop_loc =
   L.comap (
     function
-    | U.Eq -> T.Eq
-    | U.Neq -> T.Neq
-    | U.Lt -> T.Lt
-    | U.Gt -> T.Gt
-    | U.Le -> T.Le
-    | U.Ge -> T.Ge
+    | U.Eq -> O.Eq
+    | U.Neq -> O.Neq
+    | U.Lt -> O.Lt
+    | U.Gt -> O.Gt
+    | U.Le -> O.Le
+    | U.Ge -> O.Ge
   )
 
 let exp_loc_type_expected env exp_loc = match exp_loc.L.item with
@@ -83,7 +82,8 @@ let exp_loc_type_expected env exp_loc = match exp_loc.L.item with
 
 let rec type_expression :
   type t.
-  'id var_loc_typer ->
+  (module Expression.S) ->
+  ('id, 'dest) var_loc_typer ->
   t Ty.t ->
   L.t ->
   'id U.expression ->
@@ -129,7 +129,8 @@ let rec type_expression :
 
 and type_expression_loc :
   type t.
-  'id var_loc_typer ->
+  (module Expression.S) ->
+  ('id, 'dest) var_loc_typer ->
   t Ty.t ->
   'id U.expression L.loc ->
   ('id, t) T.expression L.loc =
@@ -231,9 +232,10 @@ let check_zone all_labels zone =
 
 let type_property_var
     (global_env, thread_envs)
-    expected_type loc ({ MT.item = var_sym; thread_id } as mt_var)
+    expected_type loc
+    ({ Context.Source.item = var_sym; context = source } as sourced_var)
   =
-  let env = match thread_id with
+  let env = match source with
     | None -> global_env
     | Some tid -> List.nth thread_envs tid in
   let found_type, found_origin = Env.get_entry loc var_sym env in
@@ -274,8 +276,8 @@ let initial_constant_entry = function
   | U.ConstBool _ -> Env.Bool, Ty.Shared
 
 let type_initial_constant = function
-  | U.ConstInt n -> T.ConstInt n
-  | U.ConstBool b -> T.ConstBool b
+  | U.ConstInt n -> Env.ConstInt n
+  | U.ConstBool b -> Env.ConstBool b
 
 let type_program ({ U.initial; threads }, properties) =
   let shared_env = Sym.Map.map initial_constant_entry initial in

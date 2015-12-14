@@ -4,6 +4,10 @@ open Batteries
 module L = Location
 module Ty = Types
 
+type constant =
+  | ConstInt of int
+  | ConstBool of bool
+
 type ty =
   | Int
   | Bool
