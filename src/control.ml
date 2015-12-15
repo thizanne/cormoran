@@ -27,8 +27,8 @@ module State = struct
   let is_initial =
     List.for_all (( = ) 0)
 
-  let initial nb_threads =
-    List.make nb_threads 0
+  let initial program =
+    List.map (fun _ -> 0) program.TypedAst.threads
 
   let print output =
     List.print Int.print ~first:"" ~last:"" output

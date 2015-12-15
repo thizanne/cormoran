@@ -1,22 +1,101 @@
 open Batteries
 
 module L = Location
-module Ty = Types
-module C = Context
+module MT = Context.MaybeThreaded
 
-module ProgramExpression = Expression.Make (C.Visible)
-type 't program_var = 't ProgramExpression.var
+type ('id, 't) var = {
+  var_type : 't Types.t;
+  var_origin : Types.origin;
+  var_id : 'id;
+}
 
-module PropertyExpression = Expression.Make (C.Sourced)
-type property_condition = bool PropertyExpression.t
+let var_id_map f { var_type; var_origin; var_id } =
+  { var_type; var_origin; var_id = f var_id }
 
-(*
+type 't program_var = (Sym.t, 't) var
+
+type 't property_var = (Sym.t MT.t, 't) var
+
+let is_shared { var_origin; _ } = match var_origin with
+  | Types.Local -> false
+  | Types.Shared -> true
+
+let is_local { var_origin; _ } = match var_origin with
+  | Types.Local -> true
+  | Types.Shared -> false
+
+type _ unop =
+  | Neg : (int -> int) unop
+  | Not : (bool -> bool) unop
+
+let unop_fun : type a b. (a -> b) unop -> a -> b =
+  function
+  | Neg -> ( ~- )
+  | Not -> ( not )
+
+type _ binop =
+  | Add : (int -> int -> int) binop
+  | Sub : (int -> int -> int) binop
+  | Mul : (int -> int -> int) binop
+  | Div : (int -> int -> int) binop
+  | Eq : (int -> int -> bool) binop
+  | Neq : (int -> int -> bool) binop
+  | Lt : (int -> int -> bool) binop
+  | Gt : (int -> int -> bool) binop
+  | Le : (int -> int -> bool) binop
+  | Ge : (int -> int -> bool) binop
+  | And : (bool -> bool -> bool) binop
+  | Or : (bool -> bool -> bool) binop
+
+let binop_fun : type a b c. (a -> b -> c) binop -> a -> b -> c =
+  let open Int in
+  function
+  | Add -> ( + )
+  | Sub -> ( - )
+  | Mul -> ( * )
+  | Div -> ( / )
+  | Eq -> ( = )
+  | Neq -> ( <> )
+  | Lt -> ( < )
+  | Gt -> ( > )
+  | Le -> ( <= )
+  | Ge  -> ( >= )
+  | And -> ( && )
+  | Or -> ( || )
+
+type (_, _) expression =
+  (* (type of variables identifiers, type of the expression) *)
+  | Int :
+      int Location.loc ->
+    ('a, int) expression
+  | Bool :
+      bool Location.loc ->
+    ('a, bool) expression
+  | Var :
+      ('id, 't) var Location.loc ->
+    ('id, 't) expression
+  | Unop :
+      ('a -> 'b) unop Location.loc *
+      ('id, 'a) expression Location.loc ->
+    ('id, 'b) expression
+  | Binop :
+      ('a -> 'b -> 'c) binop Location.loc *
+      ('id, 'a) expression Location.loc *
+      ('id, 'b) expression Location.loc ->
+    ('id, 'c) expression
+
+type 't program_expression = (Sym.t, 't) expression
+
+type property_condition = (Sym.t MT.t, bool) expression
+
+type ('id1, 'id2) var_mapper = {
+  f : 'a. ('id1, 'a) var -> ('id2, 'a) var
+}
 
 let rec map_expr :
   type a.
-  ('info1, 'info2) var_mapper ->
-  ('info1, a) expression ->
-  ('info2, a) expression =
+  ('id1, 'id2) var_mapper -> ('id1, a) expression -> ('id2, a) expression
+  =
   fun mapper exp ->
     match exp with
     | Int n -> Int n
@@ -33,9 +112,9 @@ let rec map_expr :
 
 and map_expr_loc :
   type a.
-  ('info1, 'info2) var_mapper ->
-  ('info1, a) expression L.loc ->
-  ('info2, a) expression L.loc
+  ('id1, 'id2) var_mapper ->
+  ('id1, a) expression L.loc ->
+  ('id2, a) expression L.loc
   =
   fun mapper ->
     L.comap (map_expr mapper)
@@ -45,16 +124,12 @@ let add_thread_info tid expr =
   let mapper = { f = put_thread } in
   map_expr mapper expr
 
-type ('info1, 'info2) var_mapper = {
-  f : 'a. ('info1, 'a) var -> ('info2, 'a) var
-}
-
-type ('info, 'acc) var_folder = {
-  f : 'a. ('info, 'a) var -> 'acc -> 'acc
+type ('id, 'acc) var_folder = {
+  f : 'a. ('id, 'a) var -> 'acc -> 'acc
 }
 
 let rec fold_expr :
-  type a. ('info, 'acc) var_folder -> 'acc -> ('info, a) expression -> 'acc =
+  type a. ('id, 'acc) var_folder -> 'acc -> ('id, a) expression -> 'acc =
   fun f acc exp ->
     match exp with
     | Int _ -> acc
@@ -63,7 +138,6 @@ let rec fold_expr :
     | Unop (_, exp) -> fold_expr f acc exp.L.item
     | Binop (_, exp1, exp2) ->
       fold_expr f (fold_expr f acc exp2.L.item) exp1.L.item
-*)
 
 type body =
   | Nothing
@@ -74,19 +148,19 @@ type body =
       body Location.loc *
       body Location.loc
   | Assign :
-      't ProgramExpression.var Location.loc *
-      't ProgramExpression.t Location.loc ->
+      't program_var Location.loc *
+      't program_expression Location.loc ->
     body
   | If of
-      bool ProgramExpression.t Location.loc * (* Condition *)
+      bool program_expression Location.loc * (* Condition *)
       body Location.loc (* Body *)
   | While of
-      bool ProgramExpression.t Location.loc * (* Condition *)
+      bool program_expression Location.loc * (* Condition *)
       body Location.loc (* Body *)
   | For of
-      int ProgramExpression.var Location.loc * (* Indice *)
-      int ProgramExpression.t Location.loc * (* From *)
-      int ProgramExpression.t Location.loc * (* To *)
+      int program_var Location.loc * (* Indice *)
+      int program_expression Location.loc * (* From *)
+      int program_expression Location.loc * (* To *)
       body Location.loc (* Body *)
 
 type thread = {
@@ -94,7 +168,11 @@ type thread = {
   body : body Location.loc;
 }
 
+type constant =
+  | ConstInt of int
+  | ConstBool of bool
+
 type program = {
-  initial : Env.constant Sym.Map.t;
+  initial : constant Sym.Map.t;
   threads : thread list;
 }

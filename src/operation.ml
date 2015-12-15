@@ -2,12 +2,12 @@ open Batteries
 
 type t =
   | Identity
-  | MFence of Control.thread_id
+  | MFence of Program.thread_id
   | Filter of TypedAst.property_condition
   | Assign :
-      Control.thread_id *
+      Program.thread_id *
       't TypedAst.program_var *
-      't TypedAst.ProgramExpression.t ->
+      't TypedAst.program_expression ->
     t
 
 let compare = Pervasives.compare

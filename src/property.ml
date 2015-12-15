@@ -1,11 +1,10 @@
 open Batteries
 
 module L = Location
+module MT = Context.MaybeThreaded
 module T = TypedAst
-module O = Operators
-module Cond = T.PropertyExpression
 module Ty = Types
-module Ctrl = Control
+module C = Control
 
 (* A thread code portion delimited by two labels.
  * No initial label means 0.
@@ -27,22 +26,22 @@ type thread_zone = interval list
 (* Program states set defined as a conjunction of thread zones.
  * Typing should check that a given thread is present at most once in
  * a zone. *)
-type zone = (Ctrl.thread_id L.loc * thread_zone) list
+type zone = (C.thread_id L.loc * thread_zone) list
 
 type t = {
   zone : zone option;
   (* None means end of the program, once flushed *)
-  condition : T.property_condition L.loc;
+  condition : (Sym.t MT.t, bool) T.expression L.loc;
 }
 
 let always_true = {
   zone = None;
-  condition = L.mkdummy @@ Cond.Bool (Location.mkdummy true);
+  condition = L.mkdummy @@ T.Bool (Location.mkdummy true);
 }
 
 let always_false = {
   zone = None;
-  condition = L.mkdummy @@ Cond.Bool (Location.mkdummy false);
+  condition = L.mkdummy @@ T.Bool (Location.mkdummy false);
 }
 
 (* Getting control states from a labelled zone *)
@@ -50,14 +49,14 @@ let always_false = {
 let enum_interval interval t_labels t_final_label =
   (* Enumerates the control labels of an interval *)
   let initial = match interval.initial with
-    | None -> Ctrl.Label.initial
+    | None -> C.Label.initial
     | Some { L.item = label; _ } -> Sym.Map.find label t_labels
   in
   let final = match interval.final with
     | None -> t_final_label
     | Some { L.item = label; _ } -> Sym.Map.find label t_labels
   in
-  Ctrl.Label.enum ~initial ~final
+  C.Label.enum ~initial ~final
 
 let enum_thread_zone t_zone t_labels t_final_label =
   (* Enumerates the control labels of a thread zone *)
@@ -89,10 +88,10 @@ let list_zone zone ({ Cfg.labels; final_state; _ } as g) =
   |> List.mapi
     (fun tid t_zone ->
        enum_thread_zone t_zone labels.(tid) @@
-       Ctrl.State.tid_label final_state tid)
+       C.State.tid_label final_state tid)
   |> List.map List.of_enum
   |> List.n_cartesian_product
-  |> List.map Ctrl.State.from_label_list
+  |> List.map C.State.from_label_list
 
 module Make (D : Domain.Outer) = struct
   let full_flush g abstr =
@@ -105,7 +104,7 @@ module Make (D : Domain.Outer) = struct
       g.Cfg.program.T.threads
 
   let data_satisfies condition abstr =
-    let neg_condition = Cond.Unop (L.mkdummy O.Not, L.mkdummy condition) in
+    let neg_condition = T.Unop (L.mkdummy T.Not, L.mkdummy condition) in
     D.is_bottom (D.transfer (Operation.Filter neg_condition) abstr)
 
   let satisfies { zone; condition } g data =

@@ -51,7 +51,7 @@ type body_expression =
   Sym.t expression
 
 type property_expression =
-  Sym.t Context.Sourced.t expression
+  Sym.t Context.MaybeThreaded.t expression
 
 type body =
   | Nothing
