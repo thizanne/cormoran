@@ -36,21 +36,21 @@ let cfg_of_thread thread_id { T.body; _ } =
   let open Operation in
   let open Control.Label in
 
-  let thread_cond = T.add_thread_info thread_id in
+  let source_cond = T.add_source (Some thread_id) in
 
   let filter cond =
-    Filter (thread_cond cond.L.item)
+    Filter (source_cond cond.L.item)
   in
 
   let filter_not cond =
     (* Turns a var condition into the negation of its threaded condition *)
-    Filter (thread_cond (T.Unop (L.mkdummy T.Not, cond)))
+    Filter (source_cond (T.Unop (L.mkdummy T.Not, cond)))
   in
 
   let for_filter rel i exp =
     (* Builds the Filter for continuing a for loop *)
     Filter (
-      thread_cond (
+      source_cond (
         T.Binop (
           L.mkdummy rel,
           L.mkloc (T.Var i) i.L.loc,

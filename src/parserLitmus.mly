@@ -34,21 +34,21 @@
       k (function None -> Some v | Some v' -> Some v') map
 
   let local_in_expr :
-  type t. (Sym.t, t) T.expression -> Sym.t list =
+  type t. t T.program_expression -> Sym.t list =
     fun expression ->
     T.fold_expr
       { T.f =
           fun var acc ->
-          if T.is_local var then var.T.var_id :: acc else acc }
+          if T.is_local var then var.T.var_sym :: acc else acc }
       [] expression
 
   let shared_in_expr :
-  type t. (Sym.t, t) T.expression -> Sym.t list =
+  type t. t T.program_expression -> Sym.t list =
     fun expression ->
     T.fold_expr
       { T.f =
           fun var acc ->
-          if T.is_shared var then var.T.var_id :: acc else acc }
+          if T.is_shared var then var.T.var_sym :: acc else acc }
       [] expression
 
   let rec get_local { L.item = body; _ } = match body with
@@ -58,7 +58,7 @@
     | T.Seq (b1, b2) -> Sym.Set.union (get_local b1) (get_local b2)
     | T.Assign (x, e) ->
       if T.is_local x.L.item
-      then Sym.Set.singleton x.L.item.T.var_id
+      then Sym.Set.singleton x.L.item.T.var_sym
       else begin
         match local_in_expr e.L.item with
         | [y] -> Sym.Set.singleton y
@@ -80,7 +80,7 @@
         acc |> scan_body b1.L.item |> scan_body b2.L.item
       | T.Assign (x, e) ->
         if T.is_shared x.L.item
-        then add_preserve x.L.item.T.var_id (T.ConstInt 0) acc
+        then add_preserve x.L.item.T.var_sym (T.ConstInt 0) acc
         else begin
           match shared_in_expr e.L.item with
           | [y] -> Sym.Map.add y (T.ConstInt 0) acc
@@ -92,11 +92,8 @@
       (fun acc thread -> scan_body thread.T.body.L.item acc)
       acc threads
 
-  let shared sym =
-    { T.var_id = sym; var_type = Ty.Int; var_origin = Ty.Shared }
-
-  let local sym =
-    { T.var_id = sym; var_type = Ty.Int; var_origin = Ty.Local }
+  let var var_sym var_spec =
+    { T.var_sym; var_type = Ty.Int; var_spec }
 
 %}
 
@@ -114,6 +111,12 @@
 
 %inline loc(X) :
 | x = X { L.mk x $startpos $endpos }
+
+%inline shared_sym :
+| x = Shared { var_sym x }
+
+%inline register_sym :
+| r = Reg { var_sym r }
 
 program :
 | init = init_dec threads = code properties = exists Eof {
@@ -137,7 +140,7 @@ init_dec :
   }
 
 init_var :
-| v = Shared Equals x = Int { var_sym v, T.ConstInt x }
+| v = shared_sym Equals x = Int { v, T.ConstInt x }
 
 code :
 | lines = line+ {
@@ -162,8 +165,8 @@ expr :
 | x = loc(var) { T.Var x }
 
 var :
-| r = Reg { local @@ var_sym r }
-| x = Shared { shared @@ var_sym x }
+| r = register_sym { var r Ty.Local }
+| x = shared_sym { var x Ty.Shared }
 
 exists :
 | Exists LPar condition = condition RPar {
@@ -183,7 +186,7 @@ condition :
   }
 
 equality :
-| var = loc(threaded_var) Equals n = loc(Int) {
+| var = loc(sourced_var) Equals n = loc(Int) {
     (* Litmus properties are existential ones. As the verification
        works with universal properties, we negate them and check their
        opposite. Thus safe tests should have their properties verified
@@ -196,12 +199,9 @@ equality :
     )
   }
 
-threaded_var :
-| var_name = Shared {
-    shared @@ Context.MaybeThreaded.create None @@ var_sym var_name
-  }
-
+sourced_var :
+| x = shared_sym { var x Source.Memory  }
 | tid_var = ThreadedReg {
     let thread_id, var_name = tid_var in
-    local @@ Context.MaybeThreaded.create_some thread_id @@ var_sym var_name
+    var (var_sym var_name) (Source.Local thread_id)
   }

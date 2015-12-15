@@ -1,7 +1,6 @@
 open Batteries
 
 module L = Location
-module MT = Context.MaybeThreaded
 module T = TypedAst
 module Ty = Types
 module C = Control
@@ -31,7 +30,7 @@ type zone = (C.thread_id L.loc * thread_zone) list
 type t = {
   zone : zone option;
   (* None means end of the program, once flushed *)
-  condition : (Sym.t MT.t, bool) T.expression L.loc;
+  condition : T.property_condition L.loc;
 }
 
 let always_true = {

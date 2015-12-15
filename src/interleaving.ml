@@ -22,11 +22,11 @@ module Make (D : Domain.Outer) = struct
   let analyze g widening_delay =
     let wto =
       Wto.recursive_scc g.Cfg.graph @@
-      Program.Control.State.initial g.Cfg.program
+      Control.State.initial @@ List.length g.Cfg.program.TypedAst.threads
     in
 
     let init control_state =
-      if Program.Control.State.is_initial control_state
+      if Control.State.is_initial control_state
       then D.init g.Cfg.program
       else D.bottom
     in

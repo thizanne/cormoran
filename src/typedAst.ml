@@ -1,26 +1,26 @@
 open Batteries
 
 module L = Location
-module MT = Context.MaybeThreaded
+module Ty = Types
 
-type ('id, 't) var = {
+type ('t, 'spec) var = {
+  var_sym : Sym.t;
   var_type : 't Types.t;
-  var_origin : Types.origin;
-  var_id : 'id;
+  var_spec : 'spec;
 }
 
-let var_id_map f { var_type; var_origin; var_id } =
-  { var_type; var_origin; var_id = f var_id }
+let var_spec_map f { var_sym; var_type; var_spec } =
+  { var_sym; var_type; var_spec = f var_spec }
 
-type 't program_var = (Sym.t, 't) var
+type 't program_var = ('t, Ty.origin) var
 
-type 't property_var = (Sym.t MT.t, 't) var
+type 't property_var = ('t, Source.t) var
 
-let is_shared { var_origin; _ } = match var_origin with
+let is_shared { var_spec; _ } = match var_spec with
   | Types.Local -> false
   | Types.Shared -> true
 
-let is_local { var_origin; _ } = match var_origin with
+let is_local { var_spec; _ } = match var_spec with
   | Types.Local -> true
   | Types.Shared -> false
 
@@ -64,37 +64,37 @@ let binop_fun : type a b c. (a -> b -> c) binop -> a -> b -> c =
   | Or -> ( || )
 
 type (_, _) expression =
-  (* (type of variables identifiers, type of the expression) *)
+  (* (type of the expression, type of variables specs) *)
   | Int :
       int Location.loc ->
-    ('a, int) expression
+    (int, 'a) expression
   | Bool :
       bool Location.loc ->
-    ('a, bool) expression
+    (bool, 'a) expression
   | Var :
-      ('id, 't) var Location.loc ->
-    ('id, 't) expression
+      ('t, 'spec) var Location.loc ->
+    ('t, 'spec) expression
   | Unop :
       ('a -> 'b) unop Location.loc *
-      ('id, 'a) expression Location.loc ->
-    ('id, 'b) expression
+      ('a, 'spec) expression Location.loc ->
+    ('b, 'spec) expression
   | Binop :
       ('a -> 'b -> 'c) binop Location.loc *
-      ('id, 'a) expression Location.loc *
-      ('id, 'b) expression Location.loc ->
-    ('id, 'c) expression
+      ('a, 'spec) expression Location.loc *
+      ('b, 'spec) expression Location.loc ->
+    ('c, 'spec) expression
 
-type 't program_expression = (Sym.t, 't) expression
+type 't program_expression = ('t, Ty.origin) expression
 
-type property_condition = (Sym.t MT.t, bool) expression
+type property_condition = (bool, Source.t) expression
 
-type ('id1, 'id2) var_mapper = {
-  f : 'a. ('id1, 'a) var -> ('id2, 'a) var
+type ('spec1, 'spec2) var_mapper = {
+  f : 'a. ('a, 'spec1) var -> ('a, 'spec2) var
 }
 
 let rec map_expr :
-  type a.
-  ('id1, 'id2) var_mapper -> ('id1, a) expression -> ('id2, a) expression
+  type t.
+  (_, _) var_mapper -> (t, _) expression -> (t, _) expression
   =
   fun mapper exp ->
     match exp with
@@ -111,25 +111,25 @@ let rec map_expr :
       )
 
 and map_expr_loc :
-  type a.
-  ('id1, 'id2) var_mapper ->
-  ('id1, a) expression L.loc ->
-  ('id2, a) expression L.loc
+  type t.
+  (_, _) var_mapper ->
+  (t, _) expression L.loc ->
+  (t, _) expression L.loc
   =
   fun mapper ->
     L.comap (map_expr mapper)
 
-let add_thread_info tid expr =
-  let put_thread v = var_id_map (MT.create_some tid) v in
+let add_source tid expr =
+  let put_thread v = var_spec_map (Source.threaded tid) v in
   let mapper = { f = put_thread } in
   map_expr mapper expr
 
-type ('id, 'acc) var_folder = {
-  f : 'a. ('id, 'a) var -> 'acc -> 'acc
+type ('spec, 'acc) var_folder = {
+  f : 't. ('t, 'spec) var -> 'acc -> 'acc
 }
 
 let rec fold_expr :
-  type a. ('id, 'acc) var_folder -> 'acc -> ('id, a) expression -> 'acc =
+  type t. (_, _) var_folder -> _ -> (t, _) expression -> _ =
   fun f acc exp ->
     match exp with
     | Int _ -> acc

@@ -2,10 +2,10 @@ open Batteries
 
 type t =
   | Identity
-  | MFence of Program.thread_id
+  | MFence of Control.thread_id
   | Filter of TypedAst.property_condition
   | Assign :
-      Program.thread_id *
+      Control.thread_id *
       't TypedAst.program_var *
       't TypedAst.program_expression ->
     t

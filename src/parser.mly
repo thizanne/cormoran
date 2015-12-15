@@ -29,7 +29,7 @@
 %start
 <UntypedAst.program *
    (Property.zone option *
-      Sym.t Context.MaybeThreaded.t UntypedAst.expression Location.loc)
+      (Sym.t * Control.thread_id option) UntypedAst.expression Location.loc)
      list>
   program
 
@@ -94,17 +94,11 @@ property :
     (zone, condition)
   }
 
-threaded(X) :
-| thread_id = Int Colon x = X { thread_id, x }
+thread_info :
+| thread_id = Int Colon { thread_id }
 
 maybe_threaded(X) :
-| x = X {
-    Context.MaybeThreaded.{ item = x; thread_id = None }
-  }
-| tid_x = threaded(X) {
-    let tid, x = tid_x in
-    Context.MaybeThreaded.{ item = x; thread_id = Some tid }
-  }
+| tid = thread_info ? x = X { x, tid }
 
 threaded_loc(X) :
 | thread_id = loc(Int) Colon x = X { thread_id, x }

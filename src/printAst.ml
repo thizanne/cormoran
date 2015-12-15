@@ -52,7 +52,7 @@ let binop_precedence :
   | T.Le -> rel_precedence
 
 let expr_precedence :
-  type t. (_, t) T.expression -> precedence =
+  type t. (t, _) T.expression -> precedence =
   function
   | T.Int _ -> unop_precedence
   | T.Bool _ -> unop_precedence
@@ -61,12 +61,12 @@ let expr_precedence :
   | T.Binop ( op, _, _) ->
     binop_precedence op.L.item
 
-type ('a, 'id) var_printer = {
-  f : 't. 'a IO.output -> ('id, 't) T.var -> unit
+type ('a, 'spec) var_printer = {
+  f : 't. 'a IO.output -> ('t, 'spec) T.var -> unit
 }
 
 let rec print_inside_prec :
-  type t. precedence -> _ -> _ -> (_, t) T.expression -> unit =
+  type t. precedence -> _ -> _ -> (t, _) T.expression -> unit =
   fun prec print_var output expr ->
     fprintf output
       (if expr_precedence expr > prec
@@ -75,7 +75,7 @@ let rec print_inside_prec :
       (print_expression print_var) expr
 
 and print_expression :
-  type t. _ -> _ -> (_, t) T.expression -> unit =
+  type t. _ -> _ -> (t, _) T.expression -> unit =
   fun print_var output expression ->
     match expression with
     | T.Int n ->
@@ -98,11 +98,12 @@ and print_expression :
         e2.L.item
 
 let program_var_printer = {
-  f = fun output { T.var_id; _ } ->
-    Sym.print output var_id
+  f = fun output { T.var_sym; _ } ->
+    Sym.print output var_sym
 }
 
 let property_var_printer = {
-  f = fun output { T.var_id; _ } ->
-    Context.MaybeThreaded.print Sym.print output var_id
+  f = fun output { T.var_sym; var_spec } ->
+    fprintf output "%a:%a"
+      Sym.print var_sym Source.print var_spec
 }

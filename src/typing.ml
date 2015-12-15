@@ -5,19 +5,18 @@ module L = Location
 module T = TypedAst
 module U = UntypedAst
 module Ty = Types
-module MT = Context.MaybeThreaded
 
-type 'id var_loc_typer =
+type ('var, 'spec) var_loc_typer =
   (* We need higher order polymorphism in type_expression *)
-  { f : 't. 't Ty.t -> 'id L.loc -> ('id, 't) T.var L.loc }
+  { f : 't. 't Ty.t -> 'var L.loc -> ('t, 'spec) T.var L.loc }
 
 let type_program_var env expected_type loc var_sym =
     let found_type, found_origin = Env.get_entry loc var_sym env in
     if Env.are_compatible_types found_type expected_type
     then {
+      var_sym;
       T.var_type = expected_type;
-      var_origin = found_origin;
-      var_id = var_sym;
+      var_spec = found_origin;
     }
     else
       Error.type_loc_error loc @@
@@ -83,11 +82,11 @@ let exp_loc_type_expected env exp_loc = match exp_loc.L.item with
 
 let rec type_expression :
   type t.
-  'id var_loc_typer ->
+  ('var, 'spec) var_loc_typer ->
   t Ty.t ->
   L.t ->
-  'id U.expression ->
-  ('id, t) T.expression =
+  'var U.expression ->
+  (t, 'spec) T.expression =
   fun var_loc_typer expected_type loc expr ->
     match expected_type, expr with
     | Ty.Int, U.Int n -> T.Int n
@@ -129,10 +128,10 @@ let rec type_expression :
 
 and type_expression_loc :
   type t.
-  'id var_loc_typer ->
+  ('var, 'spec) var_loc_typer ->
   t Ty.t ->
-  'id U.expression L.loc ->
-  ('id, t) T.expression L.loc =
+  'var U.expression L.loc ->
+  (t, 'spec) T.expression L.loc =
   fun var_loc_typer ty { L.item = exp; loc } ->
     { L.item = type_expression var_loc_typer ty loc exp; loc }
 
@@ -230,8 +229,7 @@ let check_zone all_labels zone =
     zone
 
 let type_property_var
-    (global_env, thread_envs)
-    expected_type loc ({ MT.item = var_sym; thread_id } as mt_var)
+    (global_env, thread_envs) expected_type loc (var_sym, thread_id)
   =
   let env = match thread_id with
     | None -> global_env
@@ -239,9 +237,9 @@ let type_property_var
   let found_type, found_origin = Env.get_entry loc var_sym env in
   if Env.are_compatible_types found_type expected_type
   then {
-    T.var_type = expected_type;
-    var_origin = found_origin;
-    var_id = mt_var;
+    T.var_sym;
+    var_type = expected_type;
+    var_spec = Source.threaded thread_id found_origin;
   }
   else
     Error.type_loc_error loc @@
