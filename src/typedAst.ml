@@ -84,6 +84,8 @@ type (_, _) expression =
       ('b, 'spec) expression Location.loc ->
     ('c, 'spec) expression
 
+let var v = Var v
+
 type 't program_expression = ('t, Ty.origin) expression
 
 type property_condition = (bool, Source.t) expression

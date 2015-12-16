@@ -4,6 +4,7 @@ open Printf
 open Util
 
 module T = TypedAst
+module Ty = Types
 module L = Location
 
 module type Numerical = sig
@@ -20,6 +21,9 @@ module Make (N : Numerical) = struct
   let is_bottom = Abstract1.is_bottom man
 
   let equal = Abstract1.is_eq man
+
+  let transtype_to_int { T.var_sym; var_type = Ty.Bool; var_spec }=
+    { var_sym; var_spec; T.var_type = Ty.Int }
 
   let ap_unop : type t. t T.unop L.loc -> _ =
     fun op -> match op.L.item with
@@ -75,7 +79,12 @@ module Make (N : Numerical) = struct
     | Some n ->
       Abstract1.assign_texpr man abstr (ap_var x) (int_texpr env n) None
 
-  let init initials =
+  let init int_initials bool_initials =
+    let bool_initials =
+      List.map
+        (Tuple2.map transtype_to_int (Option.map Bool.to_int))
+        bool_initials in
+    let initials = int_initials @ bool_initials in
     let env = Environment.make
         (Array.of_list @@ List.map (ap_var @@@ fst) initials)
         [||] (* No real variables *) in
@@ -88,32 +97,38 @@ module Make (N : Numerical) = struct
 
   let meet = Abstract1.meet man
 
-  let not_rel = function
-    | T.Eq -> T.Neq
-    | T.Neq -> T.Eq
-    | T.Lt -> T.Ge
-    | T.Gt -> T.Le
-    | T.Le -> T.Gt
-    | T.Ge -> T.Lt
-
-  let not_op = function
-    | T.And -> T.Or
-    | T.Or -> T.And
+  let mk_not cond =
+    L.mkdummy @@ T.Unop (L.mkdummy T.Not, cond)
 
   let reduce_not = function
     | T.Bool b ->
       T.Bool (L.comap ( not ) b)
-    | T.Var _ -> assert false
+    | T.Var v ->
+      T.Binop (
+        L.mkdummy T.Eq,
+        L.cobind T.var @@ L.comap transtype_to_int v,
+        L.mkdummy @@ T.Int (L.mkdummy 0)
+      )
     | T.Unop ({ L.item = T.Not; _ }, cond) ->
       cond.L.item
     | T.Binop (rel, expr1, expr2) ->
-      T.Binop (L.comap not_rel rel, expr1, expr2)
-    | T.Binop (op, cond1, cond2) ->
-      T.Binop (
-        L.comap not_op op,
-        L.mkdummy @@ T.LogicUnop (L.mkdummy T.Not, cond1),
-        L.mkdummy @@ T.LogicUnop (L.mkdummy T.Not, cond2)
-      )
+      match rel.L.item with
+      | T.Eq ->
+        T.Binop (L.mkdummy T.Neq, expr1, expr2)
+      | T.Neq ->
+        T.Binop (L.mkdummy T.Eq, expr1, expr2)
+      | T.Lt ->
+        T.Binop (L.mkdummy T.Ge, expr1, expr2)
+      | T.Gt ->
+        T.Binop (L.mkdummy T.Le, expr1, expr2)
+      | T.Le ->
+        T.Binop (L.mkdummy T.Gt, expr1, expr2)
+      | T.Ge ->
+        T.Binop (L.mkdummy T.Lt, expr1, expr2)
+      | T.And ->
+        T.Binop (L.mkdummy T.Or, mk_not expr1, mk_not expr2)
+      | T.Or ->
+        T.Binop (L.mkdummy T.And, mk_not expr1, mk_not expr2)
 
   let tcons1 env rel e1 e2 =
     let expr e1 e2 =
@@ -130,32 +145,45 @@ module Make (N : Numerical) = struct
     | T.Gt -> Tcons1.make (expr e1 e2) Tcons1.SUP
     | T.Ge -> Tcons1.make (expr e1 e2) Tcons1.SUPEQ
 
-  let meet_cons cons abstr =
+  let rec meet_cons_rel rel expr1 expr2 abstr =
     let env = Abstract1.env abstr in
-    let rec aux abstr = function
-      | T.Bool { L.item = true; _ } -> abstr
-      | T.Bool { L.item = false; _ } -> Abstract1.bottom man env
-      | T.Var _ -> assert false
-      | T.Unop ({ L.item = T.Not; _ }, c) ->
-        aux abstr (reduce_not c.L.item)
-      | T.Binop ({ L.item = T.Neq; loc }, e1, e2) ->
-        join (* meet with Diseq does not work in Apron *)
-          (aux abstr @@ T.Binop ({ L.item = T.Lt; loc}, e1, e2))
-          (aux abstr @@ T.Binop ({ L.item = T.Gt; loc}, e1, e2))
-      | T.Binop ({ L.item = T.Eq as rel; _ }, e1, e2) ->
-        let earray = Tcons1.array_make env 1 in
-        Tcons1.array_set earray 0
-          (tcons1 env rel e1.L.item e2.L.item);
-        Abstract1.meet_tcons_array man abstr earray
-      | T.Binop (op, c1, c2) ->
-        begin match op.L.item with
-          | T.And -> aux (aux abstr c1.L.item) c2.L.item
-          | T.Or ->
-            join
-              (aux abstr c1.L.item)
-              (aux abstr c2.L.item)
-        end
-    in aux abstr cons
+    match rel with
+    | T.Eq | T.Lt | T.Le | T.Gt | T.Ge ->
+      let earray = Tcons1.array_make env 1 in
+      Tcons1.array_set earray 0
+        (tcons1 env rel expr1.L.item expr2.L.item);
+      Abstract1.meet_tcons_array man abstr earray
+    | T.Neq ->
+      join (* meet with Diseq does not work in Apron *)
+        (meet_cons (T.Binop (L.mkdummy T.Lt, expr1, expr2)) abstr)
+        (meet_cons (T.Binop (L.mkdummy T.Gt, expr1, expr2)) abstr)
+
+  and meet_cons cons abstr =
+    let env = Abstract1.env abstr in
+    match cons with
+    | T.Bool { L.item = true; _ } -> abstr
+    | T.Bool { L.item = false; _ } -> Abstract1.bottom man env
+    | T.Var v ->
+      let int_var = L.comap transtype_to_int v in
+      let var_neq_zero = T.Binop (
+          L.mkdummy T.Neq,
+          L.cobind T.var int_var,
+          L.mkdummy (T.Int (L.mkdummy 0))
+        ) in
+      meet_cons var_neq_zero abstr
+    | T.Unop ({ L.item = T.Not; _ }, c) ->
+      meet_cons (reduce_not c.L.item) abstr
+    | T.Binop (op, expr1, expr2) ->
+      begin match op.L.item with
+        | T.Eq -> meet_cons_rel T.Eq expr1 expr2 abstr
+        | T.Lt -> meet_cons_rel T.Lt expr1 expr2 abstr
+        | T.Le -> meet_cons_rel T.Le expr1 expr2 abstr
+        | T.Gt -> meet_cons_rel T.Gt expr1 expr2 abstr
+        | T.Ge -> meet_cons_rel T.Ge expr1 expr2 abstr
+        | T.Neq -> meet_cons_rel T.Neq expr1 expr2 abstr
+        | T.And -> meet_cons expr1.L.item @@ meet_cons expr2.L.item @@ abstr
+        | T.Or -> join (meet_cons expr1.L.item abstr) (meet_cons expr2.L.item abstr)
+      end
 
   let assign_expr var exp abstr =
     Abstract1.assign_texpr man abstr
