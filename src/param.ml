@@ -40,7 +40,8 @@ module Domain = struct
     | Oct -> (module Mark.Make (ApronAdapter.Oct))
     | Top -> (module Top)
     | Mark -> (module Mark.Make (InnerConcrete))
-    | Concrete -> (module Concrete)
+    | Concrete ->
+      Error.not_implemented_msg_error "Concrete not implemented"
 end
 
 module Output = struct
