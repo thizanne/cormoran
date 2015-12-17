@@ -2,65 +2,78 @@ open Batteries
 open Util
 open Printf
 
+module Dom = Domain
 module L = Location
-module P = Program
-module O = Operators
+module T = TypedAst
+module Ty = Types
 
 module Point = struct
   (* A point is a mapping from variables to their optional value *)
   module M = Sym.Map
-  type t = int option M.t
+  type t = int option M.t * bool option M.t
 
-  let compare = M.compare @@ Option.compare ~cmp:Int.compare
+  let compare = Tuple2.comp
+      (M.compare @@ Option.compare ~cmp:Int.compare)
+      (M.compare @@ Option.compare ~cmp:Bool.compare)
 
-  let print = M.print
+  let print_env print_value =
+    M.print
+      ~first:"" ~last:"" ~sep:", "
+      Sym.print
+      (Util.print_option print_value)
 
-  let get_var p x =
-    M.find x p
+  let print output =
+    Tuple2.print
+      ~first:"" ~last:"" ~sep:", "
+      (print_env Int.print)
+      (print_env Bool.print)
+      output
 
-  let rec get_expr p = function
-    | P.Int n -> Some n.L.item
-    | P.Var v -> M.find v.L.item p
-    | P.ArithUnop (op, e) ->
-      Option.map
-        (O.arith_one_fun op.L.item)
-        (get_expr_loc p e)
-    | P.ArithBinop (op, e1, e2) ->
-      option_map2
-        (O.arith_two_fun op.L.item)
-        (get_expr_loc p e1)
-        (get_expr_loc p e2)
+  let get_var :
+    type a. t -> a Dom.inner_var -> a option =
+    fun (ints, bools) { T.var_spec; var_type } ->
+      match var_type with
+        | Ty.Int -> M.find var_spec ints
+        | Ty.Bool -> M.find var_spec bools
 
-  and get_expr_loc p e = get_expr p e.L.item
+  let rec get_expr :
+    type a. t -> (a, _) T.expression -> a option =
+    fun p expr -> match expr with
+      | T.Int n -> Some (n.L.item)
+      | T.Bool b -> Some (b.L.item)
+      | T.Var v -> get_var p v.L.item
+      | T.Unop (op, e) ->
+        T.unop_fun op.L.item @@ get_expr_loc p e
+      | T.Binop (op, e1, e2) ->
+        T.binop_fun op.L.item
+          (get_expr_loc p e1)
+          (get_expr_loc p e2)
 
-  let rec sat_cons p = function
-    | P.Bool b -> b.L.item
-    | P.LogicUnop (op, c) ->
-      O.logic_one_fun
-        op.L.item
-        (sat_cons_loc p c)
-    | P.LogicBinop (op, c1, c2) ->
-      O.logic_two_fun
-        op.L.item
-        (sat_cons_loc p c1)
-        (sat_cons_loc p c2)
-    | P.ArithRel (rel, e1, e2) ->
-      option_map2
-        (O.logic_arith_two_fun rel.L.item)
-        (get_expr_loc p e1)
-        (get_expr_loc p e2)
-      |> Option.default true
+  and get_expr_loc :
+    type a. t -> (a, _) T.expression L.loc -> a option =
+    fun p e ->
+      get_expr p e.L.item
+
+  let rec sat_cons p cons =
+    Option.default true (get_expr p cons)
 
   and sat_cons_loc p cons = sat_cons p cons.L.item
 
-  let assign_value var value point =
+  let env_assign_value var value env =
     try
-      M.modify var (fun _ -> value) point
+      M.modify var (fun _ -> value) env
     with Not_found ->
       failwith @@
       sprintf "Point.assign_value: unknown var %s" (Sym.name var)
 
-  let new_var var value point =
+  let assign_value :
+    type a. a Dom.inner_var -> a option -> t -> t =
+    fun { T.var_type; var_spec; _ } value (ints, bools) ->
+      match var_type with
+      | Ty.Int -> env_assign_value var_spec value ints, bools
+      | Ty.Bool -> ints, env_assign_value var_spec value bools
+
+  let env_add_assign var value point =
     try
       ignore (M.find var point);
       failwith @@ sprintf
@@ -69,43 +82,82 @@ module Point = struct
     with Not_found ->
       M.add var value point
 
-  let assign_expr var expr point =
-    try
-      M.modify var (fun _ -> get_expr point expr) point
-    with Not_found ->
-      failwith @@ sprintf
-        "InnerConcrete assign_expr: unknown var %s"
-        (Sym.name var)
+  let add_assign :
+    type a. a Dom.inner_var -> a option -> t -> t =
+    fun { T.var_type; var_spec; _ } value (ints, bools) ->
+      match var_type with
+      | Ty.Int -> env_add_assign var_spec value ints, bools
+      | Ty.Bool -> ints, env_add_assign var_spec value bools
 
-  let init symbols =
+  let assign_expr :
+    type a. a Dom.inner_var -> a Dom.inner_expression -> t -> t =
+    fun { T.var_spec; var_type; _ } expr (ints, bools) ->
+      let result = get_expr (ints, bools) expr in
+      let update = M.modify var_spec (fun _ -> result) in
+      try
+        match var_type with
+        | Ty.Int -> update ints, bools
+        | Ty.Bool -> ints, update bools
+      with Not_found ->
+        failwith @@ sprintf
+          "InnerConcrete assign_expr: unknown var %s"
+          (Sym.name var_spec)
+
+  let init int_initials bool_initials =
     List.fold_left
-      (fun acc (x, v) -> M.add x v acc)
+      (fun acc (var, val_) -> M.add var.T.var_spec val_ acc)
       M.empty
-      symbols
+      int_initials,
+    List.fold_left
+      (fun acc (var, val_) -> M.add var.T.var_spec val_ acc)
+      M.empty
+      bool_initials
 
-  let drop x p =
-    M.remove x p
+  let drop :
+    type a. a Dom.inner_var -> t -> t =
+    fun { T.var_type; var_spec } (ints, bools) ->
+      match var_type with
+      | Ty.Int -> M.remove var_spec ints, bools
+      | Ty.Bool -> ints, M.remove var_spec bools
 
   let add x p =
-    try
-      ignore (M.find x p);
-      failwith @@ sprintf
-        "InnerConcrete add: name collision on %s"
-        (Sym.name x)
-    with Not_found ->
-      M.add x None p
+    add_assign x None p
 
-  let fold x y p =
-    let v, p1 = M.extract y p in
+  let env_fold x y env =
+    (* Returns two new environments where y is removed and x has
+       respectively the original value of x and of y *)
+    let v, p1 = M.extract y env in
     let p2 = M.add x v p1 in
     p1, p2
 
-  let coincide_except_on x p1 p2 =
+  let fold :
+    type a. a Dom.inner_var -> a Dom.inner_var -> t -> t * t =
+    fun { T.var_type; var_spec = x; _ } { T.var_spec = y; _ }  (ints, bools) ->
+      (* Returns two points where y is removed and x has respectively
+         the original value of x and of y *)
+      match var_type with
+      | Ty.Int ->
+        Tuple2.mapn (fun ints -> ints, bools) (env_fold x y ints)
+      | Ty.Bool ->
+        Tuple2.mapn (fun bools -> ints, bools) (env_fold x y bools)
+
+  let env_coincide_except_on x env1 env2 =
     M.for_all
       (fun y v ->
          Sym.Ord.compare x y = 0 ||
-         M.find y p1 = v)
-      p2
+         M.find y env1 = v)
+      env2
+
+  let coincide_except_on :
+    type a. a Dom.inner_var -> t -> t -> bool =
+    fun { T.var_type; var_spec = x; _ } (ints1, bools1) (ints2, bools2) ->
+      match var_type with
+      | Ty.Int ->
+        env_coincide_except_on x ints1 ints2 &&
+        M.equal (Option.eq ~eq:Bool.equal) bools1 bools2
+      | Ty.Bool ->
+        env_coincide_except_on x bools1 bools2 &&
+        M.equal (Option.eq ~eq:Int.equal) ints1 ints2
 end
 
 (* An "abstract" element is a set of point *)
@@ -117,8 +169,8 @@ let is_bottom = D.is_empty
 
 let equal = D.equal
 
-let init program =
-  D.singleton (Point.init program)
+let init int_initials bool_initials =
+  D.singleton (Point.init int_initials bool_initials)
 
 let join = D.union
 
@@ -156,7 +208,7 @@ let rec expand x y d =
     let expanded_points =
       List.map
         (fun (v1, v2) ->
-           Point.(assign_value x v1 @@ new_var y v2 @@ p))
+           Point.(assign_value x v1 @@ add_assign y v2 @@ p))
         couples in
     List.fold_right D.add expanded_points @@ expand x y d2
 
@@ -169,8 +221,5 @@ let add x d =
 let print output =
   D.print
     ~first:"" ~last:"" ~sep:";\n"
-    (Point.print
-       ~first:"" ~sep:", " ~last:"" ~kvsep:" = "
-       Sym.print
-       print_int_option)
+    Point.print
     output
