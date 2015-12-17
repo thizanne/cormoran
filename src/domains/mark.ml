@@ -1,8 +1,10 @@
 open Batteries
 
-module P = Program
-module O = Cfg.Operation
+module T = TypedAst
+module Ty = Types
+module O = Operation
 module L = Location
+module Dom = Domain
 
 module Key = struct
   type presence =
@@ -43,10 +45,10 @@ module Key = struct
   let init_thread_presences prog =
     Sym.Map.map
       (fun _init -> Zero)
-      prog.Program.initial
+      prog.T.initial
 
   let init prog =
-    List.map (fun _ -> init_thread_presences prog) prog.Program.threads
+    List.map (fun _ -> init_thread_presences prog) prog.T.threads
 
   let tid_is_consistent keys tid =
     M.for_all (fun _key -> presence_is_zero) @@ List.nth keys tid
@@ -96,28 +98,43 @@ module Make (Inner : Domain.Inner) = struct
       ~first:"" ~last:"" ~kvsep:":\n\n" ~sep:"\n────────\n"
       Key.print Inner.print output
 
-  let abstract_var_sym = Sym.namespace ()
+  let inner_var_sym = Sym.namespace ()
 
   let sym_local tid reg =
-    abstract_var_sym @@ Printf.sprintf "%d:%s" tid (Sym.name reg)
+    inner_var_sym @@ Printf.sprintf "%d:%s" tid (Sym.name reg)
 
   let sym_local_var tid var =
-    sym_local tid var.P.var_name
+    sym_local tid var.T.var_sym
 
-  let sym_thread_locals tid { P.locals; _ } =
+  let sym_thread_locals tid { T.locals; _ } =
     Sym.Set.fold
       (fun sym acc -> (sym_local tid sym, None) :: acc)
       locals
       []
 
   let sym_mem var =
-    abstract_var_sym @@ Printf.sprintf "%s:mem" (Sym.name var)
+    inner_var_sym @@ Printf.sprintf "%s:mem" (Sym.name var)
 
   let sym_top tid var =
-    abstract_var_sym @@ Printf.sprintf "%s:top:%d" (Sym.name var) tid
+    inner_var_sym @@ Printf.sprintf "%s:top:%d" (Sym.name var) tid
 
   let sym_bot tid var =
-    abstract_var_sym @@ Printf.sprintf "%s:bot:%d" (Sym.name var) tid
+    inner_var_sym @@ Printf.sprintf "%s:bot:%d" (Sym.name var) tid
+
+  let inner_var make_sym var =
+    { var with T.var_spec = make_sym var.T.var_sym }
+
+  let inner_var_local tid = inner_var (sym_local tid)
+
+  let inner_var_mem = inner_var sym_mem
+
+  let inner_var_top tid = inner_var (sym_top tid)
+
+  let inner_var_bot tid = inner_var (sym_bot tid)
+
+  (* TODO: make Sym able to generate fresh names *)
+  let inner_var_tmp var =
+    { var with T.var_spec = inner_var_sym "::tmp::" }
 
   let add_join bufs abstr d =
     (* Adds (bufs, abstr) as a d element, making a join if the bufs
@@ -129,19 +146,19 @@ module Make (Inner : Domain.Inner) = struct
       List.fold_lefti
         (fun syms tid thread -> syms @ sym_thread_locals tid thread)
         []
-        prog.P.threads in
+        prog.T.threads in
     let mem_syms =
       Sym.Map.fold
         (fun var init acc -> (sym_mem var, Some init) :: acc)
-        prog.P.initial
+        prog.T.initial
         []
     in
     M.singleton (Key.init prog) (Inner.init @@ local_syms @ mem_syms)
 
-  let sym_var_view key { P.thread_id; var = { P.var_type; var_name } } =
+  let sym_var_view key { T.thread_id; var = { T.var_type; var_name } } =
     match var_type with
-    | P.Local -> sym_local thread_id var_name
-    | P.Shared ->
+    | T.Local -> sym_local thread_id var_name
+    | T.Shared ->
       match Key.get_presence thread_id var_name key with
       | Key.Zero -> sym_mem var_name
       | Key.One
@@ -149,60 +166,61 @@ module Make (Inner : Domain.Inner) = struct
 
   let rec symbolize_expr sym = function
     (* TODO: write a proper mapper *)
-    | P.Int n -> P.Int n
-    | P.Var var ->
-      P.Var (L.comap sym var)
-    | P.ArithUnop (op, e) ->
-      P.ArithUnop (op, L.comap (symbolize_expr sym) e)
-    | P.ArithBinop (op, e1, e2) ->
-      P.ArithBinop (
+    | T.Int n -> T.Int n
+    | T.Var var ->
+      T.Var (L.comap sym var)
+    | T.ArithUnop (op, e) ->
+      T.ArithUnop (op, L.comap (symbolize_expr sym) e)
+    | T.ArithBinop (op, e1, e2) ->
+      T.ArithBinop (
         op,
         L.comap (symbolize_expr sym) e1,
         L.comap (symbolize_expr sym) e2
       )
 
   let rec symbolize_cond sym = function
-    | P.Bool b -> P.Bool b
-    | P.LogicUnop (op, c) ->
-      P.LogicUnop (op, L.comap (symbolize_cond sym) c)
-    | P.LogicBinop (op, c1, c2) ->
-      P.LogicBinop (
+    | T.Bool b -> T.Bool b
+    | T.LogicUnop (op, c) ->
+      T.LogicUnop (op, L.comap (symbolize_cond sym) c)
+    | T.LogicBinop (op, c1, c2) ->
+      T.LogicBinop (
         op,
         L.comap (symbolize_cond sym) c1,
         L.comap (symbolize_cond sym) c2
       )
-    | P.ArithRel (op, e1, e2) ->
-      P.ArithRel (
+    | T.ArithRel (op, e1, e2) ->
+      T.ArithRel (
         op,
         L.comap (symbolize_expr sym) e1,
         L.comap (symbolize_expr sym) e2
       )
 
   let write tid x e key abstr =
-    let x_top = sym_top tid x in
-    let x_bot = sym_bot tid x in
-    match Key.get_presence tid x key with
+    let x_sym = x.T.var_sym in
+    let x_top = inner_var_top tid x in
+    let x_bot = inner_var_bot tid x in
+    match Key.get_presence tid x.T.var_sym key with
     | Key.Zero ->
-      Key.up tid x key,
+      Key.up tid x_sym key,
       (* x_top := add e *)
       abstr
       |> Inner.add x_top
       |> Inner.assign_expr x_top e
     | Key.One ->
-      Key.up tid x key,
+      Key.up tid x_sym key,
       (* x_bot :=add x_top; x_top := e *)
       abstr
       |> Inner.add x_bot
-      |> Inner.assign_expr x_bot (P.Var (L.mkdummy x_top))
+      |> Inner.assign_expr x_bot (T.Var (L.mkdummy x_top))
       |> Inner.assign_expr x_top e
     | Key.MoreThanOne ->
       (* cf Numeric Domains with Summarized Dimensions, Gopan et al. Tacas04 *)
-      let x_tmp = abstract_var_sym "::write::" in
+      let x_tmp = inner_var_tmp x in
       key,
       (* x_bot[*] := x_top; x_top := e *)
       abstr
       |> Inner.add x_tmp
-      |> Inner.assign_expr x_tmp (P.Var (L.mkdummy x_top))
+      |> Inner.assign_expr x_tmp (T.Var (L.mkdummy x_top))
       |> Inner.fold x_bot x_tmp
       |> Inner.assign_expr x_top e
 
@@ -210,9 +228,9 @@ module Make (Inner : Domain.Inner) = struct
     (* Symize an expression of Program.var which may contain
        a shared variable x. The other variables are symbolized as
        registers. *)
-    let sym { P.var_name; var_type } = match var_type with
-      | P.Local -> sym_local tid var_name
-      | P.Shared ->
+    let sym { T.var_name; var_type } = match var_type with
+      | T.Local -> sym_local tid var_name
+      | T.Shared ->
         if Sym.Ord.compare var_name x == 0
         then sym_x x
         else raise @@ Invalid_argument "sym_hybrid_expr"
@@ -235,17 +253,18 @@ module Make (Inner : Domain.Inner) = struct
 
   let add_flush_x_tid x key abstr acc tid =
     (* Adds to acc the result(s) of one flush of x from tid *)
-    let x_mem = sym_mem x in
-    let x_top = sym_top tid x in
-    let x_bot = sym_bot tid x in
-    let x_bot_expr = P.Var (L.mkdummy x_bot) in
-    let x_top_expr = P.Var (L.mkdummy x_top) in
-    let x_tmp = abstract_var_sym "::flush::" in
-    let x_tmp_expr = P.Var (L.mkdummy x_tmp) in
-    match Key.get_presence tid x key with
+    let x_sym = x.T.var_sym in
+    let x_mem = inner_var_mem x in
+    let x_top = inner_var_top tid x in
+    let x_bot = inner_var_bot tid x in
+    let x_bot_expr = T.Var (L.mkdummy x_bot) in
+    let x_top_expr = T.Var (L.mkdummy x_top) in
+    let x_tmp = inner_var_tmp x in
+    let x_tmp_expr = T.Var (L.mkdummy x_tmp) in
+    match Key.get_presence tid x_sym key with
     | Key.Zero -> raise @@ Invalid_argument "flush_x_tid"
     | Key.One ->
-      let key = Key.down tid x key in
+      let key = Key.down tid x_sym key in
       let abstr =
         abstr
         |> Inner.assign_expr x_mem x_top_expr
@@ -259,7 +278,7 @@ module Make (Inner : Domain.Inner) = struct
         |> Inner.assign_expr x_mem x_tmp_expr
         |> Inner.drop x_tmp in
       (* >1 -> 1 => x_mem := x_bot[*]; del x_bot *)
-      let key_1 = Key.down tid x key in
+      let key_1 = Key.down tid x_sym key in
       let abstr_1 =
         (* x_tmp is not needed here *)
         abstr
@@ -273,7 +292,7 @@ module Make (Inner : Domain.Inner) = struct
   let add_flush_x x key abstr acc_init =
     (* Adds to acc the result(s) of one flush of x from each relevant
        tid *)
-    let tids = Key.get_flushable_tids key x in
+    let tids = Key.get_flushable_tids key x.T.var_sym in
     List.fold_left
       (add_flush_x_tid x key abstr)
       acc_init
@@ -289,6 +308,15 @@ module Make (Inner : Domain.Inner) = struct
     if equal d d' then d
     else close_by_flush x d'
 
+  let shared_var_folder =
+    let f : type a. a T.program_var -> _ -> _ =
+      fun var acc ->
+        match var.T.var_spec with
+        | Ty.Local -> acc
+        | Ty.Shared -> var :: acc
+    in
+    { T.f }
+
   let transfer op d =
     match op with
     | O.Identity -> d
@@ -300,27 +328,27 @@ module Make (Inner : Domain.Inner) = struct
         (fun key -> Inner.meet_cons @@ symbolize_cond (sym_var_view key) cond)
       |> normalize
     | O.Assign (tid, x, expr) ->
-      begin match x.P.var_type, P.shared_in_expr expr with
-        | P.Local, [] ->
+      begin match x.T.var_spec, T.fold_expr shared_var_folder [] expr with
+        | Ty.Local, [] ->
           M.map
             (local_op
-               (sym_local tid x.P.var_name)
+               (inner_var_local tid x)
                (symbolize_expr (sym_local_var tid) expr))
             d
-        | P.Shared, [] ->
+        | Ty.Shared, [] ->
           M.Labels.fold
             ~f:(fun ~key ~data:abstr acc ->
                 let key', abstr' =
-                  write tid x.P.var_name
+                  write tid x
                     (symbolize_expr (sym_local_var tid) expr)
                     key abstr
                 in M.add key' abstr' acc)
             ~init:bottom
             d
-          |> close_by_flush x.P.var_name
-        | P.Local, [y] ->
+          |> close_by_flush x
+        | Ty.Local, [y] ->
           M.mapi
-            (read tid (sym_local tid x.P.var_name) y expr)
+            (read tid (inner_var_local tid x) y expr)
             d
           |> close_by_flush y
         | _ -> raise @@ Invalid_argument "Mark.transfer"
