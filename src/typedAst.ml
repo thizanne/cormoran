@@ -28,10 +28,10 @@ type _ unop =
   | Neg : (int -> int) unop
   | Not : (bool -> bool) unop
 
-let unop_fun : type a b. (a -> b) unop -> a -> b =
+let unop_fun : type a b. (a -> b) unop -> a option -> b option =
   function
-  | Neg -> ( ~- )
-  | Not -> ( not )
+  | Neg -> Option.map ( ~- )
+  | Not -> Option.map ( not )
 
 type _ binop =
   | Add : (int -> int -> int) binop
@@ -47,21 +47,29 @@ type _ binop =
   | And : (bool -> bool -> bool) binop
   | Or : (bool -> bool -> bool) binop
 
-let binop_fun : type a b c. (a -> b -> c) binop -> a -> b -> c =
+let ( // ) x_opt y_opt = match x_opt, y_opt with
+  | None, _
+  | _, None
+  | _, Some 0 -> None
+  | Some x, Some y -> Some (x / y)
+
+let binop_fun :
+  (* TODO better organization of this *)
+  type a b c. (a -> b -> c) binop -> a option -> b option -> c option =
   let open Int in
   function
-  | Add -> ( + )
-  | Sub -> ( - )
-  | Mul -> ( * )
-  | Div -> ( / )
-  | Eq -> ( = )
-  | Neq -> ( <> )
-  | Lt -> ( < )
-  | Gt -> ( > )
-  | Le -> ( <= )
-  | Ge  -> ( >= )
-  | And -> ( && )
-  | Or -> ( || )
+  | Add -> Util.option_map2 ( + )
+  | Sub -> Util.option_map2 ( - )
+  | Mul -> Util.option_map2 ( * )
+  | Div -> ( // )
+  | Eq -> Util.option_map2 ( = )
+  | Neq -> Util.option_map2 ( <> )
+  | Lt -> Util.option_map2 ( < )
+  | Gt -> Util.option_map2 ( > )
+  | Le -> Util.option_map2 ( <= )
+  | Ge  -> Util.option_map2 ( >= )
+  | And -> Util.option_map2 ( && )
+  | Or -> Util.option_map2 ( || )
 
 type (_, _) expression =
   (* (type of the expression, type of variables specs) *)
