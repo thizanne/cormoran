@@ -174,10 +174,11 @@ type body =
       body Location.loc (* Body *)
 
 type thread = {
-  locals : Sym.Set.t;
+  locals : Env.ty Sym.Map.t;
   body : body Location.loc;
 }
 
+(* TODO probably move this to some 'ty Env.entry *)
 type constant =
   | ConstInt of int
   | ConstBool of bool

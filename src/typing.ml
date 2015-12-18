@@ -296,10 +296,9 @@ let type_program ({ U.initial; threads }, properties) =
     T.body;
     locals =
       thread_env
-      |> Sym.Map.map snd
-      |> Sym.Map.filterv (( = ) Ty.Local)
-      |> Sym.Map.keys
-      |> Sym.Set.of_enum;
+      |> Sym.Map.filter_map
+        (fun _x (ty, orig) ->
+           if orig = Ty.Local then Some ty else None)
   } in
 
   let initial = Sym.Map.map type_initial_constant initial in

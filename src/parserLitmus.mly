@@ -54,15 +54,19 @@
   let rec get_local { L.item = body; _ } = match body with
     | T.Nothing
     | T.Pass
-    | T.MFence -> Sym.Set.empty
-    | T.Seq (b1, b2) -> Sym.Set.union (get_local b1) (get_local b2)
+    | T.MFence -> Sym.Map.empty
+    | T.Seq (b1, b2) ->
+       Sym.Map.merge (* Does an union *)
+         (fun _key _ty_int1 _ty_int2 -> Some Env.Int)
+         (get_local b1)
+         (get_local b2)
     | T.Assign (x, e) ->
       if T.is_local x.L.item
-      then Sym.Set.singleton x.L.item.T.var_sym
+      then Sym.Map.singleton x.L.item.T.var_sym Env.Int
       else begin
         match local_in_expr e.L.item with
-        | [y] -> Sym.Set.singleton y
-        | _ -> Sym.Set.empty
+        | [y] -> Sym.Map.singleton y Env.Int
+        | _ -> Sym.Map.empty
       end
     | _ -> failwith "ParserLitmus.get_local"
 
