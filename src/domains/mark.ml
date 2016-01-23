@@ -106,12 +106,6 @@ module Make (Inner : Domain.Inner) = struct
   let sym_local_var tid var =
     sym_local tid var.T.var_sym
 
-  let sym_thread_locals tid { T.locals; _ } =
-    Sym.Set.fold
-      (fun sym acc -> (sym_local tid sym, None) :: acc)
-      locals
-      []
-
   let sym_mem var =
     inner_var_sym @@ Printf.sprintf "%s:mem" (Sym.name var)
 
@@ -141,19 +135,49 @@ module Make (Inner : Domain.Inner) = struct
        key is already present *)
     M.modify_def abstr bufs (Inner.join abstr) d
 
+  let initial_thread_locals tid { T.locals; _ } =
+    Sym.Map.fold
+      (fun var_sym ty (ints, bools) ->
+         match ty with
+         | Env.Int ->
+           let var =
+             { T.var_sym; var_type = Ty.Int; var_spec = sym_local tid var_sym } in
+           (var, None) :: ints, bools
+         | Env.Bool ->
+           let var =
+             { T.var_sym; var_type = Ty.Bool; var_spec = sym_local tid var_sym } in
+           ints, (var, None) :: bools)
+      locals
+      ([], [])
+
+  let initial_mem { T.initial; _ } =
+    Sym.Map.fold
+      (fun var_sym ty (ints, bools) ->
+         match ty with
+         | T.ConstInt n ->
+           let var =
+             { T.var_sym; var_type = Ty.Int; var_spec = sym_mem var_sym } in
+           (var, Some n) :: ints, bools
+         | T.ConstBool b ->
+           let var =
+             { T.var_sym; var_type = Ty.Bool; var_spec = sym_mem var_sym } in
+           ints, (var, Some b) :: bools)
+      initial
+      ([], [])
+
   let init prog =
-    let local_syms =
+    let local_ints, local_bools =
       List.fold_lefti
-        (fun syms tid thread -> syms @ sym_thread_locals tid thread)
-        []
+        (fun (int_acc, bool_acc) tid thread ->
+           let int_thread, bool_thread = initial_thread_locals tid thread
+           in int_thread @ int_acc, bool_thread @ bool_acc)
+        ([], [])
         prog.T.threads in
-    let mem_syms =
-      Sym.Map.fold
-        (fun var init acc -> (sym_mem var, Some init) :: acc)
-        prog.T.initial
-        []
-    in
-    M.singleton (Key.init prog) (Inner.init @@ local_syms @ mem_syms)
+    let mem_ints, mem_bools =
+      initial_mem prog in
+    let initial_ints, initial_bools =
+      local_ints @ mem_ints, local_bools @ mem_bools in
+    M.singleton (Key.init prog) (Inner.init initial_ints initial_bools)
 
   let sym_var_view key { T.thread_id; var = { T.var_type; var_name } } =
     match var_type with
