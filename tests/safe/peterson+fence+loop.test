@@ -20,7 +20,7 @@ while true {
     label critical_section
 
     flag_0 := 0
-    mfence
+    //mfence
 }
 
 #
@@ -41,5 +41,5 @@ while true {
     label critical_section
 
     flag_1 := 0
-    mfence
+    //mfence
 }
