@@ -37,7 +37,7 @@
   type t. t T.program_expression -> Sym.t list =
     fun expression ->
     T.fold_expr
-      { T.f =
+      { T.fold =
           fun var acc ->
           if T.is_local var then var.T.var_sym :: acc else acc }
       [] expression
@@ -46,7 +46,7 @@
   type t. t T.program_expression -> Sym.t list =
     fun expression ->
     T.fold_expr
-      { T.f =
+      { T.fold =
           fun var acc ->
           if T.is_shared var then var.T.var_sym :: acc else acc }
       [] expression

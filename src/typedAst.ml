@@ -99,7 +99,7 @@ type 't program_expression = ('t, Ty.origin) expression
 type property_condition = (bool, Source.t) expression
 
 type ('spec1, 'spec2) var_mapper = {
-  f : 'a. ('a, 'spec1) var -> ('a, 'spec2) var
+  map : 'a. ('a, 'spec1) var -> ('a, 'spec2) var
 }
 
 let rec map_expr :
@@ -110,7 +110,7 @@ let rec map_expr :
     match exp with
     | Int n -> Int n
     | Bool b -> Bool b
-    | Var v -> Var (L.comap mapper.f v)
+    | Var v -> Var (L.comap mapper.map v)
     | Unop (op, exp) ->
       Unop (op, map_expr_loc mapper exp)
     | Binop (op, exp1, exp2) ->
@@ -131,11 +131,11 @@ and map_expr_loc :
 
 let add_source tid expr =
   let put_thread v = var_spec_map (Source.threaded tid) v in
-  let mapper = { f = put_thread } in
+  let mapper = { map = put_thread } in
   map_expr mapper expr
 
 type ('spec, 'acc) var_folder = {
-  f : 't. ('t, 'spec) var -> 'acc -> 'acc
+  fold : 't. ('t, 'spec) var -> 'acc -> 'acc
 }
 
 let rec fold_expr :
@@ -144,7 +144,7 @@ let rec fold_expr :
     match exp with
     | Int _ -> acc
     | Bool _ -> acc
-    | Var v -> f.f v.L.item acc
+    | Var v -> f.fold v.L.item acc
     | Unop (_, exp) -> fold_expr f acc exp.L.item
     | Binop (_, exp1, exp2) ->
       fold_expr f (fold_expr f acc exp2.L.item) exp1.L.item
