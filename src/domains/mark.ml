@@ -120,7 +120,7 @@ module Make (Inner : Domain.Inner) = struct
 
   let inner_var_local tid = inner_var (sym_local tid)
 
-  let inner_var_mem = inner_var sym_mem
+  let inner_var_mem x = inner_var sym_mem x
 
   let inner_var_top tid = inner_var (sym_top tid)
 
@@ -179,64 +179,60 @@ module Make (Inner : Domain.Inner) = struct
       local_ints @ mem_ints, local_bools @ mem_bools in
     M.singleton (Key.init prog) (Inner.init initial_ints initial_bools)
 
-  let sym_var_view key { T.thread_id; var = { T.var_type; var_name } } =
-    match var_type with
-    | T.Local -> sym_local thread_id var_name
-    | T.Shared ->
-      match Key.get_presence thread_id var_name key with
-      | Key.Zero -> sym_mem var_name
-      | Key.One
-      | Key.MoreThanOne -> sym_top thread_id var_name
+  let inner_of_property key =
+    (* Mapper which puts as var_spec the inner symbol of a property
+       variable. *)
+    let map { T.var_sym; var_type; var_spec } =
+      let inner_sym = match var_spec with
+        | Source.Local thread_id -> sym_local thread_id var_sym
+        | Source.Memory -> sym_mem var_sym
+        | Source.View thread_id ->
+          match Key.get_presence thread_id var_sym key with
+          | Key.Zero -> sym_mem var_sym
+          | Key.One
+          | Key.MoreThanOne -> sym_top thread_id var_sym
+      in { T.var_sym; var_type; var_spec = inner_sym }
+    in { T.map }
 
-  let rec symbolize_expr sym = function
-    (* TODO: write a proper mapper *)
-    | T.Int n -> T.Int n
-    | T.Var var ->
-      T.Var (L.comap sym var)
-    | T.ArithUnop (op, e) ->
-      T.ArithUnop (op, L.comap (symbolize_expr sym) e)
-    | T.ArithBinop (op, e1, e2) ->
-      T.ArithBinop (
-        op,
-        L.comap (symbolize_expr sym) e1,
-        L.comap (symbolize_expr sym) e2
-      )
+  let inner_of_program thread_id key  =
+    (* Mapper which puts as var_spec the inner symbol of a program
+       variable. *)
+    let map { T.var_sym; var_type; var_spec } =
+      let inner_sym = match var_spec with
+        | Ty.Local -> sym_local thread_id var_sym
+        | Ty.Shared ->
+          match Key.get_presence thread_id var_sym key with
+          | Key.Zero -> sym_mem var_sym
+          | Key.One
+          | Key.MoreThanOne -> sym_top thread_id var_sym
+      in { T.var_sym; var_type; var_spec = inner_sym }
+    in { T.map }
 
-  let rec symbolize_cond sym = function
-    | T.Bool b -> T.Bool b
-    | T.LogicUnop (op, c) ->
-      T.LogicUnop (op, L.comap (symbolize_cond sym) c)
-    | T.LogicBinop (op, c1, c2) ->
-      T.LogicBinop (
-        op,
-        L.comap (symbolize_cond sym) c1,
-        L.comap (symbolize_cond sym) c2
-      )
-    | T.ArithRel (op, e1, e2) ->
-      T.ArithRel (
-        op,
-        L.comap (symbolize_expr sym) e1,
-        L.comap (symbolize_expr sym) e2
-      )
+  let local_assign tid r expr key abstr =
+    Inner.assign_expr
+      (inner_var_local tid r)
+      (T.map_expr (inner_of_program tid key) expr)
+      abstr
 
-  let write tid x e key abstr =
+  let write tid x expr key abstr =
     let x_sym = x.T.var_sym in
     let x_top = inner_var_top tid x in
     let x_bot = inner_var_bot tid x in
+    let inner_expr = T.map_expr (inner_of_program tid key) expr in
     match Key.get_presence tid x.T.var_sym key with
     | Key.Zero ->
       Key.up tid x_sym key,
       (* x_top := add e *)
       abstr
       |> Inner.add x_top
-      |> Inner.assign_expr x_top e
+      |> Inner.assign_expr x_top inner_expr
     | Key.One ->
       Key.up tid x_sym key,
       (* x_bot :=add x_top; x_top := e *)
       abstr
       |> Inner.add x_bot
       |> Inner.assign_expr x_bot (T.Var (L.mkdummy x_top))
-      |> Inner.assign_expr x_top e
+      |> Inner.assign_expr x_top inner_expr
     | Key.MoreThanOne ->
       (* cf Numeric Domains with Summarized Dimensions, Gopan et al. Tacas04 *)
       let x_tmp = inner_var_tmp x in
@@ -246,34 +242,7 @@ module Make (Inner : Domain.Inner) = struct
       |> Inner.add x_tmp
       |> Inner.assign_expr x_tmp (T.Var (L.mkdummy x_top))
       |> Inner.fold x_bot x_tmp
-      |> Inner.assign_expr x_top e
-
-  let sym_hybrid_expr tid x sym_x =
-    (* Symize an expression of Program.var which may contain
-       a shared variable x. The other variables are symbolized as
-       registers. *)
-    let sym { T.var_name; var_type } = match var_type with
-      | T.Local -> sym_local tid var_name
-      | T.Shared ->
-        if Sym.Ord.compare var_name x == 0
-        then sym_x x
-        else raise @@ Invalid_argument "sym_hybrid_expr"
-    in
-    symbolize_expr sym
-
-  let read tid r x expr key abstr =
-    (* x is expected to be the symbol of the shared variable in expr *)
-    let x_mem_expr = sym_hybrid_expr tid x sym_mem expr in
-    let x_top_expr = sym_hybrid_expr tid x (sym_top tid) expr in
-    match Key.get_presence tid x key with
-    | Key.Zero->
-      Inner.assign_expr r x_mem_expr abstr
-    | Key.One
-    | Key.MoreThanOne ->
-      Inner.assign_expr r x_top_expr abstr
-
-  let local_op r e abstr =
-    Inner.assign_expr r e abstr
+      |> Inner.assign_expr x_top inner_expr
 
   let add_flush_x_tid x key abstr acc tid =
     (* Adds to acc the result(s) of one flush of x from tid *)
@@ -327,19 +296,18 @@ module Make (Inner : Domain.Inner) = struct
        adding the result to acc_init *)
     M.fold (add_flush_x x) d d
 
-  let rec close_by_flush x d =
+  let rec close_by_flush_wrt_var x d =
     let d' = iterate_one_flush x d in
     if equal d d' then d
-    else close_by_flush x d'
+    else close_by_flush_wrt_var x d'
 
-  let shared_var_folder =
-    let f : type a. a T.program_var -> _ -> _ =
-      fun var acc ->
-        match var.T.var_spec with
-        | Ty.Local -> acc
-        | Ty.Shared -> var :: acc
+  let close_by_flush_wrt_expr expr d =
+    let fold var acc =
+      match var.T.var_spec with
+      | Ty.Local -> acc
+      | Ty.Shared -> close_by_flush_wrt_var var acc
     in
-    { T.f }
+    T.fold_expr { T.fold } d expr
 
   let transfer op d =
     match op with
@@ -349,34 +317,22 @@ module Make (Inner : Domain.Inner) = struct
     | O.Filter cond ->
       d
       |> M.mapi
-        (fun key -> Inner.meet_cons @@ symbolize_cond (sym_var_view key) cond)
+        (fun key ->
+           Inner.meet_cons @@ T.map_expr (inner_of_property key) cond)
       |> normalize
     | O.Assign (tid, x, expr) ->
-      begin match x.T.var_spec, T.fold_expr shared_var_folder [] expr with
-        | Ty.Local, [] ->
-          M.map
-            (local_op
-               (inner_var_local tid x)
-               (symbolize_expr (sym_local_var tid) expr))
-            d
-        | Ty.Shared, [] ->
-          M.Labels.fold
-            ~f:(fun ~key ~data:abstr acc ->
-                let key', abstr' =
-                  write tid x
-                    (symbolize_expr (sym_local_var tid) expr)
-                    key abstr
-                in M.add key' abstr' acc)
-            ~init:bottom
-            d
-          |> close_by_flush x
-        | Ty.Local, [y] ->
-          M.mapi
-            (read tid (inner_var_local tid x) y expr)
-            d
-          |> close_by_flush y
-        | _ -> raise @@ Invalid_argument "Mark.transfer"
-      end
+      match x.T.var_spec with
+      | Ty.Local ->
+        M.mapi (local_assign tid x expr) d
+        |> close_by_flush_wrt_expr expr
+      | Ty.Shared ->
+        M.Labels.fold
+          ~f:(fun ~key ~data:abstr acc ->
+              let key', abstr' = write tid x expr key abstr
+              in M.add key' abstr' acc)
+          ~init:bottom
+          d
+        |> close_by_flush_wrt_var x
 
   let join =
     M.merge
