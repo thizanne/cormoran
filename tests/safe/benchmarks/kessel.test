@@ -1,0 +1,49 @@
+// Apparently can be verified with mark but no numerical domain
+
+{
+  @ (0:bp1, 1:bp2) false
+}
+
+b0 = 0, b1 = 0, turn0 = 0, turn1 = 0
+
+## thread T0 ##
+  while true {
+    b0 := 1
+    mfence
+    local := turn1
+    turn0 := local
+    mfence
+    local_b1 := b1
+    local_turn1 := turn1
+    while not (local_b1 = 0 || local != local_turn1) {
+        local_b1 := b1
+        local_turn1 := turn1
+    }
+    label bp1
+    b0 := 0
+    mfence
+  }
+
+## thread T1 ##
+  while true {
+    b1 := 1
+    mfence
+    t0 := turn0
+    if t0 = 0 {
+        local := 1
+    }
+    if t0 != 0 {
+       local := 0
+    }
+    turn1 := local
+    mfence
+    local_b0 := b0
+    local_turn0 := turn0
+    while not (local_b0 = 0 || local = local_turn0) {
+        local_b0 := b0
+        local_turn0 := turn0
+    }
+    label bp2
+    b1 := 0
+    mfence
+  }

@@ -1,0 +1,39 @@
+// Probably needs bddapron, rewrite it with booleans
+
+{ @ (0:bp1,1:bp2) (1:lRCnt = 0:lSCnt) || ((1:lRCnt + 1) = 0:lSCnt) }
+msg = 0, ack = 0
+
+#### thread T0 ####
+   lSSt := 0
+   lSCnt := 0
+   while (true) {
+     lAck := ack
+     if ((lAck = 0 and lSSt = 0) or (lAck != 0 and lSSt != 0)) {
+        if (lSSt != 0) {
+          lSSt := 0
+        }
+        if (lSSt = 0) {
+          lSSt := 1
+        }
+        lSCnt := lSCnt + 1
+        label bp1
+        msg := lSSt
+        mfence
+     }
+   }
+
+#### thread T1 ####
+   lRSt := 0
+   lRCnt := 0
+   while (true) {
+     lMsg := msg
+     if ((lMsg =1 and lRSt = 0) or (lMsg = 0 and lRSt != 0)) {
+       lRSt := lMsg
+       lRCnt := lRCnt + 1
+       ack := lRSt
+       mfence
+       label bp2
+     }
+   }
+
+// Spec: @ (bp1, bp2): (lRCnt = lSCnt) | ((lRCnt + 1) = lSCnt)  (in fact it should holds always).

@@ -1,0 +1,32 @@
+{ @ (0:bp1, 1:bp2) false }
+que = 0, deq = 0
+
+## thread T0:
+   while true {
+     l1q := que
+     que := l1q + 1
+     l1dq := deq
+     while (l1q != l1dq) {
+        l1dq := deq
+     }
+     label bp1
+     l1dq := deq
+     l1dq := l1dq + 1
+     deq := l1dq
+     mfence
+   }
+
+## thread T1:
+   while true {
+     l2q := que
+     que := l2q + 1
+     l2dq := deq
+     while (l2q != l2dq) {
+        l2dq := deq
+     }
+     label bp2
+     l2dq := deq
+     l2dq := l2dq + 1
+     deq := l2dq
+     mfence
+   }
