@@ -128,7 +128,7 @@ module Make (Inner : Domain.Inner) = struct
 
   (* TODO: make Sym able to generate fresh names *)
   let inner_var_tmp var =
-    { var with T.var_spec = inner_var_sym "::tmp::" }
+    { var with T.var_spec = inner_var_sym "::Mark:tmp::" }
 
   let add_join bufs abstr d =
     (* Adds (bufs, abstr) as a d element, making a join if the bufs
