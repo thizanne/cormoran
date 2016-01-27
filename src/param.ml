@@ -29,6 +29,8 @@ end
 
 module Domain = struct
   type t =
+    | BddPolka
+    | BddOct
     | Polka
     | Oct
     | Top
@@ -36,6 +38,8 @@ module Domain = struct
     | Concrete
 
   let get : _ -> (module Domain.Outer) = function
+    | BddPolka -> (module Mark.Make (BddapronAdapter.Polka))
+    | BddOct -> (module Mark.Make (BddapronAdapter.Oct))
     | Polka -> (module Mark.Make (ApronAdapter.Polka))
     | Oct -> (module Mark.Make (ApronAdapter.Oct))
     | Top -> (module Top)
@@ -52,13 +56,16 @@ end
 
 module CommandTerm = struct
   let domain =
-    let domains = Domain.[
-      "polka", Polka;
-      "oct", Oct;
-      "top", Top;
-      "mark", Mark;
-      "concrete", Concrete;
-    ] in
+    let domains =
+      Domain.[
+        "bddpolka", BddPolka;
+        "bddoct", BddOct;
+        "polka", Polka;
+        "oct", Oct;
+        "top", Top;
+        "mark", Mark;
+        "concrete", Concrete;
+      ] in
     let alts = Arg.doc_alts_enum domains in
     let doc = Printf.sprintf "The domain to use. $(docv) must be %s" alts in
     Arg.(value & opt (enum domains) Domain.Polka &

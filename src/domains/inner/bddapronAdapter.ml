@@ -8,229 +8,215 @@ module T = TypedAst
 module Ty = Types
 module L = Location
 
-module type Numerical = sig
-  type t
-  val manager : t Manager.t
-end
+module BddDomain = Bdddomain1
 
 let cudd = Cudd.Man.make_v ()
 
-module Make (N : Numerical) = struct
+module Make (N : ApronAdapter.Numerical) = struct
 
-  (* type t = N.t Abstract1. *)
+  type t = (string, N.t) BddDomain.t
 
   let apron_man =
     N.manager
 
   let man =
-    Mtbdddomain1.make_man apron_man
+    BddDomain.make_man apron_man
 
   let () =
   Cudd.Man.print_limit := 200;
   Cudd.Man.set_gc 10000
-    (begin fun () -> printf "@.CUDD GC@." end)
-    (begin fun () -> printf "@.CUDD REORDER@." end)
+    (fun () -> printf "@.CUDD GC@.")
+    (fun () -> printf "@.CUDD REORDER@.")
 
-  let env =
+  let empty_env =
     Env.make ~symbol:Env.string_symbol ~relational:true cudd
 
   let cond =
     Cond.make ~symbol:Env.string_symbol cudd
 
-  let is_bottom = Mtbdddomain1.is_bottom man
+  let is_bottom abstr = BddDomain.is_bottom man abstr
 
-  let equal = Mtbdddomain1.is_eq man
+  let equal abstr1 abstr2 = BddDomain.is_eq man abstr1 abstr2
 
-  let ap_unop : type t. t T.unop L.loc -> _ =
-    fun op -> match op.L.item with
-      | T.Neg -> Texpr1.Neg
-      | T.Not ->
-        Error.not_implemented_error op
-          "Apron domains don't implement boolean expressions"
+  let int_constant env n =
+    Expr1.Apron.(to_expr @@ cst env cond @@ Coeff.s_of_int n)
 
-  let ap_binop : type t. t T.binop L.loc -> _ =
-    fun op -> match op.L.item with
-    | T.Add -> Texpr1.Add
-    | T.Sub -> Texpr1.Sub
-    | T.Mul -> Texpr1.Mul
-    | T.Div -> Texpr1.Div
-    | _ ->
-      Error.not_implemented_error op
-        "Apron domains don't implement boolean expressions"
+  let bool_constant env b =
+    Expr1.Bool.(to_expr @@ of_bool env cond b)
 
-  let ap_var x =
-    Var.of_string @@ Sym.name x.T.var_spec
-
-  let texpr1 env expr =
-    let rec to_expr : type t. (t, Sym.t) T.expression -> _ = function
-      | T.Int n ->
-        Texpr1.Cst (Coeff.s_of_int n.L.item)
-      | T.Bool b ->
-        Texpr1.Cst
-          (Coeff.s_of_int (if b.L.item then 1 else 0))
-      | T.Var x ->
-        Texpr1.Var (ap_var x.L.item)
-      | T.Unop (op, expr) ->
-        Texpr1.Unop (
-          ap_unop op,
-          to_expr expr.L.item,
-          Texpr0.Int,
-          Texpr0.Zero
-        )
-      | T.Binop (op, expr1, expr2) ->
-        Texpr1.Binop (
-          ap_binop op,
-          to_expr expr1.L.item,
-          to_expr expr2.L.item,
-          Texpr0.Int,
-          Texpr0.Zero
-        )
-    in Texpr1.of_expr env (to_expr expr)
-
-  let int_texpr env n =
-    Texpr1.cst env (Coeff.s_of_int n)
-
-  let maybe_add_initial env abstr (x, value) = match value with
+  let maybe_add_initial make_constant env (x, init) abstr = match init with
     | None -> abstr
-    | Some n ->
-      Mtbdddomain1.assign_texpr man abstr (ap_var x) (int_texpr env n) None
+    | Some value ->
+      BddDomain.assign_lexpr ~relational:true man cond abstr
+        [Sym.name x.T.var_spec]
+        [make_constant env value]
+        None
 
   let init int_initials bool_initials =
-    let bool_initials =
-      List.map
-        (Tuple2.map transtype_to_int (Option.map Bool.to_int))
-        bool_initials in
-    let initials = int_initials @ bool_initials in
-    let env = Environment.make
-        (Array.of_list @@ List.map (ap_var @@@ fst) initials)
-        [||] (* No real variables *) in
-    List.fold_left
-      (maybe_add_initial env)
-      (Mtbdddomain1.top man env)
-      initials
+    let env = empty_env in
+    let env =
+      Env.add_vars env
+        (List.map
+           (fun (var, _) -> Sym.name var.T.var_spec, `Int)
+           int_initials) in
+    let env =
+      Env.add_vars env
+        (List.map
+           (fun (var, _) -> Sym.name var.T.var_spec, `Bool)
+           bool_initials) in
+    BddDomain.top man env
+    |> List.fold_right (maybe_add_initial int_constant env) int_initials
+    |> List.fold_right (maybe_add_initial bool_constant env) bool_initials
 
-  let join = Mtbdddomain1.join man
+  let fun_of_int_binop = function
+    | T.Add -> Expr1.Apron.add
+    | T.Sub -> Expr1.Apron.sub
+    | T.Mul -> Expr1.Apron.mul
+    | T.Div -> Expr1.Apron.div
 
-  let meet = Mtbdddomain1.meet man
+  let rec expr_int env (exp : int Domain.inner_expression) =
+    match exp with
+    | T.Int n ->
+      Expr1.Apron.cst env cond @@ Coeff.s_of_int n.L.item
+    | T.Var v ->
+      Expr1.Apron.var env cond @@ Sym.name v.L.item.T.var_spec
+    | T.Unop ({ L.item = T.Neg; _ }, exp) ->
+      Expr1.Apron.negate cond @@ expr_int env exp.L.item
+    | T.Binop (op, exp1, exp2) ->
+      match op.L.item with
+      | T.Add ->
+        Expr1.Apron.add cond
+          (expr_int env exp1.L.item)
+          (expr_int env exp2.L.item)
+      | T.Sub ->
+        Expr1.Apron.sub cond
+          (expr_int env exp1.L.item)
+          (expr_int env exp2.L.item)
+      | T.Mul ->
+        Expr1.Apron.mul cond
+          (expr_int env exp1.L.item)
+          (expr_int env exp2.L.item)
+      | T.Div ->
+        Expr1.Apron.div cond
+          (expr_int env exp1.L.item)
+          (expr_int env exp2.L.item)
 
-  let mk_not cond =
-    L.mkdummy @@ T.Unop (L.mkdummy T.Not, cond)
-
-  let reduce_not = function
+  let rec expr_bool env (exp : bool Domain.inner_expression) =
+    match exp with
     | T.Bool b ->
-      T.Bool (L.comap ( not ) b)
+      Expr1.Bool.of_bool env cond b.L.item
     | T.Var v ->
-      T.Binop (
-        L.mkdummy T.Eq,
-        L.cobind T.var @@ L.comap transtype_to_int v,
-        L.mkdummy @@ T.Int (L.mkdummy 0)
-      )
-    | T.Unop ({ L.item = T.Not; _ }, cond) ->
-      cond.L.item
-    | T.Binop (rel, expr1, expr2) ->
-      match rel.L.item with
-      | T.Eq ->
-        T.Binop (L.mkdummy T.Neq, expr1, expr2)
-      | T.Neq ->
-        T.Binop (L.mkdummy T.Eq, expr1, expr2)
-      | T.Lt ->
-        T.Binop (L.mkdummy T.Ge, expr1, expr2)
-      | T.Gt ->
-        T.Binop (L.mkdummy T.Le, expr1, expr2)
-      | T.Le ->
-        T.Binop (L.mkdummy T.Gt, expr1, expr2)
-      | T.Ge ->
-        T.Binop (L.mkdummy T.Lt, expr1, expr2)
+      Expr1.Bool.var env cond @@ Sym.name v.L.item.T.var_spec
+    | T.Unop ({ L.item = T.Not; _ }, exp) ->
+      Expr1.Bool.dnot cond @@ expr_bool env exp.L.item
+    | T.Binop (op, exp1, exp2) ->
+      match op.L.item with
       | T.And ->
-        T.Binop (L.mkdummy T.Or, mk_not expr1, mk_not expr2)
+        Expr1.Bool.dand cond
+          (expr_bool env exp1.L.item)
+          (expr_bool env exp2.L.item)
       | T.Or ->
-        T.Binop (L.mkdummy T.And, mk_not expr1, mk_not expr2)
+        Expr1.Bool.dor cond
+          (expr_bool env exp1.L.item)
+          (expr_bool env exp2.L.item)
+      | T.Eq ->
+        Expr1.Apron.(
+          eq cond @@
+          sub cond (expr_int env exp1.L.item) (expr_int env exp2.L.item)
+        )
+      | T.Neq ->
+        Expr1.Bool.dnot cond @@
+        Expr1.Apron.(
+          eq cond @@
+          sub cond (expr_int env exp1.L.item) (expr_int env exp2.L.item)
+        )
+      | T.Gt ->
+        Expr1.Apron.(
+          sup cond @@
+          sub cond (expr_int env exp1.L.item) (expr_int env exp2.L.item)
+        )
+      | T.Lt ->
+        Expr1.Apron.(
+          sup cond @@
+          sub cond (expr_int env exp2.L.item) (expr_int env exp1.L.item)
+        )
+      | T.Ge ->
+        Expr1.Apron.(
+          supeq cond @@
+          sub cond (expr_int env exp1.L.item) (expr_int env exp2.L.item)
+        )
+      | T.Le ->
+        Expr1.Apron.(
+          supeq cond @@
+          sub cond (expr_int env exp2.L.item) (expr_int env exp1.L.item)
+        )
 
-  let tcons1 env rel e1 e2 =
-    let expr e1 e2 =
-      Texpr1.binop
-        Texpr1.Sub
-        (texpr1 env e1)
-        (texpr1 env e2)
-        Texpr1.Int Texpr1.Zero in
-    match rel with
-    | T.Eq -> Tcons1.make (expr e1 e2) Tcons1.EQ
-    | T.Neq -> Tcons1.make (expr e1 e2) Tcons1.DISEQ
-    | T.Lt -> Tcons1.make (expr e2 e1) Tcons1.SUP
-    | T.Le -> Tcons1.make (expr e2 e1) Tcons1.SUPEQ
-    | T.Gt -> Tcons1.make (expr e1 e2) Tcons1.SUP
-    | T.Ge -> Tcons1.make (expr e1 e2) Tcons1.SUPEQ
+  let join = BddDomain.join man
 
-  let rec meet_cons_rel rel expr1 expr2 abstr =
-    let env = Mtbdddomain1.env abstr in
-    match rel with
-    | T.Eq | T.Lt | T.Le | T.Gt | T.Ge ->
-      let earray = Tcons1.array_make env 1 in
-      Tcons1.array_set earray 0
-        (tcons1 env rel expr1.L.item expr2.L.item);
-      Mtbdddomain1.meet_tcons_array man abstr earray
-    | T.Neq ->
-      join (* meet with Diseq does not work in Apron *)
-        (meet_cons (T.Binop (L.mkdummy T.Lt, expr1, expr2)) abstr)
-        (meet_cons (T.Binop (L.mkdummy T.Gt, expr1, expr2)) abstr)
+  let meet = BddDomain.meet man
 
-  and meet_cons cons abstr =
-    let env = Mtbdddomain1.env abstr in
-    match cons with
-    | T.Bool { L.item = true; _ } -> abstr
-    | T.Bool { L.item = false; _ } -> Mtbdddomain1.bottom man env
-    | T.Var v ->
-      let int_var = L.comap transtype_to_int v in
-      let var_neq_zero = T.Binop (
-          L.mkdummy T.Neq,
-          L.cobind T.var int_var,
-          L.mkdummy (T.Int (L.mkdummy 0))
-        ) in
-      meet_cons var_neq_zero abstr
-    | T.Unop ({ L.item = T.Not; _ }, c) ->
-      meet_cons (reduce_not c.L.item) abstr
-    | T.Binop (op, expr1, expr2) ->
-      begin match op.L.item with
-        | T.Eq -> meet_cons_rel T.Eq expr1 expr2 abstr
-        | T.Lt -> meet_cons_rel T.Lt expr1 expr2 abstr
-        | T.Le -> meet_cons_rel T.Le expr1 expr2 abstr
-        | T.Gt -> meet_cons_rel T.Gt expr1 expr2 abstr
-        | T.Ge -> meet_cons_rel T.Ge expr1 expr2 abstr
-        | T.Neq -> meet_cons_rel T.Neq expr1 expr2 abstr
-        | T.And -> meet_cons expr1.L.item @@ meet_cons expr2.L.item @@ abstr
-        | T.Or -> join (meet_cons expr1.L.item abstr) (meet_cons expr2.L.item abstr)
-      end
+  let meet_cons cons abstr =
+    let env = BddDomain.get_env abstr in
+    BddDomain.meet_condition man cond abstr (expr_bool env cons)
 
-  let assign_expr var exp abstr =
-    Mtbdddomain1.assign_texpr man abstr
-      (ap_var var)
-      (texpr1 (Mtbdddomain1.env abstr) exp)
-      None
+  let assign_expr :
+    type a. a Domain.inner_var -> a Domain.inner_expression -> _ -> _ =
+    fun var exp abstr ->
+      let env = BddDomain.get_env abstr in
+      let exp = match var.T.var_type with
+        | Ty.Int -> Expr1.Apron.to_expr @@ expr_int env exp
+        | Ty.Bool -> Expr1.Bool.to_expr @@ expr_bool env exp in
+      BddDomain.assign_lexpr ~relational:true man cond abstr
+        [Sym.name var.T.var_spec]
+        [exp]
+        None
 
   let widening abstr1 abstr2 =
-    Mtbdddomain1.widening man abstr1 abstr2
+    BddDomain.widening man abstr1 abstr2
 
-  let fold dest source abstr =
-    Mtbdddomain1.fold man abstr [|ap_var dest; ap_var source|]
-
-  let expand source dest abstr =
-    Mtbdddomain1.expand man abstr (ap_var source) [|ap_var dest|]
+  let typ_of_var : type a. (a, _) T.var  -> _ =
+    function { T.var_type; _ } -> match var_type with
+      | Ty.Int -> `Int
+      | Ty.Bool -> `Bool
 
   let add var abstr =
-    let env = Mtbdddomain1.env abstr in
-    Mtbdddomain1.change_environment man abstr
-      (Environment.add env [|ap_var var|] [| |])
-      false
+    let name = Sym.name var.T.var_spec in
+    let typ = typ_of_var var in
+    let env = BddDomain.get_env abstr in
+    let env = Env.add_vars env [name, typ] in
+    BddDomain.change_environment man abstr env
 
-  let drop var abstr =
-    let env = Mtbdddomain1.env abstr in
-    Mtbdddomain1.change_environment man abstr
-      (Environment.remove env [|ap_var var|])
-      false
+  let drop :
+    type a. a Domain.inner_var -> _ -> _ =
+    fun var abstr ->
+      let env = BddDomain.get_env abstr in
+      let env = Env.remove_vars env [Sym.name var.T.var_spec] in
+      BddDomain.change_environment man abstr env
+
+  let swap :
+    type t. t Domain.inner_var -> t Domain.inner_var -> _ =
+    fun a b abstr ->
+      let a_name = Sym.name a.T.var_spec in
+      let b_name = Sym.name b.T.var_spec in
+      let env = BddDomain.get_env abstr in
+      let make_exp name = match a.T.var_type with
+        (* b should have the same type *)
+        | Ty.Int -> Expr1.Apron.(to_expr @@ var env cond name)
+        | Ty.Bool -> Expr1.Bool.(to_expr @@ var env cond name)
+      in
+      BddDomain.assign_lexpr ~relational:true man cond abstr
+        [a_name; b_name] [make_exp a_name; make_exp b_name] None
+
+  let fold dest source abstr =
+    drop source @@ join abstr (swap dest source abstr)
+
+  let expand source dest abstr =
+    let abstr = add dest abstr in
+    meet abstr (swap dest source abstr)
 
   let print output abstr =
     let fmt = Format.formatter_of_output output in
-    Mtbdddomain1.print fmt abstr;
+    BddDomain.print fmt abstr;
     Format.pp_print_flush fmt ()
 end
 

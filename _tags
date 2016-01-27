@@ -8,6 +8,8 @@ true: package(cmdliner)
 <src/*/*>: include
 
 true: package(bddapron)
+true: package(bddapron.bdd)
+true: package(bddapron.bddapron)
 true: package(apron)
 true: package(apron.apron)
 true: package(apron.boxD)
