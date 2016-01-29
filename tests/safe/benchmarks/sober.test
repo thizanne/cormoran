@@ -1,0 +1,80 @@
+{ @(0:bp1, 1:bp2) false }
+
+prodDone = false, isIdling = false, hasWork = false, condVar = 0
+
+### thread T0 ###
+
+/* lock(condVar) */
+
+lcondVar := condVar
+while not (lcondVar = 0 or lcondVar = 2) {
+      lcondVar := condVar
+}
+tc := condVar
+tc := tc + 1
+condVar := tc
+
+mfence
+isIdling := true
+mfence
+temp := hasWork
+if not temp {
+    lcondVar := condVar
+    while not (lcondVar = 1) {
+        lcondVar := condVar
+    }
+    label bp1
+    condVar := 2
+    mfence
+
+    lcondVar := condVar
+    while not (lcondVar = 4) {
+        lcondVar := condVar
+    }
+
+    lcondVar := condVar
+    while not (lcondVar = 0) {
+        lcondVar := condVar
+    }
+    condVar := 1
+
+    mfence
+}
+
+isIdling := false
+mfence
+
+condVar := 0
+mfence
+
+### thread T1 ###
+
+hasWork := true
+mfence
+temp := isIdling
+if temp {
+    lcondVar := condVar
+    while not (lcondVar = 0 or lcondVar = 2) {
+        lcondVar := condVar
+    }
+    tc := condVar
+    tc := tc + 1
+    condVar := tc
+    mfence
+
+    lcondVar := condVar
+    while not (lcondVar = 2) {
+        lcondVar := condVar
+    }
+
+    condVar := 4
+    mfence
+
+    condVar := 0
+    mfence
+}
+label bp2
+prodDone := true
+mfence
+
+/* Assertion (bp1, bp2) should be bottom. That is if: prodDone = true && condVar = 2 at those labels. */

@@ -1,0 +1,54 @@
+{ @ (1:fail) false }
+
+/* To be executed with cooperative policy ? */
+
+t0 = 0, t1 = 0, p0 = 0, p1 = 0
+
+#### thread reader ####
+time0 := 10
+p0 := 0
+// mfence
+temp := p0
+while (temp < 10) {
+    temp := t0
+    temp := temp + time0
+    t0 := temp
+    // mfence
+
+    local_t0 := t0
+    local_t1 := t1
+    while not (local_t0 <= local_t1) {
+        local_t0 := t0
+        local_t1 := t1
+    }
+
+    temp := p0
+    temp := temp + 1
+    p0 := temp
+    // mfence
+}
+
+
+#### thread writer ####
+time1 := 20
+p1 := 0
+// mfence
+temp := p1
+while (temp < 10) {
+    temp := t1
+    temp := temp + time1
+    t1 := temp
+    // mfence
+
+    local_t0 := t0
+    local_t1 := t1
+    while not (local_t1 <= local_t0) {
+        local_t0 := t0
+        local_t1 := t1
+    }
+    temp := p1
+    temp := temp + 1
+    p1 := temp
+    // mfence
+}
+label fail  // assertion is that this label is not reachable

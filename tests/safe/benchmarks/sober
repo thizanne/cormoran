@@ -1,0 +1,84 @@
+var isIdling:bool, prodDone:bool, hasWork:bool, condVar:int;
+
+initial not prodDone and not isIdling and not hasWork and condVar==0;
+
+thread T0:
+var temp:bool, tc:int;
+begin
+  /* lock(condVar) */
+  assume(condVar==0 or condVar==2);
+  tc = condVar;
+  tc = tc + 1;
+  condVar = tc;
+
+  yield;
+  /* Fence */
+  isIdling = true;
+  yield;
+  /* Fence */
+  temp = hasWork;
+  yield;
+  if not temp then
+    yield;
+    assume(condVar==1); /* bp1 */ 
+    condVar=2; 				
+    yield;
+    /* Fence */
+    yield;
+    assume(condVar==4); 
+    yield;
+    assume(condVar==0);
+    yield;
+    condVar=1; 
+    yield;
+    /* Fence */
+  endif;
+
+  yield;
+  isIdling = false;
+  yield;
+  /* Fence */
+
+  condVar = 0;
+  yield;
+  /* Fence */
+
+end
+
+thread T1:
+var temp:bool, tc:int;
+begin
+  yield;
+  hasWork = true;
+  yield;
+  /*Fence*/
+  temp = isIdling;
+  yield;
+  if temp then
+    yield;
+    assume(condVar==0 or condVar==2);
+    tc = condVar;
+    tc = tc + 1;
+    condVar = tc; 			
+    yield;	
+    /* Fence */
+ 
+    assume(condVar==2); 		// can be made if (condVar == 3) then cond = 4, but that is irrelevant for our experiments
+    yield;
+    condVar = 4;
+    yield;
+    /* Fence */
+
+    condVar = 0;
+    yield;
+    /* Fence */
+  endif;
+  /* bp2*/
+  yield;
+  prodDone=true;			
+  yield;
+  /* Fence */
+end
+
+/* Assertion (bp1, bp2) should be bottom. That is if: prodDone == true && condVar == 2 at those labels. */
+

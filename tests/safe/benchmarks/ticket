@@ -1,0 +1,53 @@
+var deq:int, que : int;
+
+initial que == deq;
+
+thread T0:
+var l1q:int, l1dq:int;
+begin
+   while true do
+     l1q = que;
+     que = l1q + 1;
+     yield;
+     l1dq = deq;
+     while (l1q != l1dq) do
+        yield;
+        l1dq = deq;
+     done; /* bp1 */
+     yield;
+     l1dq = deq;
+     yield;
+     l1dq = l1dq + 1;
+     yield;
+     deq = l1dq;
+     yield;
+     /*Fence*/
+     yield;
+   done;
+end
+
+thread T1:
+var l2q:int, l2dq:int;
+begin
+   while true do
+     l2q = que;
+     que = l2q + 1;
+     yield;
+     l2dq = deq;
+     while (l2q != l2dq) do
+        yield;
+        l2dq = deq;
+     done; /* bp2 */
+     yield;
+     l2dq = deq;
+     yield;
+     l2dq = l2dq + 1;
+     yield;
+     deq = l2dq;
+     yield;
+     /*Fence*/
+     yield;
+   done;
+end
+
+/* L20 L48 bottom*/

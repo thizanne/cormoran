@@ -1,0 +1,65 @@
+/* To be executed with cooperative policy */
+var p0:int,p1:int,T0:int,T1:int;
+initial T0==0 and T0==T1;
+
+thread reader:
+var time0:int, temp:int;
+begin
+  time0 = 10; 
+  yield;
+  p0 = 0;
+  yield;
+/*Fence*/
+  temp = p0;				
+  yield;
+  while (temp < 10) do
+    yield;
+    temp = T0;
+    yield;
+    temp = temp + time0;
+    yield;
+    T0 = temp;
+    yield; 
+    /*Fence*/
+    assume(T0 <= T1);
+    temp= p0;
+    yield;
+    temp = temp + 1;
+    yield;
+    p0 = temp;
+    yield;
+    /*Fence*/
+  done;
+  yield;
+end
+
+thread writer:
+var time1:int, temp:int;
+begin
+  time1 = 20; 
+  yield;
+  p1 = 0;
+  yield;
+  /*Fence*/
+  temp = p1;				
+  yield;
+  while (temp < 10) do
+    temp = T1;
+    yield;
+    temp = temp + time1;
+    yield;
+    T1 = temp;
+    yield; 
+    /*Fence*/
+    assume(T1 <= T0); 
+    temp = p1;
+    yield;
+    temp = temp + 1;
+    yield;
+    p1 = temp;
+    yield;
+    /*Fence*/
+  done; /*bp2*/
+  fail;  // assertion is that this label is not reachable
+  yield;
+end

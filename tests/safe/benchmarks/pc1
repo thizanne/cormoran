@@ -1,0 +1,85 @@
+/* verified property:fail in T1 unreachable (bottom at L75 and L67) */
+
+var go : int, counter:int;
+
+initial counter == 0 and go == 1;
+
+thread T0:
+var lgo0:int, lcnt0:int;
+begin
+  lgo0 = 0;
+  yield;
+  lcnt0 = counter;
+  yield;
+  lcnt0 = lcnt0 + 1;
+  yield;
+  counter = lcnt0;
+  yield;
+  /*Fence*/
+  lcnt0 = counter;
+  yield;
+  if lcnt0 == 2 then 
+    counter = 0;
+    yield;
+    /*Fence*/
+    go = lgo0;
+    yield;
+    /*Fence*/
+  else
+    yield;
+    assume(lgo0==go);
+  endif;
+  yield;
+end
+
+thread T1:
+var lgo1:int, lcnt1:int;
+begin
+  lgo1 = 0;
+  yield;
+  lcnt1 = counter;
+  yield;
+  lcnt1 = lcnt1 + 1;
+  yield;
+  counter = lcnt1;
+  yield;
+  /*Fence*/
+  lcnt1 = counter;
+  yield;
+  if lcnt1 == 2 then 
+    counter = 0;
+    yield;
+    /*Fence*/
+    go = lgo1;
+    yield;
+    /*Fence*/
+  else
+    yield;
+    assume(lgo1 == go);
+  endif;
+  yield;
+  lgo1 = 1;
+  yield;
+  lcnt1 = counter;
+  yield;
+  lcnt1 = lcnt1 + 1;
+  yield;
+  counter = lcnt1;
+  yield;
+  /*Fence*/
+  lcnt1 = counter;
+  yield;
+  if lcnt1 == 2 then 
+    counter = 0;
+    yield;
+    /*Fence*/
+    go = lgo1;
+    yield;
+    /*Fence*/
+  else
+    yield;
+    assume(lgo1 == go); /* bp2 */
+  endif;
+  fail; 
+  yield;
+end

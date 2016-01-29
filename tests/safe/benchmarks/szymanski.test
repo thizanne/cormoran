@@ -1,0 +1,75 @@
+{ @ (0:bp1,1:bp2) false }
+
+f1 = 0, f2 = 0
+
+##### thread worker_1 ####
+while(true) {
+    f1 := 1
+    mfence
+    t2 := f2
+    while (t2 >= 3) {
+        t2 := f2
+    }
+
+    f1 := 3
+    mfence
+    t2 := f2
+    if (t2 >= 1 && t2 <= 1) {
+        f1 := 2
+        // mfence
+        t2 := f2
+        while (t2 < 4) {
+            t2 := f2
+        }
+    }
+
+    f1 := 4
+    //mfence
+
+    label bp1
+
+    t2 := f2
+    while (t2 > 1 && t2 < 4) {
+        t2 := f2
+    }
+
+    f1 := 0
+    mfence
+}
+
+##### thread worker_2 #####
+while(true) {
+    f2 := 1
+    mfence
+    t1 := f1
+    while (t1 >= 3) {
+        t1 := f1
+    }
+
+    f2 := 3
+    mfence
+    t1 := f1
+
+    if (t1 <= 1 && t1 >= 1) {
+        f2 := 2
+        // mfence
+        t1 := f1
+        while (t1 < 4) {
+            t1 := f1
+        }
+    }
+
+    f2 := 4
+    // mfence
+    t1 := f1
+    while (t1 >= 2) {
+        t1 := f1
+    }
+    label bp2
+
+    f2 := 0
+    mfence
+}
+
+/* Assertion (bp1,bp2) = bottom */
+/* if this does not verify for PSO, one can also try it without the while loops on the outside. */

@@ -1,0 +1,38 @@
+{ @ (0:critical, 1:critical) false }
+
+flag0 = false, flag1 = false, turn = false
+
+### thread T0 ###
+
+while true {
+    flag0 := true
+    mfence
+    turn := true
+    mfence
+    lflag1 := flag1
+    lturn0 := turn
+    while (lflag1 and lturn0) {
+        lflag1 := flag1
+        lturn0 := turn
+    }
+    label critical
+    flag0 := false
+    // mfence
+}
+
+### thread T1 ###
+while true {
+    flag1 := true
+    mfence
+    turn := false
+    mfence
+    lflag0 := flag0
+    lturn1 := turn
+    while (lflag0 and not lturn1) {
+        lflag0 := flag0
+        lturn1 := turn
+    }
+    label critical/* bp2 */
+    flag1 := false
+   // mfence
+}

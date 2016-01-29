@@ -1,0 +1,134 @@
+T = 0, H = 0,L == 0
+
+### thread random_simulator ###
+
+while true {
+    random := true
+    random := false
+}
+
+
+### thread T0 ###
+var t, h, l:int, b1, success:bool;
+begin
+
+while true do
+  success = true;
+  if random then
+  /* push */
+    t = T;
+    yield;
+    t = t + 1;
+    yield;
+    T = t;
+    yield;
+    /*Fence*/
+   else
+  /* pop */
+    yield;
+    t = T;
+    yield;
+    t = t - 1;
+    yield;
+    T = t;
+    yield;
+    /*Fence*/
+
+    h = H;
+    b1 = (h <= t);
+    yield;
+    if (h > t) then
+      b1 = random;
+      yield;
+      t = t + 1;
+      yield;
+      T = t;
+      yield;
+      /*Fence*/
+
+      /* lock */
+      l = L;
+      while (l > 0) do
+        yield;
+        l = L;
+      done;
+      L = 1;
+      yield;
+
+      t = T;
+      yield;
+      t = t - 1;
+      yield;
+      T = t;
+      yield;
+      /*Fence*/
+      h = H;
+      b1 = (h <= t);
+      yield;
+      if (h > t) then
+        b1 = random;
+        yield;
+        t = t + 1;
+        yield;
+        T = t;
+        yield;
+        /*Fence*/
+        success = false;
+      endif;
+
+    /* unlock */
+    L = 0;
+
+    yield;
+    endif;
+    b1 = random;
+  yield;
+  skip; /*bp1*/
+  yield;
+  endif;
+done;
+end
+
+
+### thread T1 ###
+var t, h, l:int, b2, success:bool;
+begin
+
+while true do
+  success = true;
+  yield;
+  /* lock L */
+
+  l = L;
+  while (l > 0) do
+    yield;
+    l = L;
+  done;
+  L = 1;
+  yield;
+
+  h = H;
+  yield;
+  H = h + 1;
+  yield;
+  /*Fence*/
+  t = T;
+  b2 = (h < t);
+  yield;
+  if (h >= t) then
+    b2 = random;
+    yield;
+    H = h;
+    success = false;
+    yield;
+    /*Fence*/
+  endif;
+  b2 = random;
+
+  /* unlock L */
+  L = 0;
+  yield;
+  skip;/*bp2*/
+  yield;
+done;
+end

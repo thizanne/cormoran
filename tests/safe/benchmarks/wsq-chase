@@ -1,0 +1,111 @@
+var B, T:int;
+
+initial B == 0 and T == 0;
+
+
+thread Worker:
+var b1, t1, oldVal1 :int, bl1, bl2, bl3, bl4:bool;
+begin
+while true do
+  if random then
+
+    /*push */
+
+    b1 = B;
+    yield;
+    t1 = T;
+    yield; 
+    b1 = b1 + 1;
+    yield;
+    B = b1;
+    yield;
+    /* Fence */
+
+/* ======================= */
+
+  else
+
+    /*pop*/
+
+    b1 = B;
+    yield;
+    b1 = b1- 1;
+    yield;
+    B = b1;
+    yield;
+    /* Fence */
+    t1 = T;
+    bl1 = (b1 < t1);
+    yield;
+    if (b1 < t1) then
+      B = t1;
+      yield;
+      /* Fence */
+      /* return Empty */
+    else
+      bl2 = (b1 > t1);
+      yield; /* get o from b1*/
+      if (b1 > t1) then
+        /* return o *//* maybe point of interest */
+      else /* size1 == 0*/
+        yield;
+
+        /*CAS*/
+        oldVal1 = t1;
+        t1 = T;
+        bl3 = (t1 >= oldVal1);
+        bl4 = (t1 <= oldVal1); 
+        if (bl3 and bl4) then
+          /*T = t1 + 1;*/ /* uncomment */
+          skip; /* bp1 */
+          yield;
+        else
+          /* o = Empty */
+        endif;
+        yield;
+        B = t1 + 1;
+        yield;
+        /* Fence */
+      endif;
+    endif;
+    /* return o */
+  endif;
+done;
+end
+
+thread Thief:
+var b2, t2, oldVal2:int, bl1, bl3, bl4 :bool;
+begin
+while true do
+  /*steal*/
+  t2 = T;
+  yield;
+  b2 = B;
+  bl1 = (b2 <= t2);
+  yield;
+
+  if (b2 <= t2) then
+    yield;
+    skip;/*return Empty*/
+  else
+    skip; /* get o from t*/
+    yield;
+
+    /*CASTop(t,t+1)*/
+    oldVal2 = t2;
+    t2 = T;
+    bl3 = (t2 >= oldVal2);
+    bl4 = (t2 <= oldVal2);
+    if (bl3 and bl4) then
+      /*T = t2 + 1;*/ /* uncomment */
+      skip; /* bp2 */ 
+      yield; /* return o*/
+    else
+      /* Abort */
+    endif;
+  endif;
+  done;
+end
+
+
+/*Implies B <= T*/

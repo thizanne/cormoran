@@ -1,0 +1,48 @@
+var b0:bool, b1:bool, turn0:bool, turn1:bool;
+
+initial not b0 and not b1;
+
+thread T0:
+var local:bool;
+begin
+  while true do
+    b0 = true;
+    yield;
+    /*Fence*/
+    local = turn1;
+    yield;
+    turn0 = local;
+    yield;
+    /*Fence*/
+    assume (not b1 or local!=turn1); /* bp1 */
+    yield;
+    skip;
+    yield;
+    b0 = false;
+    yield;
+    /*Fence*/
+  done;
+end
+
+thread T1:
+var local:bool;
+begin
+  while true do
+    b1 = true;
+    yield;
+    /*Fence*/
+    local = not turn0;
+    yield;
+    turn1 = local;
+    yield;
+    /*Fence*/
+    assume (not b0 or local==turn0); /* bp2 */
+    yield;
+    skip;
+    yield;
+    b1 = false;
+    yield;
+    /*Fence*/
+  done;
+end
+

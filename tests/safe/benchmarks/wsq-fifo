@@ -1,0 +1,83 @@
+var T, H : int;
+
+initial T == 0 and H == 0;
+
+thread T0:
+var cnt, new_t, new_h, old_t, old_h:int, b1, b2: bool;
+begin
+while true do
+  yield;
+  if random then
+    yield;
+    /* put */
+    old_h = H; /* to be added to */
+    b1 = (T > old_h);
+    b2 = (T < old_h);
+    yield;
+    old_t = T;
+    yield;
+    new_t = old_t + 1;
+    yield;
+    b1 = (new_t > H);
+    b2 = (new_t < H);
+    T = new_t; 
+    yield;
+    /* Fence */ /* move 2 up for failure */
+/* ======== */
+
+   else
+   yield;
+   /* take */
+
+    old_t = T;
+    yield;
+    old_h = H; /* to be added to */
+    b1 = (old_t > old_h);
+    b2 = (old_t < old_h);
+    yield;
+    if (b1 or b2) then
+      yield;
+      new_h = old_h + 1;
+      yield;
+      H = new_h;
+      yield;
+      /* Fence */
+      /* return old_h */
+    endif;  /* bp1 */
+    yield;
+  endif;
+done;
+end
+
+thread T1:
+var cnt, old_t, old_h:int, b1, b2: bool;
+begin
+while true do 
+  yield;
+  /* steal */
+  skip; /* bp2 */
+  yield;
+  old_h = H;
+  b1 = (T > old_h);
+  b2 = (T < old_h);
+  yield;
+  old_t = T;
+  b1 = (old_t > old_h);
+  b2 = (old_t < old_h);
+  yield;
+  if (b1 or b2) then
+    yield;
+    /* CAS(head, old_h, old_h + 1) */
+    if (H == old_h) then
+       H = old_h + 1;
+       b1 = (T > old_h);
+       b2 = (T < old_h);
+    endif;    
+    /* CAS end*/
+    yield;
+  endif;
+  yield;
+done;
+
+end
+/* widening 6 works widening 4 not, 20 works for pso */

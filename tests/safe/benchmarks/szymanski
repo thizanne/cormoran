@@ -1,0 +1,119 @@
+var f1:uint[3], f2:uint[3];
+initial f1 ==  uint[3]0 and f2 ==  uint[3]0;
+
+thread worker_1:
+var t2:uint[3];
+begin
+  while(true) do
+    yield;
+    f1 = uint[3]1;
+    yield;
+    /*Fence*/
+    t2 = f2;
+    yield;
+    while (t2 >= uint[3]3) do
+      yield;
+      t2 = f2;
+      yield;
+    done;
+
+    yield;
+    f1 = uint[3]3;
+    yield;
+    /*Fence*/
+    t2 = f2;
+    yield;
+    if (t2 == uint[3]1) then
+      yield;
+      f1 = uint[3]2;
+      yield;
+      /*Fence*/
+      t2 = f2;
+      yield;
+      while (t2 < uint[3]4) do
+        yield;
+        t2 = f2;
+        yield;
+      done;
+    endif;
+
+    yield;
+    f1 =  uint[3]4;
+    yield;
+    /*Fence*/
+    skip; /* bp1 */
+    yield;
+
+    t2 = f2;
+    yield;
+    while ((t2 ==  uint[3]2) or (t2 ==  uint[3]3)) do
+      yield;
+      t2 = f2;
+      yield;
+    done;
+    yield;
+    f1 =  uint[3]0;
+    yield;
+    /*Fence*/
+  done;    
+end  
+
+thread worker_2:
+var t1: uint[3];
+begin
+  while(true) do
+    yield;
+    f2 =  uint[3]1;
+    yield;
+    /*Fence*/
+    t1 = f1;
+    yield;
+    while (t1 >=  uint[3]3) do
+      yield;
+      t1 = f1;
+      yield;
+    done;
+
+    yield;
+    f2 =  uint[3]3;
+    yield;
+    /*Fence*/
+    t1 = f1;
+    yield;
+
+    if (t1 ==  uint[3]1) then
+      yield;
+      f2 =  uint[3]2;
+      yield;
+      /*Fence*/
+      t1 = f1;
+      yield;
+      while (t1 <  uint[3]4) do
+        yield;
+        t1 = f1;
+        yield;
+      done;
+    endif;
+  
+    yield;
+    f2 = uint[3]4;
+    yield;
+    /*Fence*/
+    t1 = f1;
+    yield;
+    while (t1 >=  uint[3]2) do
+      yield;
+      t1 = f1;
+      yield;
+    done; /* bp2 */
+    yield;
+
+    f2 =  uint[3]0;
+    yield;
+    /* Fence */
+    yield;
+  done;  
+end   
+
+/* Assertion (bp1,bp2) = bottom */ 
+/* if this does not verify for PSO, one can also try it without the while loops on the outside. */
