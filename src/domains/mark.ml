@@ -329,7 +329,7 @@ module Make (Inner : Domain.Inner) = struct
         M.Labels.fold
           ~f:(fun ~key ~data:abstr acc ->
               let key', abstr' = write tid x expr key abstr
-              in M.add key' abstr' acc)
+              in add_join key' abstr' acc)
           ~init:bottom
           d
         |> close_by_flush_wrt_var x

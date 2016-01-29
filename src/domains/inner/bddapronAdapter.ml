@@ -10,8 +10,6 @@ module L = Location
 
 module BddDomain = Bdddomain1
 
-let cudd = Cudd.Man.make_v ()
-
 module Make (N : ApronAdapter.Numerical) = struct
 
   type t = (string, N.t) BddDomain.t
@@ -21,6 +19,8 @@ module Make (N : ApronAdapter.Numerical) = struct
 
   let man =
     BddDomain.make_man apron_man
+
+  let cudd = Cudd.Man.make_v ()
 
   let () =
   Cudd.Man.print_limit := 200;
@@ -205,7 +205,7 @@ module Make (N : ApronAdapter.Numerical) = struct
         | Ty.Bool -> Expr1.Bool.(to_expr @@ var env cond name)
       in
       BddDomain.assign_lexpr ~relational:true man cond abstr
-        [a_name; b_name] [make_exp a_name; make_exp b_name] None
+        [a_name; b_name] [make_exp b_name; make_exp a_name] None
 
   let fold dest source abstr =
     drop source @@ join abstr (swap dest source abstr)

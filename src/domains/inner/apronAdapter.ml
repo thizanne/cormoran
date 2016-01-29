@@ -22,7 +22,7 @@ module Make (N : Numerical) = struct
 
   let equal = Abstract1.is_eq man
 
-  let transtype_to_int { T.var_sym; var_type = Ty.Bool; var_spec }=
+  let transtype_to_int { T.var_sym; var_type = Ty.Bool; var_spec } =
     { var_sym; var_spec; T.var_type = Ty.Int }
 
   let ap_unop : type t. t T.unop L.loc -> _ =
