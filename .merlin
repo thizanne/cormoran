@@ -10,6 +10,8 @@ PKG ocamlgraph
 PKG ppx_deriving.std
 
 PKG bddapron
+PKG bddapron.bdd
+PKG bddapron.bddapron
 PKG apron
 PKG apron.apron
 PKG apron.boxD

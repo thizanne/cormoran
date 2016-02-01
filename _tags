@@ -1,16 +1,21 @@
 true: annot, bin_annot
-true: warn_A, warn(-4), warn(-33), warn(-44),warn(-45)
+true: warn_A, warn(-4), warn(-33), warn(-44), warn(-45)
 
 true: use_menhir
-true: package(ocamlgraph),package(batteries),package(ppx_deriving.std)
-true: package(cmdliner)
+
 <src>: include
 <src/*>: include
 <src/*/*>: include
 
+true: package(batteries)
+true: package(ppx_deriving.std)
+true: package(ocamlgraph)
+true: package(cmdliner)
+
 true: package(bddapron)
 true: package(bddapron.bdd)
 true: package(bddapron.bddapron)
+
 true: package(apron)
 true: package(apron.apron)
 true: package(apron.boxD)
