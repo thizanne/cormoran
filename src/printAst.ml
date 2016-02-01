@@ -103,7 +103,7 @@ let program_var_printer = {
 }
 
 let property_var_printer = {
-  f = fun output { T.var_sym; var_spec } ->
+  f = fun output { T.var_sym; var_spec; _ } ->
     fprintf output "%a:%a"
       Sym.print var_sym Source.print var_spec
 }

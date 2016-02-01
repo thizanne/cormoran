@@ -2,7 +2,7 @@ B _build/**
 
 S src/**
 
-FLG -w +27
+FLG -w +A-4-33-44-45
 
 PKG cmdliner
 PKG batteries

@@ -13,7 +13,7 @@ let main domain widening_delay use_litmus sourcefile outputfile =
   try
     let module P = Param in
     let (program, properties) =
-      P.Parse.parse_filename use_litmus sourcefile in
+      P.Parse.parse_filename ~use_litmus sourcefile in
     let g = Cfg.of_program program in
     let module D = (val P.Domain.get domain) in
     let module Analysis = Interleaving.Make (D) in

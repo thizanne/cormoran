@@ -68,12 +68,6 @@ module Make (N : ApronAdapter.Numerical) = struct
     |> List.fold_right (maybe_add_initial int_constant env) int_initials
     |> List.fold_right (maybe_add_initial bool_constant env) bool_initials
 
-  let fun_of_int_binop = function
-    | T.Add -> Expr1.Apron.add
-    | T.Sub -> Expr1.Apron.sub
-    | T.Mul -> Expr1.Apron.mul
-    | T.Div -> Expr1.Apron.div
-
   let rec expr_int env (exp : int Domain.inner_expression) =
     match exp with
     | T.Int n ->

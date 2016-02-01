@@ -44,13 +44,13 @@ module Dot (D : Domain.Outer) = struct
         `Style `Filled;
         `Style `Rounded;
         `HtmlLabel (
-          sprintf "
-<TABLE BORDER=\"0\" ALIGN=\"CENTER\">
-<TR><TD BORDER=\"0\">%s</TD></TR>
-<TR><TD BORDER=\"1\" BGCOLOR=\"white\">
-<FONT POINT-SIZE=\"12\"> %s </FONT>
-</TD>
-</TR>
+          sprintf " \
+<TABLE BORDER=\"0\" ALIGN=\"CENTER\"> \
+<TR><TD BORDER=\"0\">%s</TD></TR> \
+<TR><TD BORDER=\"1\" BGCOLOR=\"white\"> \
+<FONT POINT-SIZE=\"12\"> %s </FONT> \
+</TD> \
+</TR> \
 </TABLE>"
             (print_to_string Control.State.print v)
             (label v)

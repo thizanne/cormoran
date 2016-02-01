@@ -31,7 +31,7 @@ module Point = struct
 
   let get_var :
     type a. t -> a Dom.inner_var -> a option =
-    fun (ints, bools) { T.var_spec; var_type } ->
+    fun (ints, bools) { T.var_spec; var_type; _ } ->
       match var_type with
         | Ty.Int -> M.find var_spec ints
         | Ty.Bool -> M.find var_spec bools
@@ -54,10 +54,8 @@ module Point = struct
     fun p e ->
       get_expr p e.L.item
 
-  let rec sat_cons p cons =
+  let sat_cons p cons =
     Option.default true (get_expr p cons)
-
-  and sat_cons_loc p cons = sat_cons p cons.L.item
 
   let env_assign_value var value env =
     try
@@ -115,7 +113,7 @@ module Point = struct
 
   let drop :
     type a. a Dom.inner_var -> t -> t =
-    fun { T.var_type; var_spec } (ints, bools) ->
+    fun { T.var_type; var_spec; _ } (ints, bools) ->
       match var_type with
       | Ty.Int -> M.remove var_spec ints, bools
       | Ty.Bool -> ints, M.remove var_spec bools
@@ -178,9 +176,6 @@ let meet = D.inter
 
 let widening _abstr1 abstr2 =
   abstr2
-
-let join_array =
-  Array.fold_left join D.empty
 
 let meet_cons cons d =
   D.filter (fun p -> Point.sat_cons p cons) d

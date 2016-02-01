@@ -1,4 +1,5 @@
 true: annot, bin_annot
+true: warn_A, warn(-4), warn(-33), warn(-44),warn(-45)
 
 true: use_menhir
 true: package(ocamlgraph),package(batteries),package(ppx_deriving.std)
