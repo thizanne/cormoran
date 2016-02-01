@@ -142,12 +142,18 @@ module Make (Inner : Domain.Inner) = struct
       (fun var_sym ty (ints, bools) ->
          match ty with
          | Env.Int ->
-           let var =
-             { T.var_sym; var_type = Ty.Int; var_spec = sym_local tid var_sym } in
+           let var = {
+             T.var_sym;
+             var_type = Ty.Int;
+             var_spec = sym_local tid var_sym
+           } in
            (var, None) :: ints, bools
          | Env.Bool ->
-           let var =
-             { T.var_sym; var_type = Ty.Bool; var_spec = sym_local tid var_sym } in
+           let var = {
+             T.var_sym;
+             var_type = Ty.Bool;
+             var_spec = sym_local tid var_sym
+           } in
            ints, (var, None) :: bools)
       locals
       ([], [])
