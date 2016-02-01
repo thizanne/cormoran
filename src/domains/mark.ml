@@ -7,6 +7,11 @@ module L = Location
 module Dom = Domain
 
 module Key = struct
+  (* TODO: remove this when 4.03 is used. ppx_deriving uses
+     [@@ocaml.warning "-A"], which is needed to remove warning 39 and
+     not supported in 4.02. *)
+  [@@@ocaml.warning "-39"]
+
   type presence =
     | Zero
     | One
@@ -102,9 +107,6 @@ module Make (Inner : Domain.Inner) = struct
 
   let sym_local tid reg =
     inner_var_sym @@ Printf.sprintf "%d:%s" tid (Sym.name reg)
-
-  let sym_local_var tid var =
-    sym_local tid var.T.var_sym
 
   let sym_mem var =
     inner_var_sym @@ Printf.sprintf "%s:mem" (Sym.name var)
