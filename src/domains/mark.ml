@@ -353,7 +353,7 @@ module Make (Inner : Domain.Inner) = struct
     M.merge
       (fun _key abstr1 abstr2 -> match (abstr1, abstr2) with
          | None, _ -> abstr2
-         | _, None -> failwith "Abstract.widening"
+         | _, None -> abstr1
          | Some abstr1, Some abstr2 ->
            Some (Inner.widening abstr1 abstr2))
 end
