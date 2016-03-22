@@ -8,7 +8,7 @@ module State : sig
   val equal : t -> t -> bool
 end
 
-module G : Graph.Sig.P
+module ProgramG : Graph.Sig.P
   with type V.t = State.t
    and type V.label = State.t
    and type E.t = State.t * Operation.t * State.t
@@ -16,7 +16,7 @@ module G : Graph.Sig.P
 
 type t = private {
   program : TypedAst.program;
-  graph : G.t;
+  graph : ProgramG.t;
   labels : Control.Label.t Sym.Map.t array;
   final_state : Control.State.t;
 }

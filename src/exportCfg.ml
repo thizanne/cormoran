@@ -27,7 +27,7 @@ module Dot (D : Domain.Outer) = struct
        end)
   =
   struct
-    include Cfg.G
+    include Cfg.ProgramG
 
     let vertex_attributes v =
       let label v =

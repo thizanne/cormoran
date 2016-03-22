@@ -21,12 +21,12 @@ end
 module ThreadG =
   Persistent.Digraph.ConcreteLabeled (ThreadState) (Operation)
 
-module G =
+module ProgramG =
   Persistent.Digraph.ConcreteLabeled (State) (Operation)
 
 type t = {
   program : T.program;
-  graph : G.t;
+  graph : ProgramG.t;
   labels : Control.Label.t Sym.Map.t array;
   final_state : Control.State.t;
 }
@@ -159,21 +159,22 @@ let cfg_of_thread thread_id { T.body; _ } =
     Control.Label.initial
   ) body
 
-module Oper = Oper.Make (Builder.P (G))
+module Oper = Oper.Make (Builder.P (ProgramG))
 
 let combine (cfg1, labels1, final1) (cfg2, labels2, final2) =
   (* Combines two CFG.
      cfg1 is the cfg of a single thread,
      cfg2 is the cfg of a program. *)
   let ( ++ ) = Control.State.add_label in
-  G.empty
+  ProgramG.empty
   |> ThreadG.fold_vertex
-    (fun i -> Oper.union (G.map_vertex (fun is -> i ++ is) cfg2))
+    (fun i -> Oper.union (ProgramG.map_vertex (fun is -> i ++ is) cfg2))
     cfg1
   |> ThreadG.fold_edges_e
     (fun (i, op, i') ->
-       G.fold_vertex
-         (fun is g -> G.add_edge_e g (G.E.create (i ++ is) op (i' ++ is)))
+       ProgramG.fold_vertex
+         (fun is g ->
+            ProgramG.add_edge_e g (ProgramG.E.create (i ++ is) op (i' ++ is)))
          cfg2)
     cfg1,
   labels1 :: labels2,
@@ -183,7 +184,7 @@ let cfg_of_program { T.threads; _ } =
   List.fold_righti
     (fun thread body g -> combine (cfg_of_thread thread body) g)
     threads
-    (G.add_vertex G.empty Control.State.empty,
+    (ProgramG.add_vertex ProgramG.empty Control.State.empty,
      [],
      Control.State.empty)
 

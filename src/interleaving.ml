@@ -1,12 +1,12 @@
 open Batteries
 
 module Make (D : Domain.Outer) = struct
-  module Wto = Graph.WeakTopological.Make (Cfg.G)
+  module Wto = Graph.WeakTopological.Make (Cfg.ProgramG)
 
   module Data = struct
     type t = D.t
 
-    type edge = Cfg.G.edge
+    type edge = Cfg.ProgramG.edge
 
     let equal = D.equal
     let join = D.join
@@ -17,7 +17,7 @@ module Make (D : Domain.Outer) = struct
     let widening = D.widening
   end
 
-  module Fixpoint = Graph.ChaoticIteration.Make (Cfg.G) (Data)
+  module Fixpoint = Graph.ChaoticIteration.Make (Cfg.ProgramG) (Data)
 
   let analyze g widening_delay =
     let wto =
