@@ -4,25 +4,11 @@ open Graph
 module T = TypedAst
 module L = Location
 
-module ThreadState = struct
-  type t = Control.Label.t
-  let compare = Control.Label.compare
-  let hash = Hashtbl.hash
-  let equal = ( = )
-end
-
-module State = struct
-  type t = Control.State.t
-  let compare = Control.State.compare
-  let hash = Hashtbl.hash
-  let equal = ( = )
-end
-
 module ThreadG =
-  Persistent.Digraph.ConcreteLabeled (ThreadState) (Operation)
+  Persistent.Digraph.ConcreteLabeled (Control.Label) (Operation)
 
 module ProgramG =
-  Persistent.Digraph.ConcreteLabeled (State) (Operation)
+  Persistent.Digraph.ConcreteLabeled (Control.State) (Operation)
 
 type t = {
   program : T.program;

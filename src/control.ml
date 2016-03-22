@@ -9,10 +9,16 @@ module Label = struct
 
   let enum ~initial ~final =
     initial -- final
+
+  let hash = Hashtbl.hash
 end
 
 module State = struct
   type t = Label.t list
+
+  let equal = List.eq Label.equal
+
+  let hash = Hashtbl.hash
 
   let empty = []
 

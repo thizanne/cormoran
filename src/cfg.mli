@@ -1,17 +1,9 @@
 open Batteries
 
-module State : sig
-  type t = Control.State.t
-
-  val compare : t -> t -> int
-  val hash : t -> int
-  val equal : t -> t -> bool
-end
-
 module ProgramG : Graph.Sig.P
-  with type V.t = State.t
-   and type V.label = State.t
-   and type E.t = State.t * Operation.t * State.t
+  with type V.t = Control.State.t
+   and type V.label = Control.State.t
+   and type E.t = Control.State.t * Operation.t * Control.State.t
    and type E.label = Operation.t
 
 type t = private {

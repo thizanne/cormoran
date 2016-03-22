@@ -4,6 +4,8 @@ type thread_id = int
 
 module Label : sig
   type t
+  val equal : t -> t -> bool
+  val hash : t -> int
   val initial : t
   val succ : t -> t
   val enum : initial:t -> final:t -> t Enum.t
@@ -13,6 +15,8 @@ end
 
 module State : sig
   type t
+  val equal : t -> t -> bool
+  val hash : t -> int
   val empty : t
   val add_label : Label.t -> t -> t
   val from_label_list : Label.t list -> t
