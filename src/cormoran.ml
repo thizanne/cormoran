@@ -26,12 +26,10 @@ let main domain widening_delay use_litmus sourcefile outputfile =
     (* Printf.printf "done.\nChecking properties...\n"; *)
     List.iteri
       (fun i prop ->
-         Printf.printf "Property %d " (i + 1);
-         if Prop.satisfies prop g data
-         then Printf.printf "verified.\n"
-         else Printf.printf
-             "could not be verified: \
-              either it is wrong, or the domain is too imprecise.\n")
+         Printf.printf "Property %d %s\n" (i + 1)
+           (if Prop.satisfies prop g data
+            then "verified."
+            else "could not be verified (wrong, or domain too imprecise)."))
       properties
   with
   | Error.Error e ->
