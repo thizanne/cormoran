@@ -7,7 +7,6 @@ module ProgramG : Graph.Sig.P
    and type E.label = Operation.t
 
 type t = private {
-  program : TypedAst.program;
   graph : ProgramG.t;
   labels : Control.Label.t Sym.Map.t array;
   final_state : Control.State.t;

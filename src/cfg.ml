@@ -11,7 +11,6 @@ module ProgramG =
   Persistent.Digraph.ConcreteLabeled (Control.State) (Operation)
 
 type t = {
-  program : T.program;
   graph : ProgramG.t;
   labels : Control.Label.t Sym.Map.t array;
   final_state : Control.State.t;
