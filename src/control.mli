@@ -26,3 +26,11 @@ module State : sig
   val compare : t -> t -> int
   val print : 'a IO.output -> t -> unit
 end
+
+module ThreadStructure : sig
+  module ProgramG : Graph.Sig.P
+    with type V.t = State.t
+     and type V.label = State.t
+     and type E.t = State.t * Operation.t * State.t
+     and type E.label = Operation.t
+end

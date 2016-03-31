@@ -4,34 +4,25 @@ open Graph
 module T = TypedAst
 module L = Location
 
-type thread_id = int
-
 module Label = struct
   include Int
 
   let initial = 0
+  let hash = Hashtbl.hash
 
   let enum ~initial ~final =
     initial -- final
-
-  let hash = Hashtbl.hash
 end
 
 module State = struct
   type t = Label.t list
 
   let equal = List.eq Label.equal
-
   let hash = Hashtbl.hash
-
   let empty = []
-
   let tid_label = List.nth
-
   let add_label = List.cons
-
   let from_label_list labels = labels
-
   let compare = List.compare Label.compare
 
   let is_initial =
@@ -44,175 +35,211 @@ module State = struct
     List.print Int.print ~first:"" ~last:"" output
 end
 
-module ThreadG =
-  Persistent.Digraph.ConcreteLabeled (Label) (Operation)
+module ThreadStructure =
+struct
 
-module ProgramG =
-  Persistent.Digraph.ConcreteLabeled (State) (Operation)
+  module Edge = struct
+    include Operation
+    let default = Operation.Identity
+  end
 
-type t = {
-  graph : ProgramG.t;
-  labels : Label.t Sym.Map.t list;
-  final_state : State.t;
-}
+  module Graph =
+    Persistent.Digraph.ConcreteLabeled (Label) (Edge)
 
-let cfg_of_thread thread_id { T.body; _ } =
+  type t = {
+    graph : Graph.t;
+    labels : Label.t Sym.Map.t;
+    final : Label.t;
+  }
 
-  let open Operation in
-  let open Label in
+  let of_thread { T.body; _ } =
 
-  let source_cond = T.add_source (Some thread_id) in
+    let open Operation in
+    let open Label in
 
-  let filter cond =
-    Filter (source_cond cond.L.item)
-  in
+    let assign_edge var expr =
+      Assign (var.L.item, expr.L.item)
+    in
 
-  let filter_not cond =
-    (* Turns a var condition into the negation of its threaded condition *)
-    Filter (source_cond (T.Unop (L.mkdummy T.Not, cond)))
-  in
+    let filter_edge cond =
+      Filter cond.L.item
+    in
 
-  let for_filter rel i exp =
-    (* Builds the Filter for continuing a for loop *)
-    Filter (
-      source_cond (
-        T.Binop (
-          L.mkdummy rel,
-          L.mkloc (T.Var i) i.L.loc,
-          exp
-        )
-      )
-    )
-  in
+    let filter_not_edge cond =
+      Filter (T.Unop (L.mkdummy T.Not, cond))
+    in
 
-  (* The following functions take as a parameter and return a tuple
-     `(graph, labels, offset)`. The graph is a CFG of a single-thread
-     program, thus with edges in the form of [n : int].
+    let incr_one_edge var =
+      (* Builds the i++ edge for a for loop step *)
+        let var_plus_one =
+          T.Binop (
+            L.mkdummy T.Add,
+            L.mkdummy @@ T.Var (L.mkdummy var.L.item),
+            L.mkdummy @@ T.Int (L.mkdummy 1)
+          ) in
+        Assign (var.L.item, var_plus_one)
+    in
 
-     These tuples should observe the invariant that `offset` is the
-     number present in the "last" vertex of the graph, that is the
-     vertex corresponding to the end of the program. `labels` should
-     also be a map from label symbols to valid vertices of the
-     graph. *)
+    let for_filter rel i exp =
+      (* Builds the Filter edge for continuing a for loop *)
+      Filter
+        (T.Binop
+           (L.mkdummy rel,
+            L.mkloc (T.Var i) i.L.loc,
+            exp))
+    in
 
-  let add_op_edge op orig dest (acc, labels, offset) =
-    (* Adds an edge from orig to dest corresponding to the operation op.
-       orig and dest are expected to be existing vertices in the graph *)
-    ThreadG.add_edge_e acc @@ ThreadG.E.create orig op dest,
-    labels,
-    offset
-  in
+    (* The following functions take as a parameter and return a tuple
+       `(graph, labels, offset)`. The graph is a CFG of a single-thread
+       program, thus with edges in the form of [n : int].
 
-  let add_single_vertex (acc, labels, offset) =
-    (* Adds a single vertex to the graph *)
-    ThreadG.add_vertex acc (succ offset),
-    labels,
-    (succ offset)
-  in
+       These tuples should observe the invariant that `offset` is the
+       number present in the "last" vertex of the graph, that is the
+       vertex corresponding to the end of the program. `labels` should
+       also be a map from label symbols to valid vertices of the
+       graph. *)
 
-  let add_single_edge op (acc, labels, offset) =
-    (* Adds a single vertex to the graph, and a single edge from the
-       former last vertex of the graph to this vertex *)
-    ThreadG.add_edge_e acc @@ ThreadG.E.create offset op @@ succ offset,
-    labels,
-    succ offset
-  in
+    let add_op_edge op orig dest (acc, labels, offset) =
+      (* Adds an edge from orig to dest corresponding to the operation op.
+         orig and dest are expected to be existing vertices in the graph *)
+      Graph.add_edge_e acc @@ Graph.E.create orig op dest,
+      labels,
+      offset
+    in
 
-  let rec cfg_of_body (acc, labels, offset) { L.item = body; _ } =
-    match body with
-    (* TODO: Control blocks structures are generating one node more
-       than necessary. The building functions should be modified to
-       specify the end of the graph to yield, thus making the bodies
-       point on the structure head rather than on a new node linked to
-       the head by Identity. *)
-    | T.Nothing ->
-      acc, labels, offset
-    | T.Label lbl ->
-      acc, Sym.Map.add lbl.L.item offset labels, offset
-    | T.Pass ->
-      add_single_edge Identity (acc, labels, offset)
-    | T.MFence ->
-      add_single_edge (MFence thread_id) (acc, labels, offset)
-    | T.Assign (x, e) ->
-      add_single_edge
-        (Assign (thread_id, x.L.item, e.L.item))
-        (acc, labels, offset)
-    | T.Seq (b1, b2) ->
-      cfg_of_body (cfg_of_body (acc, labels, offset) b1) b2
-    | T.If (cond, body) ->
-      let acc', labels', offset' =
-        cfg_of_body (acc, labels, succ offset) body in
-      (acc', labels', offset')
-      |> add_op_edge (filter cond) offset (succ offset)
-      |> add_op_edge (filter_not cond) offset offset'
-    | T.While (cond, body) ->
-      let acc', labels', offset' =
-        cfg_of_body (acc, labels, succ offset) body in
-      (acc', labels', offset')
-      |> add_single_vertex
-      |> add_op_edge Identity offset' offset
-      |> add_op_edge (filter cond) offset (succ offset)
-      |> add_op_edge (filter_not cond) offset (succ offset')
-    | T.For (i, exp_from, exp_to, body) ->
-      let acc', labels', offset' =
-        cfg_of_body (acc, labels, succ @@ succ offset) body in
-      let iplus1 =
-        T.Binop (
-          L.mkdummy T.Add,
-          L.mkdummy @@ T.Var (L.mkdummy i.L.item),
-          L.mkdummy @@ T.Int (L.mkdummy 1)
-        ) in
-      (acc', labels', offset')
-      |> add_single_vertex
-      |> add_op_edge (Assign (thread_id, i.L.item, exp_from.L.item))
-        offset
-        (succ offset)
-      |> add_op_edge (for_filter T.Le i exp_to)
-        (succ offset)
-        (succ @@ succ offset)
-      |> add_op_edge (for_filter T.Gt i exp_to)
-        (succ offset)
-        (succ offset')
-      |> add_op_edge (Assign (thread_id, i.L.item, iplus1))
-        offset'
-        (succ offset)
-  in
+    let add_single_vertex (acc, labels, offset) =
+      (* Adds a single vertex to the graph *)
+      Graph.add_vertex acc (succ offset),
+      labels,
+      (succ offset)
+    in
 
-  cfg_of_body (
-    ThreadG.add_vertex ThreadG.empty Label.initial,
-    Sym.Map.empty,
-    Label.initial
-  ) body
+    let add_single_edge op (acc, labels, offset) =
+      (* Adds a single vertex to the graph, and a single edge from the
+         former last vertex of the graph to this vertex *)
+      Graph.add_edge_e acc @@ Graph.E.create offset op @@ succ offset,
+      labels,
+      succ offset
+    in
 
-module Oper = Oper.Make (Builder.P (ProgramG))
+    let rec of_body (acc, labels, offset) { L.item = body; _ } =
+      match body with
+      (* TODO: Control blocks structures are generating one node more
+         than necessary. The building functions should be modified to
+         specify the end of the graph to yield, thus making the bodies
+         point on the structure head rather than on a new node linked to
+         the head by Identity. *)
+      | T.Nothing ->
+        acc, labels, offset
+      | T.Label lbl ->
+        acc, Sym.Map.add lbl.L.item offset labels, offset
+      | T.Pass ->
+        add_single_edge Identity (acc, labels, offset)
+      | T.MFence ->
+        add_single_edge MFence (acc, labels, offset)
+      | T.Assign (x, e) ->
+        add_single_edge
+          (assign_edge x e)
+          (acc, labels, offset)
+      | T.Seq (b1, b2) ->
+        of_body (of_body (acc, labels, offset) b1) b2
+      | T.If (cond, body) ->
+        let acc', labels', offset' =
+          of_body (acc, labels, succ offset) body in
+        (acc', labels', offset')
+        |> add_op_edge (filter_edge cond) offset (succ offset)
+        |> add_op_edge (filter_not_edge cond) offset offset'
+      | T.While (cond, body) ->
+        let acc', labels', offset' =
+          of_body (acc, labels, succ offset) body in
+        (acc', labels', offset')
+        |> add_single_vertex
+        |> add_op_edge Identity offset' offset
+        |> add_op_edge (filter_edge cond) offset (succ offset)
+        |> add_op_edge (filter_not_edge cond) offset (succ offset')
+      | T.For (i, exp_from, exp_to, body) ->
+        let acc', labels', offset' =
+          of_body (acc, labels, succ @@ succ offset) body in
+        (acc', labels', offset')
+        |> add_single_vertex
+        |> add_op_edge (assign_edge i exp_from)
+          offset
+          (succ offset)
+        |> add_op_edge (for_filter T.Le i exp_to)
+          (succ offset)
+          (succ @@ succ offset)
+        |> add_op_edge (for_filter T.Gt i exp_to)
+          (succ offset)
+          (succ offset')
+        |> add_op_edge (incr_one_edge i)
+          offset'
+          (succ offset)
+    in
 
-let combine (cfg1, labels1, final1) (cfg2, labels2, final2) =
-  (* Combines two CFG.
-     cfg1 is the cfg of a single thread,
-     cfg2 is the cfg of a program. *)
-  let ( ++ ) = State.add_label in
-  ProgramG.empty
-  |> ThreadG.fold_vertex
-    (fun i -> Oper.union (ProgramG.map_vertex (fun is -> i ++ is) cfg2))
-    cfg1
-  |> ThreadG.fold_edges_e
-    (fun (i, op, i') ->
-       ProgramG.fold_vertex
-         (fun is g ->
-            ProgramG.add_edge_e g (ProgramG.E.create (i ++ is) op (i' ++ is)))
-         cfg2)
-    cfg1,
-  labels1 :: labels2,
-  final1 ++ final2
+    let graph, labels, final =
+      of_body (
+        Graph.add_vertex Graph.empty Label.initial,
+        Sym.Map.empty,
+        Label.initial
+      ) body in
+    { graph; labels; final }
 
-let cfg_of_program { T.threads; _ } =
-  List.fold_righti
-    (fun thread body g -> combine (cfg_of_thread thread body) g)
-    threads
-    (ProgramG.add_vertex ProgramG.empty State.empty,
-     [],
-     State.empty)
+end
 
-let of_program program =
-  let graph, labels, final_state = cfg_of_program program in
-  { program; graph; labels = Array.of_list labels; final_state }
+module ProgramControl = struct
+
+  module TS = ThreadStructure
+
+  module Edge = struct
+    type t = Source.thread_id * Operation.t
+    let default = -1, Operation.Identity
+    let compare = Pervasives.compare
+  end
+
+  module Graph =
+    Persistent.Digraph.ConcreteLabeled (State) (Edge)
+
+  type t = {
+    graph : Graph.t;
+    labels : Label.t Sym.Map.t list;
+    final : State.t;
+  }
+
+  module Oper = Oper.Make (Builder.P (Graph))
+
+  let combine
+      tid
+      { TS.graph = graph1; labels = labels1; final = final1 }
+      { graph = graph2; labels = labels2; final = final2 }
+    =
+    (* Combines two CFG.
+       tid is the tid of the thread to add,
+       graph1 is the cfg of this single thread,
+       graph2 is the cfg of a program. *)
+    let ( ++ ) = State.add_label in
+    let graph =
+      Graph.empty
+      |> TS.Graph.fold_vertex
+        (fun i -> Oper.union (Graph.map_vertex (fun is -> i ++ is) graph2))
+        graph1
+      |> TS.Graph.fold_edges_e
+        (fun (i, op, i') ->
+           Graph.fold_vertex
+             (fun is g ->
+                Graph.add_edge_e g (Graph.E.create (i ++ is) (tid, op) (i' ++ is)))
+             graph2)
+        graph1 in
+    let labels = labels1 :: labels2 in
+    let final = final1 ++ final2 in
+    { graph; labels; final }
+
+  let of_program { T.threads; _ } =
+    List.fold_righti
+      (fun thread body g -> combine thread (TS.of_thread body) g)
+      threads
+      {
+        graph = Graph.add_vertex Graph.empty State.empty;
+        labels = [];
+        final = State.empty;
+      }
+end

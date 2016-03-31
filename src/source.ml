@@ -1,8 +1,12 @@
 open Batteries
 
+(* TODO: maybe think about naming and organisation of
+   Source/thread_id *)
+type thread_id = int
+
 type t =
-  | Local of Control.thread_id
-  | View of Control.thread_id
+  | Local of thread_id
+  | View of thread_id
   | Memory
 
 let threaded thread_id_option origin =

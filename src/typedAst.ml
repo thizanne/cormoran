@@ -95,6 +95,7 @@ type (_, _) expression =
 let var v = Var v
 
 type 't program_expression = ('t, Ty.origin) expression
+type program_condition = (bool, Ty.origin) expression
 
 type property_condition = (bool, Source.t) expression
 
