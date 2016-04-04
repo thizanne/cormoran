@@ -186,7 +186,7 @@ struct
 
 end
 
-module ProgramControl = struct
+module ProgramStructure = struct
 
   module TS = ThreadStructure
 

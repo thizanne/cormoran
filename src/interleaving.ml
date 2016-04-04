@@ -1,33 +1,35 @@
 open Batteries
 
+module PS = Control.ProgramStructure
+
 module Make (D : Domain.Outer) = struct
-  module Wto = Graph.WeakTopological.Make (Cfg.ProgramG)
+  module Wto = Graph.WeakTopological.Make (PS.Graph)
 
   module Data = struct
     type t = D.t
 
-    type edge = Cfg.ProgramG.edge
+    type edge = PS.Graph.edge
 
     let equal = D.equal
     let join = D.join
 
-    let analyze (_, op, _) d =
-      D.transfer op d
+    let analyze (_, (tid, op), _) d =
+      D.transfer tid op d
 
     let widening = D.widening
   end
 
-  module Fixpoint = Graph.ChaoticIteration.Make (Cfg.ProgramG) (Data)
+  module Fixpoint = Graph.ChaoticIteration.Make (PS.Graph) (Data)
 
-  let analyze g widening_delay =
+  let analyze g widening_delay init =
     let wto =
-      Wto.recursive_scc g.Cfg.graph @@
-      Control.State.initial @@ List.length g.Cfg.program.TypedAst.threads
+      Wto.recursive_scc g.PS.graph @@
+      Control.State.initial @@ List.length g.PS.labels
     in
 
     let init control_state =
       if Control.State.is_initial control_state
-      then D.init g.Cfg.program
+      then init
       else D.bottom
     in
 
@@ -37,7 +39,7 @@ module Make (D : Domain.Outer) = struct
 
     let result =
       Fixpoint.recurse
-        g.Cfg.graph
+        g.PS.graph
         wto
         init
         widening_set

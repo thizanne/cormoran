@@ -216,6 +216,10 @@ module Make (Inner : Domain.Inner) = struct
       in { T.var_sym; var_type; var_spec = inner_sym }
     in { T.map }
 
+  let meet_unsymbolised_cond symbolise cond =
+    M.mapi
+      (fun key -> Inner.meet_cons @@ T.map_expr (symbolise key) cond)
+
   let local_assign tid r expr key abstr =
     Inner.assign_expr
       (inner_var_local tid r)
@@ -317,18 +321,16 @@ module Make (Inner : Domain.Inner) = struct
     in
     T.fold_expr { T.fold } d expr
 
-  let transfer op d =
+  let transfer tid op d =
     match op with
     | O.Identity -> d
-    | O.MFence tid ->
+    | O.MFence ->
       M.filter (fun key _ -> Key.tid_is_consistent key tid) d
     | O.Filter cond ->
       d
-      |> M.mapi
-        (fun key ->
-           Inner.meet_cons @@ T.map_expr (inner_of_property key) cond)
+      |> meet_unsymbolised_cond (inner_of_program tid) cond
       |> normalize
-    | O.Assign (tid, x, expr) ->
+    | O.Assign (x, expr) ->
       match x.T.var_spec with
       | Ty.Local ->
         M.mapi (local_assign tid x expr) d
@@ -341,6 +343,11 @@ module Make (Inner : Domain.Inner) = struct
           ~init:bottom
           d
         |> close_by_flush_wrt_var x
+
+  let meet_cond cond abstr =
+    (* normalisation is not needed since only a is_bottom will be done
+       on the result *)
+    meet_unsymbolised_cond inner_of_property cond abstr
 
   let join =
     M.merge

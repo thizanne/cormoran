@@ -8,7 +8,8 @@ module type Outer = sig
   val is_bottom : t -> bool
   val equal : t -> t -> bool
   val init : T.program -> t
-  val transfer : Operation.t -> t -> t
+  val transfer : Source.thread_id -> Operation.t -> t -> t
+  val meet_cond : T.property_condition -> t -> t
   val join : t -> t -> t
   val widening : t -> t -> t
   val print : 'a IO.output -> t -> unit

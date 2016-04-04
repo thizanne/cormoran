@@ -2,16 +2,16 @@ open Batteries
 open Printf
 open Util
 
-let edge_label op =
+let edge_label (thread_id, op) =
   let output = IO.output_string () in
   begin match op with
     | Operation.Identity ->
       String.print output "Id"
-    | Operation.MFence thread_id ->
+    | Operation.MFence ->
       Printf.fprintf output "%d :: MFence" thread_id
     | Operation.Filter c ->
-      PrintAst.print_expression PrintAst.property_var_printer output c
-    | Operation.Assign (thread_id, x, e) ->
+      PrintAst.print_expression PrintAst.program_var_printer output c
+    | Operation.Assign (x, e) ->
       Printf.fprintf output "%d :: %a := %a"
         thread_id
         PrintAst.(program_var_printer.f) x
@@ -27,7 +27,7 @@ module Dot (D : Domain.Outer) = struct
        end)
   =
   struct
-    include Cfg.ProgramG
+    include Control.ProgramStructure.Graph
 
     let vertex_attributes v =
       let label v =
@@ -74,5 +74,5 @@ module Dot (D : Domain.Outer) = struct
   let output_graph out data g =
     let module Param = DotParam (struct let data = data end) in
     let module Dot = Graph.Graphviz.Dot (Param) in
-    Dot.fprint_graph (Format.formatter_of_output out) g.Cfg.graph
+    Dot.fprint_graph (Format.formatter_of_output out) g.Control.ProgramStructure.graph
 end

@@ -29,7 +29,7 @@
 %start
 <UntypedAst.program *
    (Property.zone option *
-      (Sym.t * TypedAst.thread_id option) UntypedAst.expression Location.loc)
+      (Sym.t * Source.thread_id option) UntypedAst.expression Location.loc)
      list>
   program
 

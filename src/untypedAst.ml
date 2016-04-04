@@ -51,7 +51,7 @@ type body_expression =
   Sym.t expression
 
 type property_expression =
-  (Sym.t * TypedAst.thread_id option) expression
+  (Sym.t * Source.thread_id option) expression
 
 type body =
   | Nothing
