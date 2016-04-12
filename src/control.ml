@@ -8,6 +8,8 @@ module Label = struct
   include Int
 
   let initial = 0
+  let is_initial = ( = ) 0
+
   let hash = Hashtbl.hash
 
   let enum ~initial ~final =

@@ -5,6 +5,7 @@ module Label : sig
   val equal : t -> t -> bool
   val hash : t -> int
   val initial : t
+  val is_initial : t -> bool
   val succ : t -> t
   val enum : initial:t -> final:t -> t Enum.t
   val compare : t -> t -> int
