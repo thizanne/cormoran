@@ -24,6 +24,7 @@ module type Interferences = sig
   val bottom : t
   val equal : t -> t -> bool
   val join : t -> t -> t
+  val widening : t -> t -> t
 end
 
 module type ThreadAnalysis = sig
@@ -103,10 +104,10 @@ module ProgramAnalysis (A : ThreadAnalysis) = struct
     let initial_data =
       List.map (const @@ const A.StateAbstraction.bottom) threads in
 
-    let rec fixpoint interf data current final = function
-      (* current is the id of the thread the function is going to
-         analyse. final is the id of the last thread which changed the
-         interference set. That means other threads did not add
+    let rec fixpoint interf data current final itf_w_delay = function
+      (* current is the id option of the thread the function is going
+         to analyse. final is the id of the last thread which changed
+         the interference set. That means other threads did not add
          interferences w.r.t the last analysis when the iteration
          reaches this thread again. Therefore fixpoint is reached: all
          thread data have been computed with the last interference
@@ -114,9 +115,18 @@ module ProgramAnalysis (A : ThreadAnalysis) = struct
 
          current and final are integers and not Source.thread_id: they
          represent indexes in the thread list and do not leave the
-         analyse function, so it's ok. *)
-      | [] -> fixpoint interf data 0 final threads
-      | _ :: _ when current = final ->
+         analyse function, so it's ok.
+
+         Interferences widening delay is now the same as
+         widening_delay. TODO: change it. It is to be understood as
+         the number of analysis of all the threads before doing
+         a widening on interferences. *)
+      | [] ->
+        let itf_w_delay =
+          if itf_w_delay = 0 then widening_delay
+          else itf_w_delay - 1 in
+        fixpoint interf data 0 final itf_w_delay threads
+      | _ :: _ when Some current = final ->
         interf, data
       | t :: ts ->
         let interf', d =
@@ -124,10 +134,16 @@ module ProgramAnalysis (A : ThreadAnalysis) = struct
         let final =
           if A.Interferences.equal interf interf'
           then final
-          else current in
+          else Some current in
         let data =
           List.modify_at current (const d) data in
-        fixpoint interf' data (succ current) final ts
+        fixpoint interf' data (succ current) final itf_w_delay ts
 
-    in fixpoint A.Interferences.bottom initial_data 0 (-1) threads
+    in fixpoint
+      A.Interferences.bottom (* initial interferences *)
+      initial_data (* initial data for a thread *)
+      0 (* first "current analysed state" *)
+      None (* Last thread updating interferences *)
+      widening_delay
+      threads
 end
