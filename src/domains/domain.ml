@@ -10,7 +10,7 @@ module type Common = sig
   val print : 'a IO.output -> t -> unit
 end
 
-module type Outer = sig
+module type ProgramState = sig
   include Common
   val bottom : t
   val init : T.program -> t

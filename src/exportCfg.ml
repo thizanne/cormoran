@@ -19,7 +19,7 @@ let edge_label (thread_id, op) =
   end;
   IO.close_out output
 
-module Dot (D : Domain.Outer) = struct
+module Dot (D : Domain.ProgramState) = struct
 
   module DotParam
       (Data : sig

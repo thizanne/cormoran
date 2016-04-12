@@ -1,1 +1,1 @@
-module Make : functor (D : Domain.Inner) -> Domain.Outer
+module Make : functor (D : Domain.Inner) -> Domain.ProgramState

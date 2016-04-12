@@ -2,7 +2,7 @@ open Batteries
 
 module Domain : sig
   type t
-  val get : t -> (module Domain.Outer)
+  val get : t -> (module Domain.ProgramState)
 end
 
 module Parse : sig

@@ -2,7 +2,7 @@ open Batteries
 
 module PS = Control.ProgramStructure
 
-module Make (D : Domain.Outer) = struct
+module Make (D : Domain.ProgramState) = struct
   module Wto = Graph.WeakTopological.Make (PS.Graph)
 
   module Data = struct

@@ -37,7 +37,7 @@ module Domain = struct
     | Mark
     | Concrete
 
-  let get : _ -> (module Domain.Outer) = function
+  let get : _ -> (module Domain.ProgramState) = function
     | BddPolka -> (module Mark.Make (BddapronAdapter.Polka))
     | BddOct -> (module Mark.Make (BddapronAdapter.Oct))
     | Polka -> (module Mark.Make (ApronAdapter.Polka))
