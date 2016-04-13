@@ -131,10 +131,6 @@ module ProgramAnalysis (A : ThreadAnalysis) = struct
          thread data have been computed with the last interference
          set, therefore these data cannot change anymore.
 
-         current and final are integers and not Source.thread_id: they
-         represent indexes in the thread list and do not leave the
-         analyse function, so it's ok.
-
          Interferences widening delay works thread-by-thread. This
          should give a better precision. *)
       | [] -> fixpoint interf data 0 final itf_w_delays threads
@@ -143,7 +139,7 @@ module ProgramAnalysis (A : ThreadAnalysis) = struct
       | t :: ts ->
         let intf_t, intf_other = split_interferences current interf in
         let intf_t', d =
-          ThreadAnalysis.analyse t widening_delay intf_other init in
+          ThreadAnalysis.analyse t widening_delay intf_other (init current) in
         let intf_t_stable = A.Interferences.equal intf_t intf_t' in
         let final =
           if intf_t_stable
