@@ -43,32 +43,38 @@ end
 
 module OneThread (A : ThreadAnalysis) = struct
   (* TODO: better WTO for one-thread graphs *)
+  (* TODO: separate widening delays for different operations *)
   module Wto = Graph.WeakTopological.Make (TS.Graph)
 
-  module Data = struct
-    type t = A.StateAbstraction.t
+  let analyse thread widening_delay external_intf init =
+    (* Data has to be redefined at each thread analysis because the
+       analyze function should depend on the external interferences. *)
+    let module Data = struct
+      type t = A.StateAbstraction.t
+      type edge = TS.Graph.edge
+      let equal = A.StateAbstraction.equal
+      let join = A.StateAbstraction.join
+      let widening = A.StateAbstraction.widening
 
-    type edge = TS.Graph.edge
-    let equal = A.StateAbstraction.equal
+      let rec apply_interferences w_delay state =
+        let result = A.apply state external_intf in
+        if equal state result then result
+        else if w_delay > 0 then apply_interferences (w_delay - 1) result
+        else apply_interferences 0 (widening state result)
 
-    let join = A.StateAbstraction.join
+      let return_interferences, analyze =
+        (* Use closures to update generated interferences without
+             having an explicit global state *)
+        let interf = ref A.Interferences.bottom in
+        (fun () -> !interf),
+        (fun (lbl1, op, lbl2) d ->
+           let state, new_interf = A.transfer lbl1 lbl2 op d in
+           let state = apply_interferences widening_delay state in
+           interf := A.Interferences.join !interf new_interf;
+           state)
+    end in
+    let module Fixpoint = Graph.ChaoticIteration.Make (TS.Graph) (Data) in
 
-    let return_interferences, analyze =
-      (* Use closures to update interferences without having an
-         explicit global state *)
-      let interf = ref A.Interferences.bottom in
-      (fun () -> !interf),
-      (fun (lbl1, op, lbl2) d ->
-         let state, new_interf = A.transfer lbl1 lbl2 op d in
-         interf := A.Interferences.join !interf new_interf;
-         state)
-
-    let widening = A.StateAbstraction.widening
-  end
-
-  module Fixpoint = Graph.ChaoticIteration.Make (TS.Graph) (Data)
-
-  let analyse thread widening_delay init =
     let wto =
       Wto.recursive_scc thread.TS.graph @@
       Control.Label.initial in
