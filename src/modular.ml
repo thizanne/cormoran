@@ -4,11 +4,6 @@ module C = Control
 module T = TypedAst
 module TS = Control.ThreadStructure
 
-module type Control = sig
-  type label
-  val alpha : Control.Label.t -> label
-end
-
 module type ThreadState = sig
   include Domain.Common
 
@@ -28,7 +23,6 @@ module type Interferences = sig
 end
 
 module type ThreadAnalysis = sig
-  module ControlAbstraction : Control
   module StateAbstraction : ThreadState
   module Interferences : Interferences
 
