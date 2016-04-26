@@ -4,27 +4,9 @@ module C = Control
 module T = TypedAst
 module TS = Control.ThreadStructure
 
-module type ThreadState = sig
-  include Domain.Common
-
-  val bottom : t
-  val init : T.program -> Source.thread_id -> t
-  val transfer : Operation.t -> t -> t
-  val meet_cond : T.property_condition -> t -> t
-  val widening : t -> t -> t
-end
-
-module type Interferences = sig
-  type t
-  val bottom : t
-  val equal : t -> t -> bool
-  val join : t -> t -> t
-  val widening : t -> t -> t
-end
-
 module type ThreadAnalysis = sig
-  module StateAbstraction : ThreadState
-  module Interferences : Interferences
+  module StateAbstraction : Domain.ThreadState
+  module Interferences : Domain.Interferences
 
   val apply : StateAbstraction.t -> Interferences.t -> StateAbstraction.t
   val transfer :
