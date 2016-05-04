@@ -1,7 +1,7 @@
 open Batteries
 
 module Label : sig
-  type t
+  type t = private int
   val equal : t -> t -> bool
   val hash : t -> int
   val initial : t
