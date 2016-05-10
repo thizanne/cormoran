@@ -41,10 +41,7 @@ type 't inner_expression = ('t, Sym.t) T.expression
 
 module type Inner = sig
   include Common
-  val init :
-    (int inner_var * int option) list ->
-    (bool inner_var * bool option) list ->
-    t
+  val init : t (* An element with no constraint and no variable defined *)
   val meet : t -> t -> t
   val meet_cons : bool inner_expression -> t -> t
   val widening : t -> t -> t

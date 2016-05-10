@@ -2,10 +2,69 @@ open Batteries
 open Util
 open Printf
 
+(* Caution: despite its name, this module actually implements an
+   abstraction of the concrete inner domain, since it keeps no
+   information about relations that can exist between variables whose
+   values are None (that is every possible value).
+*)
+
+(* TODO: fix it. Meeting [x = None] with constraint [x = 0] should
+   return [x = 0]. Probably implement it by getting rid of get_expr
+   and have some function factorising assign_expr and meet_cons in
+   Point (at least for some trivial constraints like x = N, which is
+   necessary for initial property instead of initial values --
+   probably too much work for nothing to try to deal with constraints
+   like [x = y]. *)
+
 module Dom = Domain
 module L = Location
 module T = TypedAst
 module Ty = Types
+
+let ( // ) x_opt y_opt = match x_opt, y_opt with
+  | None, _
+  | _, None
+  | _, Some 0 -> None
+  | Some x, Some y -> Some (x / y)
+
+let ( ||| ) a_opt b_opt = match a_opt, b_opt with
+  | None, None
+  | None, Some false
+  | Some false, None -> None
+  | Some true, None
+  | None, Some true -> Some true
+  | Some a, Some b -> Some (a || b)
+
+let ( &&& ) a_opt b_opt = match a_opt, b_opt with
+  | None, None
+  | None, Some true
+  | Some true, None -> None
+  | Some false, None
+  | None, Some false -> Some false
+  | Some a, Some b -> Some (a && b)
+
+let unop_fun : type a b. (a -> b) T.unop -> a option -> b option =
+  function
+  | T.Neg -> Option.map ( ~- )
+  | T.Not -> Option.map ( not )
+
+let binop_fun :
+  (* TODO better organization of this *)
+  type a b c. (a -> b -> c) T.binop -> a option -> b option -> c option =
+  let open Int in
+  function
+  | T.Add -> Util.option_map2 ( + )
+  | T.Sub -> Util.option_map2 ( - )
+  | T.Mul -> Util.option_map2 ( * )
+  | T.Div -> ( // )
+  | T.Eq -> Util.option_map2 ( = )
+  | T.Neq -> Util.option_map2 ( <> )
+  | T.Lt -> Util.option_map2 ( < )
+  | T.Gt -> Util.option_map2 ( > )
+  | T.Le -> Util.option_map2 ( <= )
+  | T.Ge  -> Util.option_map2 ( >= )
+  | T.And -> ( &&& )
+  | T.Or -> ( ||| )
 
 module Point = struct
   (* A point is a mapping from variables to their optional value *)
@@ -43,9 +102,9 @@ module Point = struct
       | T.Bool b -> Some (b.L.item)
       | T.Var v -> get_var p v.L.item
       | T.Unop (op, e) ->
-        T.unop_fun op.L.item @@ get_expr_loc p e
+        unop_fun op.L.item @@ get_expr_loc p e
       | T.Binop (op, e1, e2) ->
-        T.binop_fun op.L.item
+        binop_fun op.L.item
           (get_expr_loc p e1)
           (get_expr_loc p e2)
 
@@ -54,7 +113,7 @@ module Point = struct
     fun p e ->
       get_expr p e.L.item
 
-  let sat_cons p cons =
+  let can_sat_cons p cons =
     Option.default true (get_expr p cons)
 
   let env_assign_value var value env =
@@ -101,15 +160,8 @@ module Point = struct
           "InnerConcrete assign_expr: unknown var %s"
           (Sym.name var_spec)
 
-  let init int_initials bool_initials =
-    List.fold_left
-      (fun acc (var, val_) -> M.add var.T.var_spec val_ acc)
-      M.empty
-      int_initials,
-    List.fold_left
-      (fun acc (var, val_) -> M.add var.T.var_spec val_ acc)
-      M.empty
-      bool_initials
+  let init =
+    M.empty, M.empty
 
   let drop :
     type a. a Dom.inner_var -> t -> t =
@@ -167,8 +219,8 @@ let is_bottom = D.is_empty
 
 let equal = D.equal
 
-let init int_initials bool_initials =
-  D.singleton (Point.init int_initials bool_initials)
+let init =
+  D.singleton (Point.init)
 
 let join = D.union
 
@@ -178,7 +230,7 @@ let widening _abstr1 abstr2 =
   abstr2
 
 let meet_cons cons d =
-  D.filter (fun p -> Point.sat_cons p cons) d
+  D.filter (fun p -> Point.can_sat_cons p cons) d
 
 let assign_expr var expr d =
   D.map

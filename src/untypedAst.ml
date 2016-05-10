@@ -80,11 +80,8 @@ type thread = {
   body : body Location.loc;
 }
 
-type constant = (* TODO: make initial values an initial property *)
-  | ConstInt of int
-  | ConstBool of bool
-
 type program = {
-  initial : constant Sym.Map.t;
+  globals : Env.ty Sym.Map.t;
+  initial : Sym.t expression Location.loc;
   threads : thread list;
 }

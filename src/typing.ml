@@ -1,5 +1,4 @@
 open Batteries
-open Util
 
 module L = Location
 module T = TypedAst
@@ -20,7 +19,8 @@ let type_program_var env expected_type loc var_sym =
     }
     else
       Error.type_loc_error loc @@
-      Printf.sprintf2 "Var %s has type %a but type %a was expected"
+      Printf.sprintf2
+        "Var %s has type %a but type %a was expected"
         (Sym.name var_sym)
         Env.print_ty found_type
         Ty.print expected_type
@@ -30,6 +30,28 @@ let type_program_var_loc env expected_type { L.item = var_sym; loc } =
 
 let program_var_loc_typer env =
   { f = fun ty var_loc -> type_program_var_loc env ty var_loc }
+
+let type_initial_var globals expected_type loc var_sym =
+  let found_type = Env.get_entry loc var_sym globals in
+  if Env.are_compatible_types found_type expected_type
+    then {
+      var_sym;
+      T.var_type = expected_type;
+      var_spec = Source.Memory;
+    }
+    else
+      Error.type_loc_error loc @@
+      Printf.sprintf2
+        "Var %s has type %a but type %a was expected"
+        (Sym.name var_sym)
+        Env.print_ty found_type
+        Ty.print expected_type
+
+let type_initial_var_loc globals expected_type { L.item = var_sym; loc }=
+  { L.item = type_initial_var globals expected_type loc var_sym; loc }
+
+let initial_var_loc_typer globals =
+  { f = fun ty var_loc -> type_initial_var_loc globals ty var_loc }
 
 let type_arith_unop_loc =
   L.comap (
@@ -268,24 +290,19 @@ let type_property all_labels all_envs
 
   { Property.zone; condition }
 
-let initial_constant_entry = function
-  | U.ConstInt _ -> Env.Int, Ty.Shared
-  | U.ConstBool _ -> Env.Bool, Ty.Shared
+let type_initial_condition globals initial =
+  type_expression_loc (initial_var_loc_typer globals) Ty.Bool initial
 
-let type_initial_constant = function
-  | U.ConstInt n -> T.ConstInt n
-  | U.ConstBool b -> T.ConstBool b
-
-let type_program ({ U.initial; threads }, properties) =
-  let shared_env = Sym.Map.map initial_constant_entry initial in
+let type_program ({ U.initial; globals; threads }, properties) =
+  let shared_env = Sym.Map.map (fun ty -> ty, Ty.Shared) globals in
   let thread_results =
     List.map
       (fun t -> type_body_loc (shared_env, Sym.Set.empty) t.U.body)
       threads in
 
   (* Yup, this is non-optimal. Who cares, it's fast anyway. *)
-  let thread_envs = List.map (fst @@@ snd) thread_results in
-  let all_labels = List.map (snd @@@ snd) thread_results in
+  let thread_envs = List.map (fst % snd) thread_results in
+  let all_labels = List.map (snd % snd) thread_results in
   let bodies = List.map fst thread_results in
 
   let properties =
@@ -302,7 +319,7 @@ let type_program ({ U.initial; threads }, properties) =
            if orig = Ty.Local then Some ty else None)
   } in
 
-  let initial = Sym.Map.map type_initial_constant initial in
+  let { L.item = initial; _ } = type_initial_condition globals initial in
   let threads = List.map2 thread thread_envs bodies in
 
-  { T.initial; threads }, properties
+  { T.initial; globals; threads }, properties

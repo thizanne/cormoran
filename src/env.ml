@@ -12,7 +12,7 @@ let print_ty output = function
   | Int -> String.print output "Int"
   | Bool -> String.print output "Bool"
 
-type origin = Ty.origin (* To change if origin is made a gadt*)
+type origin = Ty.origin (* To change if origin is made a gadt *)
 
 type t = (ty * origin) Sym.Map.t
 

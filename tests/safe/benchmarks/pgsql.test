@@ -6,27 +6,28 @@
 be BOTH false, otherwise the program will enter an infinite loop in
 both procs.*/
 
+bool latch1, flag1, latch2, flag2;
 
-latch1 = true, flag1 = true, flag2 = false, latch2 = false
+latch1 && flag1 && not flag2 && not latch2
 
 ##### thread worker_1 #####
 
 while (true) {
-    llatch1 := latch1
+    llatch1 = latch1
     while (not llatch1) {
-         llatch1 := latch1
+         llatch1 = latch1
          label bp1
     }
 
-    latch1 := false
+    latch1 = false
     // mfence
-    lflag1 := flag1
+    lflag1 = flag1
     if (lflag1) {
-        flag1 := false
+        flag1 = false
         // mfence
-        flag2 := true			// there has to be a store-store barrier here for sure.
+        flag2 = true			// there has to be a store-store barrier here for sure.
         mfence
-        latch2 := true
+        latch2 = true
         // mfence
     }
 }
@@ -34,21 +35,21 @@ while (true) {
 ##### thread worker_2 #####
 
 while (true) {
-    llatch2 := latch2
+    llatch2 = latch2
     while (not llatch2) {
-        llatch2 := latch2
+        llatch2 = latch2
         label bp2
     }
 
-    latch2 := false
+    latch2 = false
     // mfence
-    lflag2 := flag2
+    lflag2 = flag2
     if (lflag2) {
-        flag2 := false
+        flag2 = false
         // mfence
-        flag1 := true			// there has to be a store-store barrier here for sure.
+        flag1 = true			// there has to be a store-store barrier here for sure.
         mfence
-        latch1 := true
+        latch1 = true
         // mfence
     }
 }

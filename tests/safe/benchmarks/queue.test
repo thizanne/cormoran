@@ -3,16 +3,18 @@
 
 { @ (0:bp, 1:bp) 1:tail < 0:h1 }
 
-head = 0
+int head;
+
+true
 
 ### thread T0 ###
 
 /* ENQ */
 while true {
-    h1 := head
+    h1 = head
     label bp
-    h1 := h1 + 1
-    head := h1
+    h1 = h1 + 1
+    head = h1
 
     /*
       The property to be checked is true whether the following fence
@@ -38,13 +40,13 @@ while true {
 
 ### thread T1 ###
 
-tail := head
+tail = head
 /* DEQ */
 while true {
-    h2 := head
+    h2 = head
     while (tail >= h2) {
-        h2 := head
+        h2 = head
     }
     label bp
-    tail := tail + 1
+    tail = tail + 1
 }

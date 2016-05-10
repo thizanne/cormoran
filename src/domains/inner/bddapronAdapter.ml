@@ -38,35 +38,8 @@ module Make (N : ApronAdapter.Numerical) = struct
 
   let equal abstr1 abstr2 = BddDomain.is_eq man abstr1 abstr2
 
-  let int_constant env n =
-    Expr1.Apron.(to_expr @@ cst env cond @@ Coeff.s_of_int n)
-
-  let bool_constant env b =
-    Expr1.Bool.(to_expr @@ of_bool env cond b)
-
-  let maybe_add_initial make_constant env (x, init) abstr = match init with
-    | None -> abstr
-    | Some value ->
-      BddDomain.assign_lexpr ~relational:true man cond abstr
-        [Sym.name x.T.var_spec]
-        [make_constant env value]
-        None
-
-  let init int_initials bool_initials =
-    let env = empty_env in
-    let env =
-      Env.add_vars env
-        (List.map
-           (fun (var, _) -> Sym.name var.T.var_spec, `Int)
-           int_initials) in
-    let env =
-      Env.add_vars env
-        (List.map
-           (fun (var, _) -> Sym.name var.T.var_spec, `Bool)
-           bool_initials) in
-    BddDomain.top man env
-    |> List.fold_right (maybe_add_initial int_constant env) int_initials
-    |> List.fold_right (maybe_add_initial bool_constant env) bool_initials
+  let init =
+    BddDomain.top man empty_env
 
   let rec expr_int env (exp : int Domain.inner_expression) =
     match exp with

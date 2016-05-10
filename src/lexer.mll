@@ -37,8 +37,9 @@ rule lexer = parse
   | "not" | "!" { Not }
   | "or" | "||" { Or }
   | "and" | "&&" { And }
-  | ":=" { Assign }
   | ";" { Semicolon }
+  | "int" { IntType }
+  | "bool" { BoolType }
   | "if" { If }
   | "while" { While }
   | "for" { For }

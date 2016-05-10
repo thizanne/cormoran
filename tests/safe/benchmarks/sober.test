@@ -1,80 +1,83 @@
 { @(0:bp1, 1:bp2) false }
 
-prodDone = false, isIdling = false, hasWork = false, condVar = 0
+bool isIdling, prodDone, hasWork;
+int condVar;
+
+not prodDone && not isIdling && not hasWork && condVar = 0
 
 ### thread T0 ###
 
 /* lock(condVar) */
 
-lcondVar := condVar
+lcondVar = condVar
 while not (lcondVar = 0 or lcondVar = 2) {
-      lcondVar := condVar
+      lcondVar = condVar
 }
-tc := condVar
-tc := tc + 1
-condVar := tc
+tc = condVar
+tc = tc + 1
+condVar = tc
 
 mfence
-isIdling := true
+isIdling = true
 mfence
-temp := hasWork
+temp = hasWork
 if not temp {
-    lcondVar := condVar
+    lcondVar = condVar
     while not (lcondVar = 1) {
-        lcondVar := condVar
+        lcondVar = condVar
     }
     label bp1
-    condVar := 2
+    condVar = 2
     mfence
 
-    lcondVar := condVar
+    lcondVar = condVar
     while not (lcondVar = 4) {
-        lcondVar := condVar
+        lcondVar = condVar
     }
 
-    lcondVar := condVar
+    lcondVar = condVar
     while not (lcondVar = 0) {
-        lcondVar := condVar
+        lcondVar = condVar
     }
-    condVar := 1
+    condVar = 1
 
     mfence
 }
 
-isIdling := false
+isIdling = false
 mfence
 
-condVar := 0
+condVar = 0
 mfence
 
 ### thread T1 ###
 
-hasWork := true
+hasWork = true
 mfence
-temp := isIdling
+temp = isIdling
 if temp {
-    lcondVar := condVar
+    lcondVar = condVar
     while not (lcondVar = 0 or lcondVar = 2) {
-        lcondVar := condVar
+        lcondVar = condVar
     }
-    tc := condVar
-    tc := tc + 1
-    condVar := tc
+    tc = condVar
+    tc = tc + 1
+    condVar = tc
     mfence
 
-    lcondVar := condVar
+    lcondVar = condVar
     while not (lcondVar = 2) {
-        lcondVar := condVar
+        lcondVar = condVar
     }
 
-    condVar := 4
+    condVar = 4
     mfence
 
-    condVar := 0
+    condVar = 0
     mfence
 }
 label bp2
-prodDone := true
+prodDone = true
 mfence
 
 /* Assertion (bp1, bp2) should be bottom. That is if: prodDone = true && condVar = 2 at those labels. */

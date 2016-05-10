@@ -1,7 +1,9 @@
 { @ (0:critical_section,1:critical_section) false }
 
-entering0 = false, entering1 = false,
-number0 = 0, number1 = 0
+int number0, number1;
+bool entering0, entering1;
+
+number0 = 0 && number1 = 0 && not entering0 && not entering1
 
 #### THREAD 0 ####
 

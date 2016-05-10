@@ -1,13 +1,16 @@
 { @@ not(0:r1 = 0 && 1:r2 = 0) }
-x = 0, y = 0
+
+int x, y;
+
+x = 0 && y = 0
 
 #
-x := 1
+x = 1
 mfence
-r1 := y
+r1 = y
 
 
 #
-y := 1
+y = 1
 mfence
-r2 := x
+r2 = x

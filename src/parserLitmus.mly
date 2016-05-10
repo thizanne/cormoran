@@ -29,10 +29,6 @@
            | Some ins -> seq_loc ins body)
         line bodies
 
-  let add_preserve k v map =
-    Sym.Map.modify_opt
-      k (function None -> Some v | Some v' -> Some v') map
-
   let local_in_expr :
   type t. t T.program_expression -> Sym.t list =
     fun expression ->
@@ -70,7 +66,7 @@
       end
     | _ -> failwith "ParserLitmus.get_local"
 
-  let get_shared acc threads =
+  let get_shared threads =
     (* Finds all shared variables of the program, including those
        which were not initialised (meaning they should be initialised
        to 0, according to litmus specification). Relies on the fact
@@ -84,21 +80,39 @@
         acc |> scan_body b1.L.item |> scan_body b2.L.item
       | T.Assign (x, e) ->
         if T.is_shared x.L.item
-        then add_preserve x.L.item.T.var_sym (T.ConstInt 0) acc
+        then Sym.Map.add x.L.item.T.var_sym Env.Int acc
         else begin
           match shared_in_expr e.L.item with
-          | [y] -> Sym.Map.add y (T.ConstInt 0) acc
+          | [] -> acc
+          | [y] -> Sym.Map.add y Env.Int acc
           | _ -> failwith "ParserLitmus.globals"
         end
       | _ -> failwith "ParserLitmus.get_shared"
     in
     List.fold_left
       (fun acc thread -> scan_body thread.T.body.L.item acc)
-      acc threads
+      Sym.Map.empty threads
 
   let var var_sym var_spec =
     { T.var_sym; var_type = Ty.Int; var_spec }
 
+  let equals_zero var_sym =
+    T.Binop (
+        L.mkdummy T.Eq,
+        L.mkdummy @@ T.Var (L.mkdummy @@ var var_sym Source.Memory),
+        L.mkdummy @@ T.Int (L.mkdummy 0)
+      )
+
+  let make_initial_condition globals =
+    Sym.Map.fold
+      (fun var_sym _type cond_acc ->
+       T.Binop (
+           L.mkdummy @@ T.And,
+           L.mkdummy @@ equals_zero var_sym,
+           L.mkdummy @@ cond_acc
+         ))
+      globals
+      (T.Bool (L.mkdummy true))
 %}
 
 %token LCurly RCurly LPar RPar
@@ -123,11 +137,10 @@
 | r = Reg { var_sym r }
 
 program :
-| init = init_dec threads = code properties = exists Eof {
-    {
-      T.initial = get_shared init threads;
-      threads;
-    },
+| _unit = init_dec threads = code properties = exists Eof {
+    let globals = get_shared threads in
+    let initial = make_initial_condition globals in
+    { T.globals; initial; threads },
     properties
   }
 | error {
@@ -139,12 +152,36 @@ program :
 init_dec :
   (* Due to a hack with LexerLitmus.drop_prelude, LCurly is actually
      dropped *)
-| LCurly? li = separated_list(Semi, init_var) RCurly {
-    Sym.Map.of_enum @@ BatList.enum @@ li
+  (* Actual examples do not seem to use this feature, therefore only
+     empty conditions will be parsed for now. To parse non-empty
+     conditions, one has to ensure that shared variables absent in the
+     condition are still initially equal to zero *)
+| LCurly? RCurly { () }
+(*
+| LCurly? cond = initial_cond RCurly {
+    cond
   }
 
+initial_cond :
+| i = init_var { i }
+| i = loc(init_var) Semi c = loc(initial_cond) {
+    T.Binop (
+        L.mkdummy T.And,
+        i,
+        c
+      )
+ }
+
 init_var :
-| v = shared_sym Equals x = Int { v, T.ConstInt x }
+| v = loc(shared_sym) Equals x = loc(Int) {
+    let v = L.comap (fun sym -> var sym Source.Memory) v in
+      T.Binop (
+          L.mkdummy @@ T.Eq,
+          L.mkdummy @@ T.Var v,
+          L.mkdummy @@ T.Int x
+        )
+  }
+*)
 
 code :
 | lines = line+ {

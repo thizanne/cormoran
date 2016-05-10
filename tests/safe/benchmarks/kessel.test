@@ -4,40 +4,42 @@
   @ (0:bp1, 1:bp2) false
 }
 
-b0 = false, b1 = false, turn0 = false, turn1 = false
+bool b0, b1, turn0, turn1;
+
+not b0 and not b1
 
 ## thread T0 ##
   while true {
-    b0 := true
+    b0 = true
     mfence
-    local := turn1
-    turn0 := local
+    local = turn1
+    turn0 = local
     mfence
-    local_b1 := b1
-    local_turn1 := turn1
+    local_b1 = b1
+    local_turn1 = turn1
     while (local_b1 && (!local || local_turn1) && (local || !local_turn1)) {
-        local_b1 := b1
-        local_turn1 := turn1
+        local_b1 = b1
+        local_turn1 = turn1
     }
     label bp1
-    b0 := false
+    b0 = false
     // mfence
   }
 
 ## thread T1 ##
   while true {
-    b1 := true
+    b1 = true
     mfence
-    local := not turn0
-    turn1 := local
+    local = not turn0
+    turn1 = local
     mfence
-    local_b0 := b0
-    local_turn0 := turn0
+    local_b0 = b0
+    local_turn0 = turn0
     while not (! local_b0 || local && local_turn0 || !local && !local_turn0) {
-        local_b0 := b0
-        local_turn0 := turn0
+        local_b0 = b0
+        local_turn0 = turn0
     }
     label bp2
-    b1 := false
+    b1 = false
     // mfence
   }

@@ -1,34 +1,36 @@
 { @(0:critical_section,1:critical_section) false }
 
-flag_0 = 0, flag_1 = 0, turn = 0
+bool flag_0, flag_1, turn;
+
+not flag_0 && not flag_1 && not turn
 
 #
 
-flag_0 := 1
-turn := 1
+flag_0 = true
+turn = true
 
-f := flag_1
-t := turn
-while (f = 1 && t = 1) {
-    f := flag_1
-    t := turn
+f = flag_1
+t = turn
+while (f && t) {
+    f = flag_1
+    t = turn
 }
 
 label critical_section
 
-flag_0 := 0
+flag_0 = false
 
 #
-flag_1 := 1
-turn := 0
+flag_1 = true
+turn = false
 
-f := flag_0
-t := turn
-while (f = 1 && t = 0) {
-    f := flag_0
-    t := turn
+f = flag_0
+t = turn
+while (f && not t) {
+    f = flag_0
+    t = turn
 }
 
 label critical_section
 
-flag_1 := 0
+flag_1 = false

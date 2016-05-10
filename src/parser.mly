@@ -5,6 +5,20 @@
 
   module U = UntypedAst
 
+  let env_union env1 env2 =
+    Sym.Map.merge
+      (fun var_sym type1 type2 ->
+       match type1, type2 with
+       | None, None -> assert false
+       | None, Some t
+       | Some t, None -> Some t
+       | Some _, Some _ ->
+          Error.syntax_msg_error @@
+            Printf.sprintf
+              "Shared variable %s declared twice"
+              (Sym.name var_sym))
+      env1 env2
+
 %}
 
 %token LPar RPar LCurly RCurly
@@ -13,7 +27,8 @@
 %token Not Or And
 %token At Pipe Colon
 %token Comma Semicolon SharpLine
-%token MFence Assign Pass While If For Label
+%token MFence Pass While If For Label
+%token IntType BoolType
 %token <bool> Bool
 %token <int> Int
 %token <string> Id
@@ -70,12 +85,15 @@ var_sym :
 | Le { U.Le }
 | Ge { U.Ge }
 
+(* Program parsing *)
+
 program :
 | properties = property_def
-  initial = shared_decs SharpLine
-    threads = separated_nonempty_list(SharpLine, thread)
-    Eof {
-    { UntypedAst.initial; threads }, properties
+  globals = globals
+  initial = loc(expression(var_sym)) SharpLine
+  threads = separated_nonempty_list(SharpLine, thread)
+  Eof {
+    { UntypedAst.globals; initial; threads }, properties
   }
 | error {
     let open Error in
@@ -83,6 +101,22 @@ program :
     raise @@ Error { error = SyntaxError; err_loc; err_msg = "" }
   }
 
+
+(* Global variables *)
+
+var_type :
+| IntType { Env.Int }
+| BoolType { Env.Bool }
+
+var_sametype_decl :
+| t = var_type vars = separated_list(Comma, var_sym) Semicolon {
+    List.fold_left (fun env_acc v -> Sym.Map.add v t env_acc) Sym.Map.empty vars
+  }
+
+globals :
+| decls = nonempty_list(var_sametype_decl) {
+    List.fold_left env_union Sym.Map.empty decls
+  }
 (* Property definitions *)
 
 property_def :
@@ -121,21 +155,6 @@ interval :
     { Property.initial; final }
   }
 
-(* Initial memory values *)
-
-shared_decs :
-| vars = separated_list(Comma, shared_dec) {
-    let open Batteries in
-    vars |> List.enum |> Sym.Map.of_enum
-  }
-
-shared_dec :
-| x = var_sym Eq init = const { x, init }
-
-const :
-| b = Bool { UntypedAst.ConstBool b }
-| n = Int { UntypedAst.ConstInt n }
-
 (* Program code *)
 
 thread :
@@ -157,7 +176,7 @@ instruction :
 | Pass { UntypedAst.Pass }
 | Label lbl = loc(lbl_sym) { UntypedAst.Label lbl }
 | MFence { UntypedAst.MFence }
-| x = loc(var_sym) Assign e = loc(program_expression) {
+| x = loc(var_sym) Eq e = loc(program_expression) {
     UntypedAst.Assign (x, e)
   }
 | If cond = loc(program_expression) LCurly body = loc(body) RCurly {

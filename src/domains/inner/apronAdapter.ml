@@ -71,27 +71,11 @@ module Make (N : Numerical) = struct
         )
     in Texpr1.of_expr env (to_expr expr)
 
-  let int_texpr env n =
-    Texpr1.cst env (Coeff.s_of_int n)
-
-  let maybe_add_initial env abstr (x, value) = match value with
-    | None -> abstr
-    | Some n ->
-      Abstract1.assign_texpr man abstr (ap_var x) (int_texpr env n) None
-
-  let init int_initials bool_initials =
-    let bool_initials =
-      List.map
-        (Tuple2.map transtype_to_int (Option.map Bool.to_int))
-        bool_initials in
-    let initials = int_initials @ bool_initials in
+  let init =
     let env = Environment.make
-        (Array.of_list @@ List.map (ap_var @@@ fst) initials)
+        [||] (* No initial integer variables *)
         [||] (* No real variables *) in
-    List.fold_left
-      (maybe_add_initial env)
-      (Abstract1.top man env)
-      initials
+    Abstract1.top man env
 
   let join = Abstract1.join man
 

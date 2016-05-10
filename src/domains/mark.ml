@@ -50,7 +50,7 @@ module Key = struct
   let init_thread_presences prog =
     Sym.Map.map
       (fun _init -> Zero)
-      prog.T.initial
+      prog.T.globals
 
   let init prog =
     List.map (fun _ -> init_thread_presences prog) prog.T.threads
@@ -136,56 +136,6 @@ module Make (Inner : Domain.Inner) = struct
     (* Adds (bufs, abstr) as a d element, making a join if the bufs
        key is already present *)
     M.modify_def abstr bufs (Inner.join abstr) d
-
-  let initial_thread_locals tid { T.locals; _ } =
-    Sym.Map.fold
-      (fun var_sym ty (ints, bools) ->
-         match ty with
-         | Env.Int ->
-           let var = {
-             T.var_sym;
-             var_type = Ty.Int;
-             var_spec = sym_local tid var_sym
-           } in
-           (var, None) :: ints, bools
-         | Env.Bool ->
-           let var = {
-             T.var_sym;
-             var_type = Ty.Bool;
-             var_spec = sym_local tid var_sym
-           } in
-           ints, (var, None) :: bools)
-      locals
-      ([], [])
-
-  let initial_mem { T.initial; _ } =
-    Sym.Map.fold
-      (fun var_sym ty (ints, bools) ->
-         match ty with
-         | T.ConstInt n ->
-           let var =
-             { T.var_sym; var_type = Ty.Int; var_spec = sym_mem var_sym } in
-           (var, Some n) :: ints, bools
-         | T.ConstBool b ->
-           let var =
-             { T.var_sym; var_type = Ty.Bool; var_spec = sym_mem var_sym } in
-           ints, (var, Some b) :: bools)
-      initial
-      ([], [])
-
-  let init prog =
-    let local_ints, local_bools =
-      List.fold_lefti
-        (fun (int_acc, bool_acc) tid thread ->
-           let int_thread, bool_thread = initial_thread_locals tid thread
-           in int_thread @ int_acc, bool_thread @ bool_acc)
-        ([], [])
-        prog.T.threads in
-    let mem_ints, mem_bools =
-      initial_mem prog in
-    let initial_ints, initial_bools =
-      local_ints @ mem_ints, local_bools @ mem_bools in
-    M.singleton (Key.init prog) (Inner.init initial_ints initial_bools)
 
   let inner_of_property key =
     (* Mapper which puts as var_spec the inner symbol of a property
@@ -363,4 +313,51 @@ module Make (Inner : Domain.Inner) = struct
          | _, None -> abstr1
          | Some abstr1, Some abstr2 ->
            Some (Inner.widening abstr1 abstr2))
+  let initial_var_list make_inner_sym var_set =
+    Sym.Map.fold
+      (fun var_sym ty (ints, bools) ->
+         match ty with
+         | Env.Int ->
+           let var = {
+             T.var_sym;
+             var_type = Ty.Int;
+             var_spec = make_inner_sym var_sym
+           } in
+           var :: ints, bools
+         | Env.Bool ->
+           let var = {
+             T.var_sym;
+             var_type = Ty.Bool;
+             var_spec = make_inner_sym var_sym
+           } in
+           ints, var :: bools)
+      var_set
+      ([], [])
+
+  let initial_thread_locals tid { T.locals; _ } =
+    initial_var_list (sym_local tid) locals
+
+  let initial_globals { T.globals; _ } =
+    initial_var_list sym_mem globals
+
+  let init prog =
+    let local_ints, local_bools =
+      List.fold_lefti
+        (fun (int_acc, bool_acc) tid thread ->
+           let int_thread, bool_thread = initial_thread_locals tid thread
+           in int_thread @ int_acc, bool_thread @ bool_acc)
+        ([], [])
+        prog.T.threads in
+    let global_ints, global_bools =
+      initial_globals prog in
+    let initial_ints, initial_bools =
+      local_ints @ global_ints, local_bools @ global_bools in
+    let initial_key = Key.init prog in
+    let initial_inner =
+      Inner.init
+      |> List.fold_right Inner.add initial_ints
+      |> List.fold_right Inner.add initial_bools
+    in
+    M.singleton initial_key initial_inner
+    |> meet_cond prog.T.initial
 end

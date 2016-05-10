@@ -2,32 +2,35 @@
 
 { @ (0:critical, 1:critical) false }
 
-turn = 0, flag0 = false, flag1 = false
+int turn;
+bool flag0, flag1;
+
+turn = 0 && not flag0 && not flag1
 
 #### thread T0 ####
 
 while true {
-    flag0 := true
+    flag0 = true
     mfence
-    f1 := flag1
+    f1 = flag1
     while (f1) {
-        t1 := turn
+        t1 = turn
         if (t1 > 0) {
-            flag0 := false
+            flag0 = false
             // mfence
-            t1 := turn
+            t1 = turn
             while(t1 > 0) {
-                t1 := turn
+                t1 = turn
             }
-            flag0 := true
+            flag0 = true
             mfence
         }
-        f1:=flag1
+        f1=flag1
     }
     label critical
-    turn := 1
+    turn = 1
     // mfence
-    flag0 := false
+    flag0 = false
     // mfence
 }
 
@@ -35,27 +38,27 @@ while true {
 #### thread T1 ####
 
 while true {
-    flag1 := true
+    flag1 = true
     mfence
-    f2 := flag0
+    f2 = flag0
     while (f2) {
-        t2 := turn
+        t2 = turn
         if (t2 < 1) {
-            flag1 := false
+            flag1 = false
             // mfence
-            t2 := turn
+            t2 = turn
                 while(t2 < 1) {
-                t2 := turn
+                t2 = turn
             }
-            flag1 := true
+            flag1 = true
             mfence
         }
-        f2 := flag0
+        f2 = flag0
     }
     label critical
-    turn := 0
+    turn = 0
     // mfence
-    flag1 := false
+    flag1 = false
     // mfence
 }
 

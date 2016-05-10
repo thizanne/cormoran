@@ -1,34 +1,37 @@
-// Probably needs bddapron, rewrite it with booleans
+/* Verified with bddoct, no unrolling steps */
 
 {
   // @ (0:bp1,1:bp2) 1:lRCnt = 0:lSCnt || 1:lRCnt + 1 = 0:lSCnt // this version doesn't work
   @ (0:bp1,1:bp2) 1:lRCnt <= 0:lSCnt && 0:lSCnt <= 1:lRCnt + 1
 }
-msg = false, ack = false
+
+bool msg, ack;
+
+not msg && not ack
 
 #### thread T0 ####
-   lSSt := false
-   lSCnt := 0
+   lSSt = false
+   lSCnt = 0
    while (true) {
-     lAck := ack
+     lAck = ack
      if ((not lAck and not lSSt) or (lAck and lSSt)) {
-        lSSt := not lSSt
-        lSCnt := lSCnt + 1
+        lSSt = not lSSt
+        lSCnt = lSCnt + 1
         label bp1
-        msg := lSSt
+        msg = lSSt
         // mfence
      }
    }
 
 #### thread T1 ####
-   lRSt := false
-   lRCnt := 0
+   lRSt = false
+   lRCnt = 0
    while (true) {
-     lMsg := msg
+     lMsg = msg
      if ((lMsg and not lRSt) or (not lMsg and lRSt)) {
-       lRSt := lMsg
-       lRCnt := lRCnt + 1
-       ack := lRSt
+       lRSt = lMsg
+       lRCnt = lRCnt + 1
+       ack = lRSt
        // mfence
        label bp2
      }
