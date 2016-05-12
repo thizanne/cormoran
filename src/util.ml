@@ -12,15 +12,6 @@ let file_lexbuf filename =
   lexbuf
 
 (*
-   Print
-*)
-
-let print_to_string print item =
-  let output = IO.output_string () in
-  print output item;
-  IO.close_out output
-
-(*
   Option
 *)
 
@@ -85,18 +76,3 @@ let rec ordered_parts = function
     let xs = ordered_parts xs in
     List.flatten @@
     xs :: List.map (inser_all_pos x) xs
-
-(*
-  Misc
-*)
-
-let fun_of_op op x y = match op with
-  | '+' -> Some (x + y)
-  | '-' -> Some (x - y)
-  | '*' -> Some (x * y)
-  | '/' -> if y = 0 then None else Some (x / y)
-  | _ -> failwith "fun_of_op"
-
-let ( @@@ ) f g x = f (g x)
-
-let flip f x y = f y x

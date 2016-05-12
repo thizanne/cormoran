@@ -1,6 +1,5 @@
 open Batteries
 open Printf
-open Util
 
 let edge_label (thread_id, op) =
   let output = IO.output_string () in
@@ -8,11 +7,11 @@ let edge_label (thread_id, op) =
     | Operation.Identity ->
       String.print output "Id"
     | Operation.MFence ->
-      Printf.fprintf output "%d :: MFence" thread_id
+      fprintf output "%d :: MFence" thread_id
     | Operation.Filter c ->
       PrintAst.print_expression PrintAst.program_var_printer output c
     | Operation.Assign (x, e) ->
-      Printf.fprintf output "%d :: %a := %a"
+      fprintf output "%d :: %a := %a"
         thread_id
         PrintAst.(program_var_printer.f) x
         (PrintAst.print_expression PrintAst.program_var_printer) e
@@ -31,7 +30,7 @@ module Dot (D : Domain.ProgramState) = struct
 
     let vertex_attributes v =
       let label v =
-        print_to_string D.print (Data.data v)
+        sprintf2 "%a" D.print (Data.data v)
         |> String.replace_chars
           (function
             | '\n' -> "<BR/>"
@@ -52,7 +51,7 @@ module Dot (D : Domain.ProgramState) = struct
 </TD> \
 </TR> \
 </TABLE>"
-            (print_to_string Control.State.print v)
+            (sprintf2 "%a" Control.State.print v)
             (label v)
         )
       ]
@@ -66,7 +65,7 @@ module Dot (D : Domain.ProgramState) = struct
     let default_edge_attributes _ = []
     let get_subgraph _ = None
     let vertex_name v =
-      "\"" ^ (print_to_string Control.State.print v) ^ "\""
+      "\"" ^ (sprintf2 "%a" Control.State.print v) ^ "\""
     let default_vertex_attributes _ = []
     let graph_attributes _ = []
   end
