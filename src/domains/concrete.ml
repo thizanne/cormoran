@@ -214,7 +214,7 @@ let initial_state program = {
   buf = List.map (fun _ -> []) program.T.threads
 }
 
-let init program = D.singleton (initial_state program)
+let top program = D.singleton (initial_state program)
 
 let val_print output (x, n) =
   Printf.fprintf output "%a=%a"

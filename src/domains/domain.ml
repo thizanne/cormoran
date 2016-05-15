@@ -13,7 +13,7 @@ end
 module type ProgramState = sig
   include Common
   val bottom : t
-  val init : T.program -> t
+  val top : T.program -> t
   val transfer : Source.thread_id -> Operation.t -> t -> t
   val meet_cond : T.property_condition -> t -> t
   val widening : t -> t -> t
@@ -22,7 +22,7 @@ end
 module type ThreadState = sig
   include Common
   val bottom : t
-  val init : T.program -> Source.thread_id -> t
+  val top : T.program -> Source.thread_id -> t
   val transfer : Operation.t -> t -> t
   val meet_cond : T.property_condition -> t -> t
   val widening : t -> t -> t

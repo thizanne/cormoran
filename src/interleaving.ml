@@ -21,15 +21,17 @@ module Make (D : Domain.ProgramState) = struct
 
   module Fixpoint = Graph.ChaoticIteration.Make (PS.Graph) (Data)
 
-  let analyze g widening_delay init =
+  let analyze prog control widening_delay =
     let wto =
-      Wto.recursive_scc g.PS.graph @@
-      Control.State.initial @@ List.length g.PS.labels
+      Wto.recursive_scc control.PS.graph @@
+      Control.State.initial @@ List.length control.PS.labels
     in
 
     let init control_state =
       if Control.State.is_initial control_state
-      then init
+      then
+        D.top prog
+        |> D.meet_cond prog.TypedAst.initial
       else D.bottom
     in
 
@@ -39,7 +41,7 @@ module Make (D : Domain.ProgramState) = struct
 
     let result =
       Fixpoint.recurse
-        g.PS.graph
+        control.PS.graph
         wto
         init
         widening_set

@@ -340,7 +340,7 @@ module Make (Inner : Domain.Inner) = struct
   let initial_globals { T.globals; _ } =
     initial_var_list sym_mem globals
 
-  let init prog =
+  let top prog =
     let local_ints, local_bools =
       List.fold_lefti
         (fun (int_acc, bool_acc) tid thread ->
@@ -359,5 +359,4 @@ module Make (Inner : Domain.Inner) = struct
       |> List.fold_right Inner.add initial_bools
     in
     M.singleton initial_key initial_inner
-    |> meet_cond prog.T.initial
 end

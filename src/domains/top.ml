@@ -8,7 +8,7 @@ let is_bottom Top = false
 
 let equal Top Top = true
 
-let init _ = Top
+let top _ = Top
 
 let transfer _ _ Top = Top
 
