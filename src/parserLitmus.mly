@@ -144,9 +144,8 @@ program :
     properties
   }
 | error {
-    let open Error in
     let err_loc = { L.startpos = $startpos; endpos = $endpos } in
-    raise @@ Error { error = SyntaxError; err_loc; err_msg = "" }
+    Error.syntax_loc_error err_loc ""
   }
 
 init_dec :
