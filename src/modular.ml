@@ -9,12 +9,13 @@ module type ThreadAnalysis = sig
   module Interferences : Domain.Interferences
 
   val apply : StateAbstraction.t -> Interferences.t -> StateAbstraction.t
-  val transfer :
+  val generate :
     Control.Label.t ->
     Control.Label.t ->
     Operation.t ->
     StateAbstraction.t ->
-    StateAbstraction.t * Interferences.t
+    StateAbstraction.t ->
+    Interferences.t
 end
 
 module OneThreadAnalysis (A : ThreadAnalysis) = struct
@@ -22,7 +23,7 @@ module OneThreadAnalysis (A : ThreadAnalysis) = struct
   (* TODO: separate widening delays for different operations *)
   module Wto = Graph.WeakTopological.Make (TS.Graph)
 
-  let analyse thread widening_delay external_intf init =
+  let analyse prog thread_id thread_control widening_delay external_intf =
     (* Data has to be redefined at each thread analysis because the
        analyze function should depend on the external interferences. *)
     let module Data = struct
@@ -43,22 +44,35 @@ module OneThreadAnalysis (A : ThreadAnalysis) = struct
              having an explicit global state *)
         let interf = ref A.Interferences.bottom in
         (fun () -> !interf),
-        (fun (lbl1, op, lbl2) d ->
-           let state, new_interf = A.transfer lbl1 lbl2 op d in
-           let state = apply_interferences widening_delay state in
+        (fun (lbl1, op, lbl2) state ->
+           let state' = A.StateAbstraction.transfer op state in
+           let new_interf = A.generate lbl1 lbl2 op state state' in
+           let state'' = apply_interferences widening_delay state' in
            interf := A.Interferences.join !interf new_interf;
-           state)
+           state'')
     end in
     let module Fixpoint = Graph.ChaoticIteration.Make (TS.Graph) (Data) in
 
     let wto =
-      Wto.recursive_scc thread.TS.graph @@
+      Wto.recursive_scc thread_control.TS.graph @@
       Control.Label.initial in
+
+    let set_initial_thread_label thread_id _thread abstr =
+      (* Sets in abstr the label of thread_id to initial.
+         Conveniently has the right type to use with List.fold_righti
+         in `init` below *)
+      A.StateAbstraction.meet_label thread_id Control.Label.initial abstr
+    in
 
     let init label =
       if Control.Label.is_initial label
-      then init
-      else A.StateAbstraction.bottom
+      then
+        A.StateAbstraction.top prog thread_id
+        (* Meet with initial condition of the program *)
+        |> A.StateAbstraction.meet_cond prog.TypedAst.initial
+        (* Set all thread labels to zero *)
+        |> List.fold_righti set_initial_thread_label prog.T.threads
+      else A.StateAbstraction.bottom thread_id
     in
 
     let widening_set =
@@ -67,7 +81,7 @@ module OneThreadAnalysis (A : ThreadAnalysis) = struct
 
     let result =
       Fixpoint.recurse
-        thread.TS.graph
+        thread_control.TS.graph
         wto
         init
         widening_set
@@ -93,10 +107,14 @@ module ProgramAnalysis (A : ThreadAnalysis) = struct
          else (intf_tid, A.Interferences.join intf_others intf_index))
       (A.Interferences.bottom, A.Interferences.bottom)
 
-  let analyse threads widening_delay init =
+  let analyse prog thread_controls widening_delay =
+
+    let initial_thread_data thread_id _thread_control =
+      fun _label -> A.StateAbstraction.bottom thread_id
+    in
 
     let initial_data =
-      List.map (const @@ const A.StateAbstraction.bottom) threads in
+      List.mapi initial_thread_data thread_controls in
 
     let rec fixpoint interf data current final itf_w_delays = function
       (* current is the id option of the thread the function is going
@@ -109,13 +127,13 @@ module ProgramAnalysis (A : ThreadAnalysis) = struct
 
          Interferences widening delay works thread-by-thread. This
          should give a better precision. *)
-      | [] -> fixpoint interf data 0 final itf_w_delays threads
+      | [] -> fixpoint interf data 0 final itf_w_delays thread_controls
       | _ :: _ when Some current = final ->
         interf, data
       | t :: ts ->
         let intf_t, intf_other = split_interferences current interf in
         let intf_t', d =
-          ThreadAnalysis.analyse t widening_delay intf_other (init current) in
+          ThreadAnalysis.analyse prog current t widening_delay intf_other in
         let intf_t_stable = A.Interferences.equal intf_t intf_t' in
         let final =
           if intf_t_stable
@@ -132,12 +150,13 @@ module ProgramAnalysis (A : ThreadAnalysis) = struct
         let itf_w_delays =
           List.modify_at current pred itf_w_delays in
         fixpoint interf data (succ current) final itf_w_delays ts
-
-    in fixpoint
-      (List.map (const A.Interferences.bottom) threads) (* initial interferences *)
+    in
+    fixpoint
+      (List.map (const A.Interferences.bottom) thread_controls) (* initial interferences *)
       initial_data (* initial data for a thread *)
       0 (* first "current analysed state" *)
       None (* Last thread updating interferences *)
-      (List.map (const widening_delay) threads) (* widening delays *)
-      threads
+      (List.map (const widening_delay) thread_controls) (* widening delays *)
+      thread_controls
+    |> snd (* Return the data, forget the interferences *)
 end

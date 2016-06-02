@@ -1,4 +1,3 @@
-open Apron
 open Bddapron
 open Batteries
 open Printf
@@ -28,6 +27,7 @@ module Make (N : ApronAdapter.Numerical) = struct
     (fun () -> printf "@.CUDD GC@.")
     (fun () -> printf "@.CUDD REORDER@.")
 
+  (* TODO: Use Sym.t instead of string as the symbol type *)
   let empty_env =
     Env.make ~symbol:Env.string_symbol ~relational:true cudd
 
@@ -44,7 +44,7 @@ module Make (N : ApronAdapter.Numerical) = struct
   let rec expr_int env (exp : int Domain.inner_expression) =
     match exp with
     | T.Int n ->
-      Expr1.Apron.cst env cond @@ Coeff.s_of_int n.L.item
+      Expr1.Apron.cst env cond @@ Apron.Coeff.s_of_int n.L.item
     | T.Var v ->
       Expr1.Apron.var env cond @@ Sym.name v.L.item.T.var_spec
     | T.Unop ({ L.item = T.Neg; _ }, exp) ->
@@ -180,6 +180,38 @@ module Make (N : ApronAdapter.Numerical) = struct
   let expand source dest abstr =
     let abstr = add dest abstr in
     meet abstr (swap dest source abstr)
+
+  let label_var_name thread_id =
+    sprintf "Label::%d" thread_id
+
+  let add_label thread_id label_max abstr =
+    let name = label_var_name thread_id in
+    let typ = `Bint (false, label_max) in
+    let env = BddDomain.get_env abstr in
+    let env = Env.add_vars env [name, typ] in
+    BddDomain.change_environment man abstr env
+
+  let set_label thread_id new_value abstr =
+    let env = BddDomain.get_env abstr in
+    let name = label_var_name thread_id in
+    match Env.typ_of_var env name with
+    | `Bint (signed, bound) ->
+      let exp =
+        Expr1.Bint.to_expr @@
+        Expr1.Bint.of_int env cond
+          (`Bint (signed, bound)) new_value in
+      BddDomain.assign_lexpr ~relational:true man cond abstr
+        [name] [exp] None
+    | _ -> assert false
+
+  let meet_label thread_id label_value abstr =
+    let env = BddDomain.get_env abstr in
+    let label_expr =
+      Expr1.Bint.of_expr @@
+      Expr1.var env cond @@
+      label_var_name thread_id in
+    let cons = Expr1.Bint.eq_int cond label_expr label_value in
+    BddDomain.meet_condition man cond abstr cons
 
   let print output abstr =
     let fmt = Format.formatter_of_output output in

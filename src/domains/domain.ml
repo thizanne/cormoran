@@ -21,11 +21,12 @@ end
 
 module type ThreadState = sig
   include Common
-  val bottom : t
-  val top : T.program -> Source.thread_id -> t
+  val bottom : Source.thread_id -> t
+  val top : T.program -> Source.thread_id -> t (* top but with empty buffers *)
   val transfer : Operation.t -> t -> t
   val meet_cond : T.property_condition -> t -> t
   val widening : t -> t -> t
+  val meet_label : Source.thread_id -> Control.Label.t -> t -> t
 end
 
 module type Interferences = sig
@@ -50,4 +51,7 @@ module type Inner = sig
   val drop : _ inner_var -> t -> t
   val add : _ inner_var -> t -> t
   val assign_expr : 't inner_var -> 't inner_expression -> t -> t
+  val add_label : Source.thread_id -> int -> t -> t (* int is abstract label max *)
+  val set_label : Source.thread_id -> int -> t -> t (* int is abstract label affectation *)
+  val meet_label : Source.thread_id -> int -> t -> t (* int is abstract label to meet with *)
 end

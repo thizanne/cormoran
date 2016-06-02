@@ -42,6 +42,9 @@ module Make (N : Numerical) = struct
       Error.not_implemented_error op
         "Apron domains don't implement boolean expressions"
 
+  let label_var thread_id =
+    Var.of_string @@ sprintf "Label::%d" thread_id
+
   let ap_var x =
     Var.of_string @@ Sym.name x.T.var_spec
 
@@ -195,6 +198,33 @@ module Make (N : Numerical) = struct
     Abstract1.change_environment man abstr
       (Environment.remove env [|ap_var var|])
       false
+
+  let add_label thread_id _label_max abstr =
+    let env = Abstract1.env abstr in
+    Abstract1.change_environment man abstr
+      (Environment.add env [|label_var thread_id|] [| |])
+      false
+
+  let set_label thread_id new_value abstr =
+    let env = Abstract1.env abstr in
+    Abstract1.assign_texpr man abstr
+      (label_var thread_id)
+      (Texpr1.(of_expr env @@ Cst (Coeff.s_of_int new_value)))
+      None
+
+  let meet_label thread_id label_value abstr =
+    let env = Abstract1.env abstr in
+    let cond =
+      Texpr1.binop
+        Texpr1.Sub
+        (Texpr1.var env (label_var thread_id))
+        (Texpr1.of_expr env @@ Texpr1.Cst (Coeff.s_of_int label_value))
+        Texpr1.Int
+        Texpr1.Zero in
+    let earray = Tcons1.array_make env 1 in
+    let tcons = Tcons1.make cond Tcons1.EQ in
+    Tcons1.array_set earray 0 tcons;
+    Abstract1.meet_tcons_array man abstr earray
 
   let print output abstr =
     let fmt = Format.formatter_of_output output in

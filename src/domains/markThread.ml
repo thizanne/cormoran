@@ -6,6 +6,13 @@ module O = Operation
 module L = Location
 module Dom = Domain
 
+(* TODO: move this in Domain *)
+module type ControlAbstraction = sig
+  type label = int
+  val alpha : Source.thread_id -> Control.Label.t -> label
+  val max_alpha : Source.thread_id -> label
+end
+
 module Key = struct
   (* TODO: remove this when 4.03 is used. ppx_deriving uses
      [@@ocaml.warning "-A"], which is needed to remove warning 39 and
@@ -19,12 +26,12 @@ module Key = struct
     [@@ deriving ord]
 
   let up_presence = function
-    | Zero-> One
+    | Zero -> One
     | One -> MoreThanOne
     | MoreThanOne -> MoreThanOne
 
   let down_presence = function
-    | Zero-> raise @@ Invalid_argument "down_presence"
+    | Zero -> raise @@ Invalid_argument "down_presence"
     | One -> Zero
     | MoreThanOne -> One
 
@@ -40,68 +47,60 @@ module Key = struct
 
   module M = Sym.Map
 
-  type thread_presences = presence M.t
-
-  type t = thread_presences list
+  type t = presence M.t
 
   let compare =
-    List.compare (Sym.Map.compare compare_presence)
+    Sym.Map.compare compare_presence
 
-  let init_thread_presences prog =
+  let init prog =
     Sym.Map.map
       (fun _init -> Zero)
       prog.T.globals
 
-  let init prog =
-    List.map (fun _ -> init_thread_presences prog) prog.T.threads
+  let is_consistent =
+    M.for_all (fun _sym -> presence_is_zero)
 
-  let tid_is_consistent keys tid =
-    M.for_all (fun _key -> presence_is_zero) @@ List.nth keys tid
+  let get_presence var_sym =
+    M.find var_sym
 
-  let get_presence tid var keys =
-    M.find var @@ List.nth keys tid
+  let down var =
+    M.modify var down_presence
 
-  let down tid var keys =
-    List.modify_at tid (M.modify var down_presence) keys
-
-  let up tid var keys =
-    List.modify_at tid (M.modify var up_presence) keys
-
-  let get_flushable_tids keys x =
-    List.filteri_map
-      (fun tid buf ->
-         if presence_is_zero (M.find x buf) then None
-         else Some tid)
-      keys
+  let up var =
+    M.modify var up_presence
 
   let print output =
-    List.print ~first:"[" ~last:"]" ~sep:"]\n["
-      (M.print ~first:"" ~last:"" ~sep:";" ~kvsep:"→"
-         Sym.print print_presence)
+    M.print ~first:"" ~last:"" ~sep:";" ~kvsep:"→"
+      Sym.print print_presence
       output
 end
 
-module Make (Inner : Domain.Inner) = struct
+module Make (Inner : Domain.Inner) (C : ControlAbstraction) : Domain.ThreadState = struct
 
   module M = Map.Make (Key)
 
-  type t = Inner.t M.t
+  type t = Source.thread_id * Inner.t M.t
 
   let normalize =
-    M.filterv (fun abstr -> not (Inner.is_bottom abstr))
+    M.filterv (fun inner -> not (Inner.is_bottom inner))
 
-  let bottom = M.empty
+  let bottom thread_id =
+    thread_id, M.empty
 
-  let is_bottom =
-    M.for_all (fun _key d -> Inner.is_bottom d)
+  let is_bottom (_, abstr) =
+    M.for_all (fun _key inner -> Inner.is_bottom inner) abstr
 
-  let equal d1 d2 =
-    M.equal Inner.equal (normalize d1) (normalize d2)
+  let equal_abstr abstr1 abstr2 =
+    M.equal Inner.equal (normalize abstr1) (normalize abstr2)
 
-  let print output =
+  let equal (tid1, abstr1) (tid2, abstr2) =
+    assert (tid1 = tid2);
+    equal_abstr abstr1 abstr2
+
+  let print output (_tid, abstr) =
     M.print
       ~first:"" ~last:"" ~kvsep:":\n\n" ~sep:"\n────────\n"
-      Key.print Inner.print output
+      Key.print Inner.print output abstr
 
   let inner_var_sym = Sym.namespace ()
 
@@ -132,10 +131,63 @@ module Make (Inner : Domain.Inner) = struct
   let inner_var_tmp var =
     { var with T.var_spec = inner_var_sym "::Mark:tmp::" }
 
-  let add_join bufs abstr d =
-    (* Adds (bufs, abstr) as a d element, making a join if the bufs
-       key is already present *)
-    M.modify_def abstr bufs (Inner.join abstr) d
+  let add_join bufs inner abstr =
+    (* Adds (bufs, inner) as a abstr element, making a join if the
+       bufs key is already present *)
+    M.modify_def inner bufs (Inner.join inner) abstr
+
+  let initial_thread_locals tid { T.locals; _ } =
+    Sym.Map.fold
+      (fun var_sym ty (ints, bools) ->
+         match ty with
+         | Env.Int ->
+           let var = {
+             T.var_sym;
+             var_type = Ty.Int;
+             var_spec = sym_local tid var_sym
+           } in
+           var :: ints, bools
+         | Env.Bool ->
+           let var = {
+             T.var_sym;
+             var_type = Ty.Bool;
+             var_spec = sym_local tid var_sym
+           } in
+           ints, var :: bools)
+      locals
+      ([], [])
+
+  let initial_mem { T.globals; _ } =
+    Sym.Map.fold
+      (fun var_sym ty (ints, bools) ->
+         match ty with
+         | Env.Int ->
+           let var =
+             { T.var_sym; var_type = Ty.Int; var_spec = sym_mem var_sym } in
+           var :: ints, bools
+         | Env.Bool ->
+           let var =
+             { T.var_sym; var_type = Ty.Bool; var_spec = sym_mem var_sym } in
+           ints, var :: bools)
+      globals
+      ([], [])
+
+  let top prog thread_id =
+    let local_ints, local_bools =
+      initial_thread_locals thread_id (List.nth prog.T.threads thread_id) in
+    let mem_ints, mem_bools =
+      initial_mem prog in
+    let max_labels =
+      List.mapi (fun tid _ -> C.max_alpha tid) prog.T.threads in
+    let initial_inner =
+      Inner.init
+      |> List.fold_right Inner.add local_ints
+      |> List.fold_right Inner.add local_bools
+      |> List.fold_right Inner.add mem_ints
+      |> List.fold_right Inner.add mem_bools
+      |> List.fold_righti Inner.add_label max_labels
+    in
+    thread_id, M.singleton (Key.init prog) initial_inner
 
   let inner_of_property key =
     (* Mapper which puts as var_spec the inner symbol of a property
@@ -145,7 +197,7 @@ module Make (Inner : Domain.Inner) = struct
         | Source.Local thread_id -> sym_local thread_id var_sym
         | Source.Memory -> sym_mem var_sym
         | Source.View thread_id ->
-          match Key.get_presence thread_id var_sym key with
+          match Key.get_presence var_sym key with
           | Key.Zero -> sym_mem var_sym
           | Key.One
           | Key.MoreThanOne -> sym_top thread_id var_sym
@@ -159,7 +211,7 @@ module Make (Inner : Domain.Inner) = struct
       let inner_sym = match var_spec with
         | Ty.Local -> sym_local thread_id var_sym
         | Ty.Shared ->
-          match Key.get_presence thread_id var_sym key with
+          match Key.get_presence var_sym key with
           | Key.Zero -> sym_mem var_sym
           | Key.One
           | Key.MoreThanOne -> sym_top thread_id var_sym
@@ -170,28 +222,28 @@ module Make (Inner : Domain.Inner) = struct
     M.mapi
       (fun key -> Inner.meet_cons @@ T.map_expr (symbolise key) cond)
 
-  let local_assign tid r expr key abstr =
+  let local_assign tid r expr key inner =
     Inner.assign_expr
       (inner_var_local tid r)
       (T.map_expr (inner_of_program tid key) expr)
-      abstr
+      inner
 
-  let write tid x expr key abstr =
+  let write tid x expr key inner =
     let x_sym = x.T.var_sym in
     let x_top = inner_var_top tid x in
     let x_bot = inner_var_bot tid x in
     let inner_expr = T.map_expr (inner_of_program tid key) expr in
-    match Key.get_presence tid x.T.var_sym key with
+    match Key.get_presence x.T.var_sym key with
     | Key.Zero ->
-      Key.up tid x_sym key,
+      Key.up x_sym key,
       (* x_top := add e *)
-      abstr
+      inner
       |> Inner.add x_top
       |> Inner.assign_expr x_top inner_expr
     | Key.One ->
-      Key.up tid x_sym key,
+      Key.up x_sym key,
       (* x_bot :=add x_top; x_top := e *)
-      abstr
+      inner
       |> Inner.add x_bot
       |> Inner.assign_expr x_bot (T.Var (L.mkdummy x_top))
       |> Inner.assign_expr x_top inner_expr
@@ -200,14 +252,15 @@ module Make (Inner : Domain.Inner) = struct
       let x_tmp = inner_var_tmp x in
       key,
       (* x_bot[*] := x_top; x_top := e *)
-      abstr
+      inner
       |> Inner.add x_tmp
       |> Inner.assign_expr x_tmp (T.Var (L.mkdummy x_top))
       |> Inner.fold x_bot x_tmp
       |> Inner.assign_expr x_top inner_expr
 
-  let add_flush_x_tid x key abstr acc tid =
-    (* Adds to acc the result(s) of one flush of x from tid *)
+  let add_flush_x tid x key inner acc =
+    (* Adds to acc the result(s) of one flush of x from tid. If tid
+       has no entry for x in its buffer, acc is returned unchanged. *)
     let x_sym = x.T.var_sym in
     let x_mem = inner_var_mem x in
     let x_top = inner_var_top tid x in
@@ -216,148 +269,112 @@ module Make (Inner : Domain.Inner) = struct
     let x_top_expr = T.Var (L.mkdummy x_top) in
     let x_tmp = inner_var_tmp x in
     let x_tmp_expr = T.Var (L.mkdummy x_tmp) in
-    match Key.get_presence tid x_sym key with
-    | Key.Zero -> raise @@ Invalid_argument "flush_x_tid"
+    match Key.get_presence x_sym key with
+    | Key.Zero -> acc
     | Key.One ->
-      let key = Key.down tid x_sym key in
-      let abstr =
-        abstr
+      let key = Key.down x_sym key in
+      let inner =
+        inner
         |> Inner.assign_expr x_mem x_top_expr
         |> Inner.drop x_top in
-      add_join key abstr acc
+      add_join key inner acc
     | Key.MoreThanOne ->
       (* >1 -> >1 => x_mem := x_bot[*] *)
-      let abstr_gt1 =
-        abstr
+      let inner_gt1 =
+        inner
         |> Inner.expand x_bot x_tmp
         |> Inner.assign_expr x_mem x_tmp_expr
         |> Inner.drop x_tmp in
       (* >1 -> 1 => x_mem := x_bot[*]; del x_bot *)
-      let key_1 = Key.down tid x_sym key in
-      let abstr_1 =
+      let key_1 = Key.down x_sym key in
+      let inner_1 =
         (* x_tmp is not needed here *)
-        abstr
+        inner
         |> Inner.assign_expr x_mem x_bot_expr
         |> Inner.drop x_bot in
       (* Make the joins *)
       acc
-      |> add_join key abstr_gt1
-      |> add_join key_1 abstr_1
+      |> add_join key inner_gt1
+      |> add_join key_1 inner_1
 
-  let add_flush_x x key abstr acc_init =
-    (* Adds to acc the result(s) of one flush of x from each relevant
-       tid *)
-    let tids = Key.get_flushable_tids key x.T.var_sym in
-    List.fold_left
-      (add_flush_x_tid x key abstr)
-      acc_init
-      tids
+  let iterate_one_flush tid x abstr =
+    (* Does one iteration of flushing one x from each point of abstr if
+       possible, adding the results to abstr *)
+    M.fold (add_flush_x tid x) abstr abstr
 
-  let iterate_one_flush x d =
-    (* Does one iteration of flushing one x from each point of d,
-       adding the result to acc_init *)
-    M.fold (add_flush_x x) d d
+  let rec close_by_flush_wrt_var tid x abstr =
+    let abstr' = iterate_one_flush tid x abstr in
+    if equal_abstr abstr abstr' then abstr
+    else close_by_flush_wrt_var tid x abstr'
 
-  let rec close_by_flush_wrt_var x d =
-    let d' = iterate_one_flush x d in
-    if equal d d' then d
-    else close_by_flush_wrt_var x d'
-
-  let close_by_flush_wrt_expr expr d =
+  let close_by_flush_wrt_expr tid expr abstr =
     let fold var acc =
       match var.T.var_spec with
       | Ty.Local -> acc
-      | Ty.Shared -> close_by_flush_wrt_var var acc
+      | Ty.Shared -> close_by_flush_wrt_var tid var acc
     in
-    T.fold_expr { T.fold } d expr
+    T.fold_expr { T.fold } abstr expr
 
-  let transfer tid op d =
+  let transfer_abstr op tid abstr =
     match op with
-    | O.Identity -> d
+    | O.Identity -> abstr
     | O.MFence ->
-      M.filter (fun key _ -> Key.tid_is_consistent key tid) d
+      M.filter (fun key _ -> Key.is_consistent key) abstr
     | O.Filter cond ->
-      d
+      abstr
       |> meet_unsymbolised_cond (inner_of_program tid) cond
       |> normalize
     | O.Assign (x, expr) ->
       match x.T.var_spec with
       | Ty.Local ->
-        M.mapi (local_assign tid x expr) d
-        |> close_by_flush_wrt_expr expr
+        M.mapi (local_assign tid x expr) abstr
+        |> close_by_flush_wrt_expr tid expr
       | Ty.Shared ->
         M.Labels.fold
           ~f:(fun ~key ~data:abstr acc ->
               let key', abstr' = write tid x expr key abstr
               in add_join key' abstr' acc)
-          ~init:bottom
-          d
-        |> close_by_flush_wrt_var x
+          ~init:M.empty
+          abstr
+        |> close_by_flush_wrt_var tid x
 
-  let meet_cond cond abstr =
+  let transfer op (tid, abstr) =
+    tid, transfer_abstr op tid abstr
+
+  let meet_cond cond (tid, abstr) =
     (* normalisation is not needed since only a is_bottom will be done
        on the result *)
-    meet_unsymbolised_cond inner_of_property cond abstr
+    tid, normalize @@ meet_unsymbolised_cond inner_of_property cond abstr
 
-  let join =
+  let meet_label label_tid label (tid, abstr) =
+    if label_tid = tid
+    (* information on tid label is not present in abstr variables, but at
+       an outer level *)
+    then tid, abstr
+    else
+      tid,
+      normalize @@ M.map
+        (fun inner -> Inner.meet_label label_tid (C.alpha label_tid label) inner)
+        abstr
+
+  let join (tid1, abstr1) (tid2, abstr2) =
+    assert (tid1 = tid2);
+    tid1,
     M.merge
-      (fun _key abstr1 abstr2 -> match (abstr1, abstr2) with
-         | None, _ -> abstr2
-         | _, None -> abstr1
-         | Some abstr1, Some abstr2 -> Some (Inner.join abstr1 abstr2))
+      (fun _bufs inner1 inner2 -> match (inner1, inner2) with
+         | None, _ -> inner2
+         | _, None -> inner1
+         | Some inner1, Some inner2 -> Some (Inner.join inner1 inner2))
+      abstr1 abstr2
 
-  let widening =
+  let widening (tid1, d1) (tid2, d2) =
+    assert (tid1 = tid2);
+    tid1,
     M.merge
       (fun _key abstr1 abstr2 -> match (abstr1, abstr2) with
          | None, _ -> abstr2
          | _, None -> abstr1
          | Some abstr1, Some abstr2 ->
            Some (Inner.widening abstr1 abstr2))
-
-  let initial_var_list make_inner_sym var_set =
-    Sym.Map.fold
-      (fun var_sym ty (ints, bools) ->
-         match ty with
-         | Env.Int ->
-           let var = {
-             T.var_sym;
-             var_type = Ty.Int;
-             var_spec = make_inner_sym var_sym
-           } in
-           var :: ints, bools
-         | Env.Bool ->
-           let var = {
-             T.var_sym;
-             var_type = Ty.Bool;
-             var_spec = make_inner_sym var_sym
-           } in
-           ints, var :: bools)
-      var_set
-      ([], [])
-
-  let initial_thread_locals tid { T.locals; _ } =
-    initial_var_list (sym_local tid) locals
-
-  let initial_globals { T.globals; _ } =
-    initial_var_list sym_mem globals
-
-  let top prog =
-    let local_ints, local_bools =
-      List.fold_lefti
-        (fun (int_acc, bool_acc) tid thread ->
-           let int_thread, bool_thread = initial_thread_locals tid thread
-           in int_thread @ int_acc, bool_thread @ bool_acc)
-        ([], [])
-        prog.T.threads in
-    let global_ints, global_bools =
-      initial_globals prog in
-    let initial_ints, initial_bools =
-      local_ints @ global_ints, local_bools @ global_bools in
-    let initial_key = Key.init prog in
-    let initial_inner =
-      Inner.init
-      |> List.fold_right Inner.add initial_ints
-      |> List.fold_right Inner.add initial_bools
-    in
-    M.singleton initial_key initial_inner
+      d1 d2
 end
