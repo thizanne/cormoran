@@ -34,7 +34,6 @@ module Domain = struct
     | Polka
     | Oct
     | Top
-    | Mark
     | Concrete
 
   let get : _ -> (module Domain.ProgramState) = function
@@ -43,7 +42,6 @@ module Domain = struct
     | Polka -> (module Mark.Make (ApronAdapter.Polka))
     | Oct -> (module Mark.Make (ApronAdapter.Oct))
     | Top -> (module Top)
-    | Mark -> (module Mark.Make (InnerConcrete))
     | Concrete ->
       Error.not_implemented_msg_error "Concrete not implemented"
 end
@@ -63,7 +61,6 @@ module CommandTerm = struct
         "polka", Polka;
         "oct", Oct;
         "top", Top;
-        "mark", Mark;
         "concrete", Concrete;
       ] in
     let alts = Arg.doc_alts_enum domains in
