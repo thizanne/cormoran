@@ -1,0 +1,34 @@
+(* Pretend to be in non-interactive mode to hide topfind
+   initialization message *)
+
+let interactive = !Sys.interactive;;
+Sys.interactive := false;;
+#use "topfind";;
+Sys.interactive := interactive;;
+
+(* run battop.ml in toplevel *)
+
+Toploop.use_silently
+  Format.err_formatter
+  (Filename.concat
+     (Findlib.package_directory "batteries")
+     "battop.ml");;
+
+let () =
+  try Topdirs.dir_directory (Sys.getenv "OCAML_TOPLEVEL_PATH")
+  with Not_found -> ()
+;;
+
+#require "batteries";;
+#require "ppx_deriving.std";;
+#require "ocamlgraph";;
+#require "cmdliner";;
+#require "bddapron";;
+#require "bddapron.bdd";;
+#require "bddapron.bddapron";;
+#require "apron";;
+#require "apron.apron";;
+#require "apron.boxD";;
+#require "apron.boxMPFR";;
+#require "apron.octD";;
+#require "apron.polkaRll";;
