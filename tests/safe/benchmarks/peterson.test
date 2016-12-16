@@ -4,7 +4,8 @@
 
 bool flag0, flag1, turn;
 
-not flag0 && not flag1 && not turn
+// not flag0 && not flag1 && not turn
+true
 
 ### thread T0 ###
 
