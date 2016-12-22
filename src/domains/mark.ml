@@ -83,6 +83,8 @@ end
 
 module Make (Inner : Domain.Inner) = struct
 
+  module Inner = Domain.LiftEnvUtils (Inner)
+
   module M = Map.Make (Key)
 
   type t = Inner.t M.t
@@ -355,7 +357,7 @@ module Make (Inner : Domain.Inner) = struct
       local_ints @ global_ints, local_bools @ global_bools in
     let initial_key = Key.init prog in
     let initial_inner =
-      Inner.init
+      Inner.top
       |> List.fold_right Inner.add initial_ints
       |> List.fold_right Inner.add initial_bools
     in

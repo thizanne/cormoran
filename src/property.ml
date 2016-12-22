@@ -5,6 +5,7 @@ module T = TypedAst
 module Ty = Types
 module C = Control
 module PS = Control.ProgramStructure
+module TS = Control.ThreadStructure
 
 (* A thread code portion delimited by two labels.
  * No initial label means 0.
@@ -68,12 +69,12 @@ let enum_thread_zone t_zone t_labels t_final_label =
     (Enum.empty ())
     t_zone
 
-let to_tzone_list { PS.labels; _ } zone =
+let to_tzone_list nb_threads zone =
   (* Converts a zone to the list of threaded zones of each thread that
      compose it *)
   let tzone_array =
     Array.create
-      (List.length labels)
+      nb_threads
       [whole_interval] in
   List.iter
     (fun ({ L.item = thread_id; _ }, thread_zone) ->
@@ -81,14 +82,14 @@ let to_tzone_list { PS.labels; _ } zone =
     zone;
   Array.to_list tzone_array
 
-let list_zone zone ({ PS.labels; final; _ } as g) =
+let list_zone zone thread_labels thread_finals =
   (* Lists the control states of a zone *)
   zone
-  |> to_tzone_list g
+  |> to_tzone_list @@ List.length thread_labels
   |> List.mapi
     (fun tid t_zone ->
-       enum_thread_zone t_zone (List.at labels tid) @@
-       C.State.tid_label final tid)
+       enum_thread_zone t_zone (List.at thread_labels tid) @@
+       C.State.tid_label thread_finals tid)
   |> List.map List.of_enum
   |> List.n_cartesian_product
   |> List.map C.State.from_label_list
@@ -111,9 +112,92 @@ module Make (D : Domain.ProgramState) = struct
   let satisfies { zone; condition } g data =
     let all_data = match zone with
       | None -> [data g.PS.final |> full_flush g]
-      | Some zone -> List.map data @@ list_zone zone g
+      | Some zone -> List.map data @@ list_zone zone g.PS.labels g.PS.final
     in
     List.for_all
       (data_satisfies condition.L.item)
       all_data
+end
+
+module MakeModular
+    (D : Domain.ThreadState)
+    (A : Modular.Application with type state = D.t)
+=
+struct
+  let full_flush thread_struct thread_state =
+    fst @@
+    A.generate
+      Operation.MFence
+      thread_struct.TS.final
+      thread_struct.TS.final
+      thread_state
+
+  let data_satisfy condition abstrs =
+    let neg_condition = T.Unop (L.mkdummy T.Not, L.mkdummy condition) in
+    abstrs
+    |> List.map @@ D.meet_cond neg_condition
+    |> D.are_consistent
+    |> ( not )
+
+  let meet_control_data control_state thread_id thread_data =
+    (* Takes a thread_data corresponding to the given thread id and
+       meets the labels of the other threads accordingly with the
+       control state *)
+    List.fold_lefti
+      (fun acc other_tid label ->
+         if other_tid = thread_id
+         then acc
+         else D.meet_label other_tid label acc)
+      thread_data
+      control_state
+
+  let meet_control control_state thread_data_list =
+    (* Takes a list of thread data and meets the labels on each one
+       accordingly with the control state *)
+    List.mapi
+      (fun thread_id thread_data ->
+         meet_control_data control_state thread_id thread_data)
+      thread_data_list
+
+  let all_thread_data data control_state =
+    (* Takes a control state and returns the corresponding list of
+       data of the threads *)
+    let lbl_list : C.State.t :> C.Label.t list = control_state in
+    List.map2
+      (fun thread_data label -> thread_data label (*|> meet_control lbl_list*))
+      data lbl_list
+    |> meet_control lbl_list
+
+  let final_state thread_structs =
+    C.State.from_label_list @@
+    List.map (fun ts -> ts.TS.final) thread_structs
+
+  let all_states zone thread_structs =
+    (* Returns all control states of a zone. Basically a wrapper of
+       list_zone, but with only thread_structs as a parameter. *)
+    let thread_labels =
+      List.map (fun ts -> ts.TS.labels) thread_structs in
+    list_zone zone thread_labels (final_state thread_structs)
+
+  let all_data zone thread_structs data =
+  (* Takes a zone option and returns the sequence of all lists of thread
+     data to check *)
+    match zone with
+    | None ->
+      [
+        final_state thread_structs
+        |> all_thread_data data
+        |> List.map2 full_flush thread_structs
+      ]
+    | Some zone ->
+      List.map (all_thread_data data) (all_states zone thread_structs)
+
+  let satisfies { zone; condition } thread_structs data =
+    List.for_all
+      (fun d ->
+         List.print ~sep:"\n###\n" ~last:"]\n"
+           D.print IO.stdout d;
+         data_satisfy condition.L.item d)
+      (*(data_satisfy condition.L.item) *)
+    (all_data zone thread_structs data)
 end

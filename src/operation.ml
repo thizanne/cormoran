@@ -10,3 +10,10 @@ type t =
     t
 
 let compare = Pervasives.compare
+
+let print = function
+  (* FIXME : this sucks. Do it properly. *)
+  | Identity -> print_string "Identity"
+  | MFence -> print_string "MFence"
+  | Filter _ -> print_string "Filter _"
+  | Assign _ -> print_string "Assign _"

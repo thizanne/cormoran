@@ -103,7 +103,7 @@ let exp_loc_type_expected env exp_loc = match exp_loc.L.item with
   | U.ArithRelop _ -> Env.Bool
 
 let rec type_expression :
-  (* TODO: check the number of shared variables *)
+  (* FIXME: check the number of shared variables *)
   type t.
   ('var, 'spec) var_loc_typer ->
   t Ty.t ->

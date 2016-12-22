@@ -22,6 +22,7 @@ module State = struct
   let equal = List.eq Label.equal
   let hash = Hashtbl.hash
   let empty = []
+
   let tid_label = List.nth
   let add_label = List.cons
   let from_label_list labels = labels

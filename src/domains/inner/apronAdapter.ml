@@ -12,7 +12,128 @@ module type Numerical = sig
   val manager : t Manager.t
 end
 
+let ap_unop : type t. t T.unop L.loc -> _ =
+  fun op -> match op.L.item with
+    | T.Neg -> Texpr1.Neg
+    | T.Not ->
+      Error.not_implemented_error op
+        "Apron domains don't implement boolean expressions"
+
+let ap_binop : type t. t T.binop L.loc -> _ =
+  fun op -> match op.L.item with
+    | T.Add -> Texpr1.Add
+    | T.Sub -> Texpr1.Sub
+    | T.Mul -> Texpr1.Mul
+    | T.Div -> Texpr1.Div
+    | _ ->
+      Error.not_implemented_error op
+        "Apron domains don't implement boolean expressions"
+
+let label_var label =
+  Var.of_string @@ Sym.name label
+
+let ap_var x =
+  Var.of_string @@ Sym.name x.T.var_spec
+
+let transtype_to_int { T.var_sym; var_type = Ty.Bool; var_spec } =
+  { var_sym; var_spec; T.var_type = Ty.Int }
+
+let texpr1 env expr =
+  let rec to_expr : type t. (t, Sym.t) T.expression -> _ = function
+    | T.Int n ->
+      Texpr1.Cst (Coeff.s_of_int n.L.item)
+    | T.Bool b ->
+      Texpr1.Cst
+        (Coeff.s_of_int (if b.L.item then 1 else 0))
+    | T.Var x ->
+      Texpr1.Var (ap_var x.L.item)
+    | T.Unop (op, expr) ->
+      Texpr1.Unop (
+        ap_unop op,
+        to_expr expr.L.item,
+        Texpr0.Int,
+        Texpr0.Zero
+      )
+    | T.Binop (op, expr1, expr2) ->
+      Texpr1.Binop (
+        ap_binop op,
+        to_expr expr1.L.item,
+        to_expr expr2.L.item,
+        Texpr0.Int,
+        Texpr0.Zero
+      )
+  in Texpr1.of_expr env (to_expr expr)
+
+let mk_not cond =
+  L.mkdummy @@ T.Unop (L.mkdummy T.Not, cond)
+
+let reduce_not = function
+  | T.Bool b ->
+    T.Bool (L.comap ( not ) b)
+  | T.Var v ->
+    T.Binop (
+      L.mkdummy T.Eq,
+      L.cobind T.var @@ L.comap transtype_to_int v,
+      L.mkdummy @@ T.Int (L.mkdummy 0)
+    )
+  | T.Unop ({ L.item = T.Not; _ }, cond) ->
+    cond.L.item
+  | T.Binop (rel, expr1, expr2) ->
+    match rel.L.item with
+    | T.Eq ->
+      T.Binop (L.mkdummy T.Neq, expr1, expr2)
+    | T.Neq ->
+      T.Binop (L.mkdummy T.Eq, expr1, expr2)
+    | T.Lt ->
+      T.Binop (L.mkdummy T.Ge, expr1, expr2)
+    | T.Gt ->
+      T.Binop (L.mkdummy T.Le, expr1, expr2)
+    | T.Le ->
+      T.Binop (L.mkdummy T.Gt, expr1, expr2)
+    | T.Ge ->
+      T.Binop (L.mkdummy T.Lt, expr1, expr2)
+    | T.And ->
+      T.Binop (L.mkdummy T.Or, mk_not expr1, mk_not expr2)
+    | T.Or ->
+      T.Binop (L.mkdummy T.And, mk_not expr1, mk_not expr2)
+
+let tcons1 env rel e1 e2 =
+  let expr e1 e2 =
+    Texpr1.binop
+      Texpr1.Sub
+      (texpr1 env e1)
+      (texpr1 env e2)
+      Texpr1.Int Texpr1.Zero in
+  match rel with
+  | T.Eq -> Tcons1.make (expr e1 e2) Tcons1.EQ
+  | T.Neq -> Tcons1.make (expr e1 e2) Tcons1.DISEQ
+  | T.Lt -> Tcons1.make (expr e2 e1) Tcons1.SUP
+  | T.Le -> Tcons1.make (expr e2 e1) Tcons1.SUPEQ
+  | T.Gt -> Tcons1.make (expr e1 e2) Tcons1.SUP
+  | T.Ge -> Tcons1.make (expr e1 e2) Tcons1.SUPEQ
+
 module Make (N : Numerical) = struct
+
+  module Env = struct
+    type t = Environment.t
+
+    let empty = Environment.make [||] [||]
+
+    let add var env =
+      Environment.add env [|ap_var var|] [| |]
+
+    let drop var env =
+      Environment.remove env [|ap_var var|]
+
+    let join env1 env2 =
+      Environment.lce env1 env2
+
+    let add_label label _label_max env =
+      Environment.add env [|label_var label|] [| |]
+
+    let drop_label label env =
+      Environment.remove env [|label_var label|]
+  end
 
   type t = N.t Abstract1.t
 
@@ -22,115 +143,33 @@ module Make (N : Numerical) = struct
 
   let equal = Abstract1.is_eq man
 
-  let transtype_to_int { T.var_sym; var_type = Ty.Bool; var_spec } =
-    { var_sym; var_spec; T.var_type = Ty.Int }
+  let bottom =
+    Abstract1.bottom man Env.empty
 
-  let ap_unop : type t. t T.unop L.loc -> _ =
-    fun op -> match op.L.item with
-      | T.Neg -> Texpr1.Neg
-      | T.Not ->
-        Error.not_implemented_error op
-          "Apron domains don't implement boolean expressions"
+  let top =
+    Abstract1.top man Env.empty
 
-  let ap_binop : type t. t T.binop L.loc -> _ =
-    fun op -> match op.L.item with
-    | T.Add -> Texpr1.Add
-    | T.Sub -> Texpr1.Sub
-    | T.Mul -> Texpr1.Mul
-    | T.Div -> Texpr1.Div
-    | _ ->
-      Error.not_implemented_error op
-        "Apron domains don't implement boolean expressions"
+  let get_env abstr =
+    Abstract1.env abstr
 
-  let label_var thread_id =
-    Var.of_string @@ sprintf "Label::%d" thread_id
+  let change_env env abstr =
+    Abstract1.change_environment man abstr env false
 
-  let ap_var x =
-    Var.of_string @@ Sym.name x.T.var_spec
+  let rename var_old var_new abstr =
+    Abstract1.rename_array man abstr
+      [|ap_var var_old|]
+      [|ap_var var_new|]
 
-  let texpr1 env expr =
-    let rec to_expr : type t. (t, Sym.t) T.expression -> _ = function
-      | T.Int n ->
-        Texpr1.Cst (Coeff.s_of_int n.L.item)
-      | T.Bool b ->
-        Texpr1.Cst
-          (Coeff.s_of_int (if b.L.item then 1 else 0))
-      | T.Var x ->
-        Texpr1.Var (ap_var x.L.item)
-      | T.Unop (op, expr) ->
-        Texpr1.Unop (
-          ap_unop op,
-          to_expr expr.L.item,
-          Texpr0.Int,
-          Texpr0.Zero
-        )
-      | T.Binop (op, expr1, expr2) ->
-        Texpr1.Binop (
-          ap_binop op,
-          to_expr expr1.L.item,
-          to_expr expr2.L.item,
-          Texpr0.Int,
-          Texpr0.Zero
-        )
-    in Texpr1.of_expr env (to_expr expr)
-
-  let init =
-    let env = Environment.make
-        [||] (* No initial integer variables *)
-        [||] (* No real variables *) in
-    Abstract1.top man env
+  let rename_label lbl_old lbl_new abstr =
+    Abstract1.rename_array man abstr
+      [|label_var lbl_old|]
+      [|label_var lbl_new|]
 
   let join = Abstract1.join man
 
   let meet = Abstract1.meet man
 
-  let mk_not cond =
-    L.mkdummy @@ T.Unop (L.mkdummy T.Not, cond)
-
-  let reduce_not = function
-    | T.Bool b ->
-      T.Bool (L.comap ( not ) b)
-    | T.Var v ->
-      T.Binop (
-        L.mkdummy T.Eq,
-        L.cobind T.var @@ L.comap transtype_to_int v,
-        L.mkdummy @@ T.Int (L.mkdummy 0)
-      )
-    | T.Unop ({ L.item = T.Not; _ }, cond) ->
-      cond.L.item
-    | T.Binop (rel, expr1, expr2) ->
-      match rel.L.item with
-      | T.Eq ->
-        T.Binop (L.mkdummy T.Neq, expr1, expr2)
-      | T.Neq ->
-        T.Binop (L.mkdummy T.Eq, expr1, expr2)
-      | T.Lt ->
-        T.Binop (L.mkdummy T.Ge, expr1, expr2)
-      | T.Gt ->
-        T.Binop (L.mkdummy T.Le, expr1, expr2)
-      | T.Le ->
-        T.Binop (L.mkdummy T.Gt, expr1, expr2)
-      | T.Ge ->
-        T.Binop (L.mkdummy T.Lt, expr1, expr2)
-      | T.And ->
-        T.Binop (L.mkdummy T.Or, mk_not expr1, mk_not expr2)
-      | T.Or ->
-        T.Binop (L.mkdummy T.And, mk_not expr1, mk_not expr2)
-
-  let tcons1 env rel e1 e2 =
-    let expr e1 e2 =
-      Texpr1.binop
-        Texpr1.Sub
-        (texpr1 env e1)
-        (texpr1 env e2)
-        Texpr1.Int Texpr1.Zero in
-    match rel with
-    | T.Eq -> Tcons1.make (expr e1 e2) Tcons1.EQ
-    | T.Neq -> Tcons1.make (expr e1 e2) Tcons1.DISEQ
-    | T.Lt -> Tcons1.make (expr e2 e1) Tcons1.SUP
-    | T.Le -> Tcons1.make (expr e2 e1) Tcons1.SUPEQ
-    | T.Gt -> Tcons1.make (expr e1 e2) Tcons1.SUP
-    | T.Ge -> Tcons1.make (expr e1 e2) Tcons1.SUPEQ
+  let unify = Abstract1.unify man
 
   let rec meet_cons_rel rel expr1 expr2 abstr =
     let env = Abstract1.env abstr in
@@ -187,37 +226,29 @@ module Make (N : Numerical) = struct
   let expand source dest abstr =
     Abstract1.expand man abstr (ap_var source) [|ap_var dest|]
 
-  let add var abstr =
-    let env = Abstract1.env abstr in
-    Abstract1.change_environment man abstr
-      (Environment.add env [|ap_var var|] [| |])
-      false
-
-  let drop var abstr =
-    let env = Abstract1.env abstr in
-    Abstract1.change_environment man abstr
-      (Environment.remove env [|ap_var var|])
-      false
-
-  let add_label thread_id _label_max abstr =
-    let env = Abstract1.env abstr in
-    Abstract1.change_environment man abstr
-      (Environment.add env [|label_var thread_id|] [| |])
-      false
-
-  let set_label thread_id new_value abstr =
+  let set_label lbl_sym new_value abstr =
     let env = Abstract1.env abstr in
     Abstract1.assign_texpr man abstr
-      (label_var thread_id)
+      (label_var lbl_sym)
       (Texpr1.(of_expr env @@ Cst (Coeff.s_of_int new_value)))
       None
 
-  let meet_label thread_id label_value abstr =
+  let assign_label dst_lbl_sym src_lbl_sym abstr =
+    let env = Abstract1.env abstr in
+    let dst_var = label_var dst_lbl_sym in
+    let src_var = label_var src_lbl_sym in
+    let src_exp = Texpr1.var env src_var in
+    Abstract1.assign_texpr man abstr
+      dst_var
+      src_exp
+      None
+
+  let meet_label lbl_sym label_value abstr =
     let env = Abstract1.env abstr in
     let cond =
       Texpr1.binop
         Texpr1.Sub
-        (Texpr1.var env (label_var thread_id))
+        (Texpr1.var env (label_var lbl_sym))
         (Texpr1.of_expr env @@ Texpr1.Cst (Coeff.s_of_int label_value))
         Texpr1.Int
         Texpr1.Zero in
@@ -235,9 +266,9 @@ end
 module Polka = Make (struct
     type t = Polka.loose Polka.t
     let manager = Polka.manager_alloc_loose ()
-end)
+  end)
 
 module Oct = Make (struct
     type t = Oct.t
     let manager = Oct.manager_alloc ()
-end)
+  end)

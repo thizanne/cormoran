@@ -13,7 +13,7 @@ module Label : sig
 end
 
 module State : sig
-  type t
+  type t = private Label.t list
   val equal : t -> t -> bool
   val hash : t -> int
   val empty : t
