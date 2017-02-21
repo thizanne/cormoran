@@ -4,7 +4,6 @@ module T = TypedAst
 module Ty = Types
 module O = Operation
 module L = Location
-module Dom = Domain
 
 module Key = struct
   (* TODO: remove this when 4.03 is used. ppx_deriving uses

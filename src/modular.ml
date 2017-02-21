@@ -60,7 +60,7 @@ module OneThreadAnalysis (A : ThreadAnalysis) = struct
 
       let return_interferences, analyze =
         (* Use closures to update generated interferences without
-             having an explicit global state *)
+           having an explicit global state *)
         let interf = ref intf_bot in
         (fun () -> !interf),
         (fun (lbl1, op, lbl2) state ->
