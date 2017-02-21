@@ -42,6 +42,21 @@ type _ binop =
   | And : (bool -> bool -> bool) binop
   | Or : (bool -> bool -> bool) binop
 
+let print_binop : type t. _ -> t binop -> _ =
+  fun output binop -> match binop with
+    | Add -> Printf.fprintf output "+"
+    | Sub -> Printf.fprintf output "-"
+    | Mul -> Printf.fprintf output "*"
+    | Div -> Printf.fprintf output "/"
+    | Eq -> Printf.fprintf output "="
+    | Neq -> Printf.fprintf output "<>"
+    | Lt -> Printf.fprintf output "<"
+    | Gt -> Printf.fprintf output ">"
+    | Le -> Printf.fprintf output "<="
+    | Ge -> Printf.fprintf output ">="
+    | And -> Printf.fprintf output "&&"
+    | Or -> Printf.fprintf output "||"
+
 type (_, _) expression =
   (* (type of the expression, type of variables specs) *)
   | Int :
@@ -100,6 +115,51 @@ and map_expr_loc :
   =
   fun mapper ->
     L.comap (map_expr mapper)
+
+let print_expr output expr =
+  let binop_level : type t. t binop -> _ = function
+    | Mul -> 3 | Div -> 3
+    | Add -> 4 | Sub -> 4
+    | Eq -> 5 | Neq -> 5 | Gt -> 5 | Ge -> 5 | Lt -> 5 | Le -> 5
+    | And -> 6
+    | Or -> 7
+  in
+  let expr_level : type t. (t, _) expression -> _ = function
+    | Int _ -> 1
+    | Bool _ -> 1
+    | Var _ -> 1
+    | Unop _ -> 2
+    | Binop (op, _, _) -> binop_level op.L.item
+  in
+  let rec print : type t. _ -> (t, _) expression -> _ =
+    fun output expr -> match expr with
+      | Int n -> Int.print output n.L.item
+      | Bool b -> Bool.print output b.L.item
+      | Var v -> Sym.print output v.L.item.var_sym
+      | Unop (op, exp) ->
+        let curr_lvl = expr_level expr in
+        begin match op.L.item with
+          | Not ->
+            Printf.fprintf output "not %a"
+              (print_paren curr_lvl) exp.L.item
+          | Neg ->
+            Printf.fprintf output "-%a"
+              (print_paren curr_lvl) exp.L.item
+        end
+      | Binop (op, exp1, exp2) ->
+        let curr_lvl = expr_level expr in
+        Printf.fprintf output "%a %a %a"
+          (print_paren curr_lvl) exp1.L.item
+          print_binop op.L.item
+          (print_paren curr_lvl) exp2.L.item
+  and print_paren : type t. _ -> _ -> (t, _) expression -> _ =
+    fun level output expr ->
+      (* Print expression with parentheses if level is lower (stronger
+         priority) *)
+      if level < expr_level expr
+      then Printf.fprintf output "(%a)" print expr
+      else print output expr
+  in print output expr
 
 let add_source tid expr =
   let put_thread v = var_spec_map (Source.threaded tid) v in
