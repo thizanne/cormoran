@@ -32,7 +32,9 @@ are usually automatically generated) and won't be typechecked.
 
 - apron
 - batteries
+- bddapron
 - cmdliner
 - menhir
 - ocamlgraph
 - ppx_deriving
+- ppx_deriving_cmdliner

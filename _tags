@@ -11,6 +11,7 @@ true: package(batteries)
 true: package(ppx_deriving.std)
 true: package(ocamlgraph)
 true: package(cmdliner)
+true: package(ppx_deriving_cmdliner)
 
 true: package(bddapron)
 true: package(bddapron.bdd)

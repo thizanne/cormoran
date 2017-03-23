@@ -8,6 +8,7 @@ PKG cmdliner
 PKG batteries
 PKG ocamlgraph
 PKG ppx_deriving.std
+PKG ppx_deriving_cmdliner
 
 PKG bddapron
 PKG bddapron.bdd
