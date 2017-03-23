@@ -9,33 +9,29 @@ let info =
   ] in
   Term.info "cormoran" ~version:"0.1" ~doc ~man
 
-let main domain widening_delay use_litmus sourcefile outputfile =
+let main param =
   try
     let module P = Param in
     let (program, properties) =
-      P.Parse.parse_filename ~use_litmus sourcefile in
-    let control = Control.ProgramStructure.of_program program in
-    let module D = (val P.Domain.get domain) in
-    let module Analysis = Interleaving.Make (D) in
-    let data = Analysis.analyze program control widening_delay in
-    let module Dot = ExportCfg.Dot (D) in
-    let module Prop = Property.Make (D) in
-    Dot.output_graph (P.Output.get_output outputfile) data control;
+      FrontEnd.parse_source param in
+    let module Analysis = (val Analysis.get_analysis param) in
+    let control = Analysis.get_control program in
+    let data = Analysis.analyse param program control in
+    Analysis.export_graph param control data;
     (* Printf.printf "done.\nChecking properties...\n"; *)
     List.iteri
       (fun i prop ->
          Printf.printf "Property %d %s\n" (i + 1)
-           (if Prop.satisfies prop control data
+           (if Analysis.check_property prop control data
             then "verified."
-            else "could not be verified (wrong, or domain too imprecise)."))
+            else "could not be verified."))
       properties
   with
   | Error.Error e ->
     prerr_endline @@ Error.to_string e
 
 let main_term =
-  let open Param.CommandTerm in
-  Term.(pure main $ domain $ widening_delay $ use_litmus $ sourcefile $ outputfile)
+  Term.(pure main $ Param.cmdliner_term ())
 
 let () = match Term.eval (main_term, info) with
   | `Error _ -> exit 1

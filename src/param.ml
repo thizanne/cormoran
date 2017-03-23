@@ -1,87 +1,128 @@
 open Batteries
 open Cmdliner
 
-module Parse = struct
-  let parse_litmus lexbuf =
-    LexerLitmus.drop_prelude lexbuf;
-    ParserLitmus.program LexerLitmus.lexer lexbuf
+let enum_doc enum doc =
+  Printf.sprintf "%s. $(docv) must be %s."
+    doc (Arg.doc_alts_enum enum)
 
-  let parse_imp lexbuf =
-    Parser.program Lexer.lexer lexbuf
-    |> Typing.type_program
+let cmdliner_converter_of_conv conv = Arg.conv_parser conv, Arg.conv_printer conv
 
-  let parse_lexbuf use_litmus =
-    if use_litmus
-    then parse_litmus
-    else parse_imp
+type non_dir_file = string
+let non_dir_file_cmdliner_converter =
+  cmdliner_converter_of_conv Arg.non_dir_file
 
-  let get_lexbuf filename =
-    (* filename is expected to be valid *)
-    let open Lexing in
-    let lexbuf = from_channel @@ open_in filename in
-    lexbuf.lex_start_p <- { lexbuf.lex_start_p with pos_fname = filename };
-    lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
-    lexbuf
-
-  let parse_filename ~use_litmus filename =
-    parse_lexbuf use_litmus @@ get_lexbuf filename
-end
-
-module Domain = struct
-  type t =
+module Abstraction = struct
+  type inner =
     | BddPolka
     | BddOct
     | Polka
     | Oct
-    | Top
+
+  let inner_enum = [
+    "bddpolka", BddPolka;
+    "bddoct", BddOct;
+    "polka", Polka;
+    "oct", Oct;
+  ]
+
+  let inner_doc =
+    enum_doc inner_enum
+      "The logico-numerical domain used inside abstractions"
+
+  type control =
     | Concrete
+    | FromLabels
 
-  let get : _ -> (module Domain.ProgramState) = function
-    | BddPolka -> (module Mark.Make (BddapronAdapter.Polka))
-    | BddOct -> (module Mark.Make (BddapronAdapter.Oct))
-    | Polka -> (module Mark.Make (ApronAdapter.Polka))
-    | Oct -> (module Mark.Make (ApronAdapter.Oct))
-    | Top -> (module Top)
-    | Concrete ->
-      Error.not_implemented_msg_error "Concrete not implemented"
+  let control_enum = [
+    "concrete", Concrete;
+    "from-labels", FromLabels;
+  ]
+
+  let control_doc =
+    enum_doc control_enum
+      "The abstraction used for control in modular analyses"
+
+  type outer =
+    | Mark
+    | MarkNoLocal
+    | SC
+    | Top
+
+  let outer_enum = [
+    "top", Top;
+    "mark", Mark;
+    "mark-nolocal", MarkNoLocal;
+    "sc", SC;
+  ]
+
+  let outer_doc =
+    enum_doc outer_enum
+      "The abstraction for program states and interferences"
 end
 
-module Output = struct
-  let get_output = function
-    | None -> IO.stdnull
-    | Some filename -> File.open_out filename
+module Method = struct
+  type t =
+    | Modular
+    | Interleaving
+
+  let method_enum = [
+    "modular", Modular;
+    "interleaving", Interleaving;
+  ]
+
+  let method_doc =
+    enum_doc method_enum
+      "The analysis method"
 end
 
-module CommandTerm = struct
-  let domain =
-    let domains =
-      Domain.[
-        "bddpolka", BddPolka;
-        "bddoct", BddOct;
-        "polka", Polka;
-        "oct", Oct;
-        "top", Top;
-        "concrete", Concrete;
-      ] in
-    let alts = Arg.doc_alts_enum domains in
-    let doc = Printf.sprintf "The domain to use. $(docv) must be %s" alts in
-    Arg.(value & opt (enum domains) Domain.Polka &
-         info ["d"; "domain"] ~doc ~docv:"DOMAIN")
+include struct
+  [@@@ ocaml.warning "-39"]
 
-  let widening_delay =
-    let doc =
-      "The number of computation steps before widening. Negative is zero." in
-    Arg.(value & opt int 0 & info ["w"; "wdelay"] ~doc ~docv:"N")
+  type t = {
 
-  let use_litmus =
-    let doc = "Use litmus syntax." in
-    Arg.(value & flag & info ["litmus"] ~doc)
+    sourcefile : non_dir_file
+        [@pos 0]
+        [@docv "FILE"];
+    (** The program to analyse. *)
 
-  let sourcefile =
-    let doc = "The program to analyse." in
-    Arg.(required & pos 0 (some non_dir_file) None & info [] ~doc ~docv:"FILE")
+    graph : string option
+        [@aka ["g"]]
+        [@docv "FILE"];
+    (** Graph output file name. *)
 
-  let outputfile =
-    let doc = "Graph output file name." in
-    Arg.(value & opt (some string) None & info ["o"; "output"] ~doc ~docv:"FILE")
+    litmus : bool;
+    (** Use litmus syntax. *)
+
+    wdelay : int
+        [@aka ["w"]];
+        [@default 2]
+    (** Number of exact computation steps before widening when
+        computing program states. Negative is equivalent to zero. *)
+
+    inner : Abstraction.inner
+        [@aka ["i"]]
+        [@docv "DOMAIN"]
+        [@enum Abstraction.inner_enum] [@default Abstraction.BddOct]
+        [@doc Abstraction.inner_doc];
+
+    control : Abstraction.control
+        [@aka ["c"]]
+        [@docv "DOMAIN"]
+        [@enum Abstraction.control_enum] [@default Abstraction.FromLabels]
+        [@doc Abstraction.control_doc];
+
+    outer : Abstraction.outer
+        [@aka ["d"]]
+        [@docv "DOMAIN"]
+        [@enum Abstraction.outer_enum] [@default Abstraction.Mark]
+        [@doc Abstraction.outer_doc];
+
+    method_ : Method.t
+        [@aka ["m"]]
+        [@name "method"]
+        [@docv "METHOD"]
+        [@enum Method.method_enum] [@default Method.Interleaving]
+        [@doc Method.method_doc];
+
+  } [@@deriving cmdliner]
 end
