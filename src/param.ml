@@ -93,11 +93,17 @@ include struct
     litmus : bool;
     (** Use litmus syntax. *)
 
-    wdelay : int
-        [@aka ["w"]];
-        [@default 2]
+    state_widening_delay : int
+        [@aka ["w"]]
+        [@default 2];
     (** Number of exact computation steps before widening when
         computing program states. Negative is equivalent to zero. *)
+
+    intf_widening_delay : int
+        [@aka ["x"]]
+        [@default 2];
+    (** Number of exact computation steps before widening when
+        generating interferences. Negative is equivalent to zero. *)
 
     inner : Abstraction.inner
         [@aka ["i"]]

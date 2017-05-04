@@ -65,7 +65,7 @@ module Interleaving (D : Domain.ProgramState) : S = struct
     Dot.output_graph (get_output param.Param.graph) data control
 
   let analyse param program control =
-    Analysis.analyze program control param.Param.wdelay
+    Analysis.analyze program control param.Param.state_widening_delay
 
   let check_property prop control data =
     Prop.satisfies prop control data
@@ -89,7 +89,8 @@ module Modular (TA : Modular.ThreadAnalysis) : S = struct
         "Graph export is not yet available for modular analysis"
 
   let analyse param program control =
-    Analysis.analyse program control param.Param.wdelay param.Param.wdelay
+    Analysis.analyse program control
+      param.Param.state_widening_delay param.Param.intf_widening_delay
 
   let check_property prop control data =
     Prop.satisfies prop control data
