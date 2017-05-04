@@ -7,7 +7,7 @@ module T = TypedAst
 module Ty = Types
 module L = Location
 
-module BddDomain = Bdddomain1
+module BddDomain = Mtbdddomain1
 
 let typ_of_var : type a. (a, _) T.var  -> _ =
   function { T.var_type; _ } -> match var_type with
