@@ -35,7 +35,7 @@ module OneThreadAnalysis (A : ThreadAnalysis) = struct
   (* TODO: separate widening delays for different operations *)
   module Wto = Graph.WeakTopological.Make (TS.Graph)
 
-  let analyse prog thread_id thread_controls widening_delay external_intf =
+  let analyse prog thread_id thread_controls widening_delay old_data external_intf =
     (* Data has to be redefined at each thread analysis because the
        analyze function should depend on the external interferences. *)
     let intf_bot = A.Interferences.bottom prog thread_controls in
@@ -95,7 +95,12 @@ module OneThreadAnalysis (A : ThreadAnalysis) = struct
         |> List.fold_righti set_initial_thread_label prog.T.threads
         |> apply_interferences Control.Label.initial widening_delay
         |> fst (* No interference should be generated at the initial state *)
-      else A.StateAbstraction.bottom prog thread_controls thread_id
+      else
+        (* At first analysis, old data is expected to map each label
+           to bottom. We reuse old data to avoid recomputing some
+           steps. *)
+        (* A.StateAbstraction.bottom prog thread_controls thread_id *)
+        old_data label
     in
 
     let widening_set =
@@ -157,8 +162,10 @@ module ProgramAnalysis (A : ThreadAnalysis) = struct
         interf, data
       | _ :: ts ->
         let intf_t, intf_other = split_interferences current interf in
+        let old_data = List.at data current in
         let intf_t', d =
-          ThreadAnalysis.analyse prog current thread_controls state_delay intf_other in
+          ThreadAnalysis.analyse
+            prog current thread_controls state_delay old_data intf_other in
         let intf_t_stable = A.Interferences.equal intf_t intf_t' in
         let final =
           if intf_t_stable
