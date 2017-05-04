@@ -161,6 +161,7 @@ module ProgramAnalysis (A : ThreadAnalysis) = struct
       | _ :: _ when Some current = final ->
         interf, data
       | _ :: ts ->
+        Printf.printf "Analysing thread %d\n%!" current;
         let intf_t, intf_other = split_interferences current interf in
         let old_data = List.at data current in
         let intf_t', d =
@@ -181,7 +182,7 @@ module ProgramAnalysis (A : ThreadAnalysis) = struct
             let intf_t'', w_delay' =
               if w_delay > 0
               then intf_t', w_delay - 1
-              else A.Interferences.widening intf_t intf_t', 0
+              else (Printf.printf "Widening\n%!"; A.Interferences.widening intf_t intf_t', 0)
             in
             List.modify_at current (const intf_t'') interf,
             List.modify_at current (const w_delay') interf_w_delays

@@ -540,13 +540,23 @@ struct
     let generate op lbl1 lbl2 { StateAbstraction.thread_id; shared; locals; control; abstr } =
       let abstr', intf =
         generate_from_abstr op lbl1 lbl2 thread_id shared locals control abstr in
-      (* Printf.printf "#######\nThread %d from label %a to label %a\n\nInput:\n\n%a\n\nOutput:\n\n%a\n\nGenerated :\n\n%a\n\n\n" *)
+      (* Printf.printf "#######\nThread %d, label %a to label %a, abstract label %d to %d, operation %a\n\nInput:\n\n%a\n\nOutput:\n\n%a\n\nGenerated :\n\n%a\n\n\n" *)
       (*   thread_id *)
       (*   Control.Label.print lbl1 *)
       (*   Control.Label.print lbl2 *)
+      (*   (C.alpha control thread_id lbl1) *)
+      (*   (C.alpha control thread_id lbl2) *)
+      (*   Operation.print op *)
       (*   StateAbstraction.print { StateAbstraction.thread_id; shared; locals; control; abstr } *)
       (*   StateAbstraction.print { StateAbstraction.thread_id; shared; locals; control; abstr = abstr' } *)
       (*   Interferences.print intf; *)
+        (*     Printf.printf "Thread %d, label %a to %a, abstract label %d to %d, operation %a\n" *)
+        (* thread_id *)
+        (* Control.Label.print lbl1 *)
+        (* Control.Label.print lbl2 *)
+        (* (C.alpha control thread_id lbl1) *)
+        (* (C.alpha control thread_id lbl2) *)
+        (* Operation.print op; *)
       { StateAbstraction.thread_id; shared; locals; control; abstr = abstr' },
       intf
   end
