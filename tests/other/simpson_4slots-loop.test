@@ -8,63 +8,66 @@
 
 // Note: *very* slow analysis with no buffers partitioning abstraction
 
-latest = 0, reading = 0,
-data00 = 0, data01 = 0, data10 = 0, data11 = 0,
-slot0 = 0, slot1 = 0
+bool latest, reading, slot0, slot1;
+int data00, data01, data10, data11;
+
+not latest && not reading && data00 = 0 && data01 = 0 && data10 = 0 && data11 = 0 && not slot0 && not slot1
 
 #### THREAD WRITER ####
+in = 0
 
 while true {
+    in = in + 1
 
-    // pair_w := not reading
+    pair_w = not reading
 
-    pair_w := 1 - reading
+    // index_w = not slot[pair_w]
 
-    // index_w := not slot[pair_w]
-
-    if pair_w = 0 {
-       index_w := 1 - slot0
+    if not pair_w {
+       index_w = not slot0
     }
 
-    if pair_w = 1 {
-       index_w := 1 - slot1
+    if pair_w {
+       index_w = not slot1
     }
 
-    // data[pair_w][index_w] := in /* Critical sections */
+    // data[pair_w][index_w] = in /* Critical sections */
 
-    if pair_w = 0 && index_w = 0 {
+    if not pair_w && not index_w {
        label crit00
-       data00 := in
+       data00 = in
     }
 
-    if pair_w = 0 && index_w = 1 {
+    if not pair_w && index_w {
        label crit01
-       data01 := in
+       data01 = in
     }
 
-    if pair_w = 1 && index_w = 0 {
+    if pair_w && not index_w {
        label crit10
-       data10 := in
+       data10 = in
     }
 
-    if pair_w = 1 && index_w = 1 {
+    if pair_w && index_w {
        label crit11
-       data11 := in
+       data11 = in
     }
 
-    // slot[pair_w] := index_w
+    // slot[pair_w] = index_w
 
-    if pair_w = 0 {
-       slot0 := index_w
+    // FIXME: add else to the language
+
+    if not pair_w {
+       slot0 = index_w
     }
 
-    if pair_w = 1 {
-       slot1 := index_w
+    if pair_w {
+       slot1 = index_w
     }
 
-    // latest := pair_w
+    // latest = pair_w
 
-    latest := pair_w
+    latest = pair_w
     mfence
 
 }
@@ -73,44 +76,44 @@ while true {
 
 while true {
 
-    // pair_r := latest
+    // pair_r = latest
 
-    pair_r := latest
+    pair_r = latest
 
-    // reading := pair_r
+    // reading = pair_r
 
-    reading := pair_r
+    reading = pair_r
     mfence
 
-    // index_r := slot[pair_r]
+    // index_r = slot[pair_r]
 
-    if pair_r = 0 {
-       index_r := slot0
+    if not pair_r {
+       index_r = slot0
     }
 
-    if pair_r = 1 {
-       index_r := slot1
+    if pair_r {
+       index_r = slot1
     }
 
-    // out := data[pair_r][index_r] /* Critical sections */
+    // out = data[pair_r][index_r] /* Critical sections */
 
-    if pair_r = 0 && index_r = 0 {
+    if not pair_r && not index_r {
        label crit00
-       out := data00
+       out = data00
     }
 
-    if pair_r = 0 && index_r = 1 {
+    if not pair_r && index_r {
        label crit01
-       out := data01
+       out = data01
     }
 
-    if pair_r = 1 && index_r = 0 {
+    if pair_r && not index_r {
        label crit10
-       out := data10
+       out = data10
     }
 
-    if pair_r = 1 && index_r = 1 {
+    if pair_r && index_r {
        label crit11
-       out := data11
+       out = data11
     }
 }
