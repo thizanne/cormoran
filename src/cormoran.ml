@@ -33,6 +33,6 @@ let main param =
 let main_term =
   Term.(pure main $ Param.cmdliner_term ())
 
-let () = match Term.eval (main_term, info) with
+let () = match Term.eval ~catch:false (main_term, info) with
   | `Error _ -> exit 1
   | _ -> exit 0
