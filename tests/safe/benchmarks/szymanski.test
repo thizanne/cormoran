@@ -2,9 +2,9 @@
 
 // f1 and f2 should be bounded integers (0..3)
 
-int f1, f2;
+int f1, f2, x;
 
-f1 = 0 && f2 = 0
+f1 = 0 && f2 = 0 && x = 0
 
 ##### thread worker_1 ####
 while(true) {
@@ -29,7 +29,7 @@ while(true) {
 
     f1 = 4
     //mfence
-
+    x = 1
     label bp1
 
     t2 = f2
@@ -69,6 +69,7 @@ while(true) {
     while (t1 >= 2) {
         t1 = f1
     }
+    x = 2
     label bp2
 
     f2 = 0

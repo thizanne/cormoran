@@ -1,4 +1,5 @@
 /* Easiest way to verify: Mark/Oct, 1 step before widening */
+/* Modular : -w 5 -x 2 */
 /* See the explanations in commentary for details */
 
 { @ (0:bp, 1:bp) 1:tail < 0:h1 }
@@ -44,7 +45,9 @@ tail = head
 /* DEQ */
 while true {
     h2 = head
+    label test
     while (tail >= h2) {
+        label cc
         h2 = head
     }
     label bp

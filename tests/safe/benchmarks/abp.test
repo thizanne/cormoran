@@ -12,6 +12,7 @@ not msg && not ack
 #### thread T0 ####
    lSSt = false
    lSCnt = 0
+   label test
    while (true) {
      lAck = ack
      if ((not lAck and not lSSt) or (lAck and lSSt)) {
@@ -26,6 +27,7 @@ not msg && not ack
 #### thread T1 ####
    lRSt = false
    lRCnt = 0
+   label test
    while (true) {
      lMsg = msg
      if ((lMsg and not lRSt) or (not lMsg and lRSt)) {

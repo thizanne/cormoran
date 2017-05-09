@@ -1,6 +1,6 @@
 { @ (0:critical_section,1:critical_section) false }
 
-int number0, number1;
+int number0, number1, x;
 bool entering0, entering1;
 
 number0 = 0 && number1 = 0 && not entering0 && not entering1
@@ -35,7 +35,7 @@ while(true) {
     while n1 != 0 && n1 < n0 {
         n1 = number1
     }
-
+    mfence
     label critical_section
 
     number0 = 0
@@ -71,9 +71,9 @@ while true {
     while n0 != 0 && n0 <= n1 {
         n0 = number0
     }
-
+    mfence
     label critical_section
 
     number1 = 0
-     mfence
+    mfence
 }

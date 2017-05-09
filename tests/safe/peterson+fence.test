@@ -1,42 +1,50 @@
 { @ (0:critical_section,1:critical_section) false }
 
 bool flag_0, flag_1, turn;
+int x;
 
-not flag_0 && not flag_1 && not turn
+not flag_0 && not flag_1 && x = 0
 
 #
-
-flag_0 = true
-mfence
-turn = true
+while(true) {
+    flag_0 = true
+    mfence
+    turn = false
     mfence
 
-f = flag_1
-t = turn
-while (f && t) {
     f = flag_1
+    label y
     t = turn
+
+    while (f && not t) {
+        f = flag_1
+        t = turn
+    }
+
+    x = 4
+    label critical_section
+
+    flag_0 = false
+    mfence
 }
-
-label critical_section
-
-flag_0 = false
-mfence
-
 #
-flag_1 = true
-mfence
-turn = false
-mfence
+while(true) {
+    flag_1 = true
+    mfence
+    turn = true
+    mfence
 
-f = flag_0
-t = turn
-while (f && not t) {
     f = flag_0
+    label dummy
     t = turn
+
+    while (f && t) {
+        f = flag_0
+        t = turn
+    }
+    x = 8
+    label critical_section
+
+    flag_1 = false
+    mfence
 }
-
-label critical_section
-
-flag_1 = false
-mfence

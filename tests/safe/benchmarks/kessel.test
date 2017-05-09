@@ -5,40 +5,59 @@
 }
 
 bool b0, b1, turn0, turn1;
+int x;
 
-not b0 and not b1
+not b0 and not b1 and x = 0
 
 ## thread T0 ##
-  while true {
+while true {
+    label test
     b0 = true
     mfence
+    label zaoe
     local = turn1
     turn0 = local
     mfence
+    label azieu
     local_b1 = b1
     local_turn1 = turn1
+    label truc
     while (local_b1 && (!local || local_turn1) && (local || !local_turn1)) {
+    label test2
         local_b1 = b1
         local_turn1 = turn1
+        label chose
     }
+    label truc2
+    x = 3
+    mfence
     label bp1
     b0 = false
     // mfence
   }
 
 ## thread T1 ##
-  while true {
+while true {
+    label test2
     b1 = true
     mfence
+    label azedza
     local = not turn0
     turn1 = local
     mfence
+    label azedh
     local_b0 = b0
     local_turn0 = turn0
+    label machin
     while not (! local_b0 || local && local_turn0 || !local && !local_turn0) {
+    label test
         local_b0 = b0
         local_turn0 = turn0
+        label chose
     }
+    label lolol
+    x = 4
+    mfence
     label bp2
     b1 = false
     // mfence

@@ -1,0 +1,85 @@
+{ @ (0:critical_section,1:critical_section) false }
+
+// -w 8 -x 5
+
+int num0, num1, x;
+bool choosing0, choosing1;
+
+num0 = 0 && num1 = 0 && not choosing0 && not choosing1 && x = 0
+
+#### THREAD 0 ####
+choosing0 = true
+mfence
+
+n0 = num0
+n1 = num1
+num0 = 1 + n0 + n1
+mfence
+label bbb
+
+choosing0 = false
+mfence
+c = choosing1
+label a
+
+while c {
+    c = choosing1
+}
+
+n1 = num1
+n0 = num0
+
+label bb
+
+while (n1 > 0 && n1 < n0) {
+    label test
+    n1 = num1
+    n0 = num0
+    label test2
+}
+
+label test3
+x = 4
+mfence
+label critical_section
+
+num0 = 0
+mfence
+
+#### THREAD 1 ####
+choosing1 = true
+mfence
+
+n1 = num1
+n0 = num0
+num1 = 1 + n0 + n1
+mfence
+label bb
+
+choosing1 = false
+mfence
+c = choosing0
+label a
+
+while c {
+    c = choosing0
+}
+
+n1 = num1
+n0 = num0
+label b
+
+while (n0 > 0 and n0 <= n1) {
+    label test
+    n1 = num1
+    n0 = num0
+    label test2
+}
+
+label test3
+x = 3
+mfence
+label critical_section
+
+num1 = 0
+mfence
