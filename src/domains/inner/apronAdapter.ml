@@ -141,7 +141,9 @@ module Make (N : Numerical) = struct
 
   let is_bottom = Abstract1.is_bottom man
 
-  let equal = Abstract1.is_eq man
+  let equal x y =
+    x == y ||
+    Abstract1.is_eq man x y
 
   let bottom =
     Abstract1.bottom man Env.empty

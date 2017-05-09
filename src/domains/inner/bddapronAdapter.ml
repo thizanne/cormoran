@@ -79,7 +79,9 @@ module Make (N : ApronAdapter.Numerical) = struct
 
   let is_bottom abstr = BddDomain.is_bottom man abstr
 
-  let equal abstr1 abstr2 = BddDomain.is_eq man abstr1 abstr2
+  let equal abstr1 abstr2 =
+    abstr1 == abstr2 ||
+    BddDomain.is_eq man abstr1 abstr2
 
   let top =
     BddDomain.top man Env.empty

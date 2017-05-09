@@ -347,6 +347,7 @@ struct
       M.for_all (fun _key inner -> Inner.is_bottom inner) abstr
 
     let equal_abstr abstr1 abstr2 =
+      abstr1 == abstr2 ||
       M.equal Inner.equal (normalize abstr1) (normalize abstr2)
 
     let equal x1 x2 =
