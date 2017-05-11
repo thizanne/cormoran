@@ -21,10 +21,13 @@ let main param =
     (* Printf.printf "done.\nChecking properties...\n"; *)
     List.iteri
       (fun i prop ->
-         Printf.printf "Property %d %s\n" (i + 1)
-           (if Analysis.check_property prop control data
-            then "verified."
-            else "could not be verified."))
+         if Analysis.check_property prop control data
+         then
+           Printf.printf "\x1b[32mProperty %d verified." (i + 1)
+         else
+           Printf.printf "\x1b[31mProperty %d could not be verified." (i + 1);
+         Printf.printf "\x1b[39;49m\n" (* reset colors *)
+      )
       properties
   with
   | Error.Error e ->
