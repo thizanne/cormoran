@@ -1,0 +1,51 @@
+{
+  @ (0:critical,1:critical) false
+  @ (0:critical,2:critical) false
+  @ (1:critical,2:critical) false
+}
+
+int flag, x;
+
+flag = 0 && x = 0
+
+### THREAD 0 ###
+
+while true {
+    f = flag
+    while not (f = 0) {
+        label loop
+        f = flag
+    }
+    label critical
+    x = 0
+    mfence
+    flag = 1
+}
+
+### THREAD 1 ###
+
+while true {
+    f = flag
+    while not (f = 1) {
+        label loop
+        f = flag
+    }
+    label critical
+    x = 1
+    mfence
+    flag = 2
+}
+
+### THREAD 2 ###
+
+while true {
+    f = flag
+    while not (f = 2) {
+        label loop
+        f = flag
+    }
+    label critical
+    x = 2
+    mfence
+    flag = 0
+}
