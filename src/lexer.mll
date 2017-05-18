@@ -50,7 +50,6 @@ rule lexer = parse
   | "label" { Label }
   | "@" { At }
   | ":" { Colon }
-  | "|" { Pipe }
   | digit+ as n { Int (int_of_string n) }
   | (lower id_char*) as x { Id x }
 

@@ -25,7 +25,7 @@
 %token Plus Minus Times Divide
 %token Eq Neq Gt Ge Lt Le
 %token Not Or And
-%token At Pipe Colon
+%token At Colon
 %token Comma Semicolon SharpLine
 %token MFence Pass While If For Label
 %token IntType BoolType
@@ -138,20 +138,8 @@ threaded_loc(X) :
 
 zone_option :
 | At At { None }
-| At LPar zone = separated_list(Comma, threaded_loc(intervals)) RPar {
+| At LPar zone = separated_list(Comma, threaded_loc(loc(lbl_sym))) RPar {
     Some zone
-  }
-
-intervals :
-| intervals = separated_list(Pipe, interval) { intervals }
-
-interval :
-| single = loc(lbl_sym) {
-    let lbl = Some single in
-    { Property.initial = lbl; final = lbl }
-  }
-| initial = loc(lbl_sym)? Minus final = loc(lbl_sym)? {
-    { Property.initial; final }
   }
 
 (* Program code *)

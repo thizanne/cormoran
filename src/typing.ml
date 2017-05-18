@@ -219,27 +219,17 @@ and type_body_loc info { L.item = body; loc } =
   let body, info = type_body info body in
   { L.item = body; loc }, info
 
-let check_label_defined labels bound =
-  match bound with
-  | None -> ()
-  | Some label ->
-    if not (Sym.Set.mem label.L.item labels)
-    then
-      Error.name_error label @@
-      Printf.sprintf "Label %s undefined"
-        (Sym.name label.L.item)
-
-let check_interval labels { Property.initial; final } =
-  check_label_defined labels initial;
-  check_label_defined labels final
-
-let check_thread_zone labels thread_zone =
-  List.iter (check_interval labels) thread_zone
+let check_label_defined labels label =
+  if not (Sym.Set.mem label.L.item labels)
+  then
+    Error.name_error label @@
+    Printf.sprintf "Label %s undefined"
+      (Sym.name label.L.item)
 
 let check_zone all_labels zone =
   let tid_found = Array.make (List.length all_labels) false in
   List.iter
-    (fun ({ L.item = tid; _ } as tid_loc, thread_zone) ->
+    (fun ({ L.item = tid; _ } as tid_loc, thread_label) ->
        (* Check that each tid is present at most once *)
        if tid_found.(tid)
        then
@@ -248,7 +238,7 @@ let check_zone all_labels zone =
        else tid_found.(tid) <- true;
 
        (* Check that labels are correct *)
-       check_thread_zone (List.nth all_labels tid) thread_zone)
+       check_label_defined (List.nth all_labels tid) thread_label)
     zone
 
 let type_property_var

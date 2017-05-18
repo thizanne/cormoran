@@ -7,27 +7,10 @@ module C = Control
 module PS = Control.ProgramStructure
 module TS = Control.ThreadStructure
 
-(* A thread code portion delimited by two labels.
- * No initial label means 0.
- * No final label means the end of the thread.
-*)
-type interval = {
-  initial : Sym.t L.loc option;
-  final : Sym.t L.loc option;
-}
-
-let whole_interval = {
-  initial = None;
-  final = None;
-}
-
-(* A thread code portion defined as an union of intervals *)
-type thread_zone = interval list
-
 (* Program states set defined as a conjunction of thread zones.
  * Typing should check that a given thread is present at most once in
  * a zone. *)
-type zone = (Source.thread_id L.loc * thread_zone) list
+type zone = (Source.thread_id L.loc * Sym.t L.loc) list
 
 type t = {
   zone : zone option;
@@ -35,62 +18,22 @@ type t = {
   condition : T.property_condition L.loc;
 }
 
-let always_true = {
-  zone = None;
-  condition = L.mkdummy @@ T.Bool (Location.mkdummy true);
-}
+let rec zone_thread_labels zone tid thread_labels thread_final =
+  (* List the control labels of a thread concerned by a zone. Namely,
+     if a named label of this thread is specified in the zone, only
+     the corresponding control label is concerned, otherwise all
+     thread control labels are concerned. *)
+  match zone with
+  | [] ->
+    C.Label.enum ~initial:C.Label.initial ~final:thread_final
+    |> List.of_enum
+  | ({ L.item = tid'; _}, { L.item = lbl_sym; _ }) :: zone_tl ->
+    if tid = tid'
+    then [Sym.Map.find lbl_sym thread_labels]
+    else zone_thread_labels zone_tl tid thread_labels thread_final
 
-let always_false = {
-  zone = None;
-  condition = L.mkdummy @@ T.Bool (Location.mkdummy false);
-}
-
-(* Getting control states from a labelled zone *)
-
-let enum_interval interval t_labels t_final_label =
-  (* Enumerates the control labels of an interval *)
-  let initial = match interval.initial with
-    | None -> C.Label.initial
-    | Some { L.item = label; _ } -> Sym.Map.find label t_labels
-  in
-  let final = match interval.final with
-    | None -> t_final_label
-    | Some { L.item = label; _ } -> Sym.Map.find label t_labels
-  in
-  C.Label.enum ~initial ~final
-
-let enum_thread_zone t_zone t_labels t_final_label =
-  (* Enumerates the control labels of a thread zone *)
-  List.fold_left
-    (fun enum_acc interval ->
-       Enum.append
-         enum_acc
-         (enum_interval interval t_labels t_final_label))
-    (Enum.empty ())
-    t_zone
-
-let to_tzone_list nb_threads zone =
-  (* Converts a zone to the list of threaded zones of each thread that
-     compose it *)
-  let tzone_array =
-    Array.create
-      nb_threads
-      [whole_interval] in
-  List.iter
-    (fun ({ L.item = thread_id; _ }, thread_zone) ->
-       tzone_array.(thread_id) <- thread_zone)
-    zone;
-  Array.to_list tzone_array
-
-let list_zone zone thread_labels thread_finals =
-  (* Lists the control states of a zone *)
-  zone
-  |> to_tzone_list @@ List.length thread_labels
-  |> List.mapi
-    (fun tid t_zone ->
-       enum_thread_zone t_zone (List.at thread_labels tid) @@
-       C.State.tid_label thread_finals tid)
-  |> List.map List.of_enum
+let zone_states zone labels final_state =
+  List.map2i (zone_thread_labels zone) labels (final_state : C.State.t :> C.Label.t list)
   |> List.n_cartesian_product
   |> List.map C.State.from_label_list
 
@@ -112,7 +55,7 @@ module Make (D : Domain.ProgramState) = struct
   let satisfies { zone; condition } g data =
     let all_data = match zone with
       | None -> [data g.PS.final |> full_flush g]
-      | Some zone -> List.map data @@ list_zone zone g.PS.labels g.PS.final
+      | Some zone -> List.map data @@ zone_states zone g.PS.labels g.PS.final
     in
     List.for_all
       (data_satisfies condition.L.item)
@@ -174,10 +117,10 @@ struct
 
   let all_states zone thread_structs =
     (* Returns all control states of a zone. Basically a wrapper of
-       list_zone, but with only thread_structs as a parameter. *)
+       zone_states, but with only thread_structs as a parameter. *)
     let thread_labels =
       List.map (fun ts -> ts.TS.labels) thread_structs in
-    list_zone zone thread_labels (final_state thread_structs)
+    zone_states zone thread_labels (final_state thread_structs)
 
   let all_data zone thread_structs data =
   (* Takes a zone option and returns the sequence of all lists of thread
