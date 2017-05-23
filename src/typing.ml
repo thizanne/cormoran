@@ -31,28 +31,6 @@ let type_program_var_loc env expected_type { L.item = var_sym; loc } =
 let program_var_loc_typer env =
   { f = fun ty var_loc -> type_program_var_loc env ty var_loc }
 
-let type_initial_var globals expected_type loc var_sym =
-  let found_type = Env.get_entry loc var_sym globals in
-  if Env.are_compatible_types found_type expected_type
-    then {
-      var_sym;
-      T.var_type = expected_type;
-      var_spec = Source.Memory;
-    }
-    else
-      Error.type_loc_error loc @@
-      Printf.sprintf2
-        "Var %s has type %a but type %a was expected"
-        (Sym.name var_sym)
-        Env.print_ty found_type
-        Ty.print expected_type
-
-let type_initial_var_loc globals expected_type { L.item = var_sym; loc }=
-  { L.item = type_initial_var globals expected_type loc var_sym; loc }
-
-let initial_var_loc_typer globals =
-  { f = fun ty var_loc -> type_initial_var_loc globals ty var_loc }
-
 let type_arith_unop_loc =
   L.comap (
     function
@@ -267,21 +245,21 @@ let type_property_var_loc all_envs expected_type { L.item = mt_var; loc } =
 let property_var_loc_typer all_envs =
   { f = fun ty var_loc -> type_property_var_loc all_envs ty var_loc }
 
+let type_property_condition all_envs condition =
+  type_expression_loc
+    (property_var_loc_typer all_envs)
+    Ty.Bool
+    condition
+
 let type_property all_labels all_envs
     (zone, condition) =
   let () = match zone with
     | None -> ()
     | Some zone -> check_zone all_labels zone in
 
-  let condition =
-    type_expression_loc
-      (property_var_loc_typer all_envs)
-      Ty.Bool condition in
+  let condition = type_property_condition all_envs condition in
 
   { Property.zone; condition }
-
-let type_initial_condition globals initial =
-  type_expression_loc (initial_var_loc_typer globals) Ty.Bool initial
 
 let type_program ({ U.initial; globals; threads }, properties) =
   let shared_env = Sym.Map.map (fun ty -> ty, Ty.Shared) globals in
@@ -309,7 +287,9 @@ let type_program ({ U.initial; globals; threads }, properties) =
            if orig = Ty.Local then Some ty else None)
   } in
 
-  let { L.item = initial; _ } = type_initial_condition globals initial in
+  let { L.item = initial; _ } =
+    type_property_condition (shared_env, thread_envs) initial in
+
   let threads = List.map2 thread thread_envs bodies in
 
   { T.initial; globals; threads }, properties

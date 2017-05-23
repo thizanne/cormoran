@@ -90,7 +90,7 @@ var_sym :
 program :
 | properties = property_def
   globals = globals
-  initial = loc(expression(var_sym)) SharpLine
+  initial = loc(expression(maybe_threaded(var_sym))) SharpLine
   threads = separated_nonempty_list(SharpLine, thread)
   Eof {
     { UntypedAst.globals; initial; threads }, properties

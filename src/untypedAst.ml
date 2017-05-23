@@ -82,6 +82,6 @@ type thread = {
 
 type program = {
   globals : Env.ty Sym.Map.t;
-  initial : Sym.t expression Location.loc;
+  initial : (Sym.t * Source.thread_id option) expression Location.loc;
   threads : thread list;
 }
