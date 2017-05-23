@@ -1,47 +1,53 @@
 {
+  @ (0:critical,1:critical,2:critical) false
   @ (0:critical,1:critical) false
   @ (0:critical,2:critical) false
   @ (1:critical,2:critical) false
 }
 
+/*
+WHEN THREAD 1 GIVES BACK TO THREAD 0
+-w 7 -x 5 -i bddpolka -d mark 48s
+-w 7 -x 5 -i bddpolka -d mark -m interleaving 42s
+-w 7 -x 5 -i bddpolka -d mark-nolocal 3s
+-w 7 -x 5 -i bddoct -d mark 697s
+*/
+
 int flag, x;
 
-flag = 0 && x = 0
+flag = 0 && x = 0 // && 0:f = 0 && 1:f = 0 && 2:f = 0
 
 ### THREAD 0 ###
-
 while true {
     f = flag
-    while not (f = 0) {
-        label loop
+    while f < 0 || f > 0 {
+        // label loop
         f = flag
     }
-    label critical
     x = 0
     mfence
+    label critical
     flag = 1
 }
 
 ### THREAD 1 ###
-
 while true {
     f = flag
-    while not (f = 1) {
-        label loop
+    while f < 1 || f > 1 {
+        // label loop
         f = flag
     }
-    label critical
     x = 1
     mfence
+    label critical
     flag = 2
 }
 
 ### THREAD 2 ###
-
 while true {
     f = flag
-    while not (f = 2) {
-        label loop
+    while f < 2 || f > 2 {
+        // label loop
         f = flag
     }
     label critical
