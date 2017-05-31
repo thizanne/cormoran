@@ -30,8 +30,8 @@ module ThreadStructure : sig
   module Graph : Graph.Sig.P
     with type V.t = Label.t
      and type V.label = Label.t
-     and type E.t = Label.t * Operation.t * Label.t
-     and type E.label = Operation.t
+     and type E.t = Label.t * Operation.t list * Label.t
+     and type E.label = Operation.t list
 
   type t = private {
     graph : Graph.t;
@@ -46,8 +46,8 @@ module ProgramStructure : sig
   module Graph : Graph.Sig.P
     with type V.t = State.t
      and type V.label = State.t
-     and type E.t = State.t * (Source.thread_id * Operation.t) * State.t
-     and type E.label = Source.thread_id * Operation.t
+     and type E.t = State.t * (Source.thread_id * Operation.t list) * State.t
+     and type E.label = Source.thread_id * Operation.t list
 
   type t = private {
     graph : Graph.t;

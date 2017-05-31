@@ -13,7 +13,7 @@ module Make (D : Domain.ProgramState) = struct
     let equal = D.equal
     let join = D.join
 
-    let analyze (_, (tid, op), _) d =
+    let analyze (_, (tid, [op]), _) d =
       D.transfer tid op d
 
     let widening = D.widening

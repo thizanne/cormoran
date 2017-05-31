@@ -1,7 +1,7 @@
 open Batteries
 open Printf
 
-let edge_label (thread_id, op) =
+let edge_label (thread_id, [op]) =
   let output = IO.output_string () in
   begin match op with
     | Operation.Identity ->

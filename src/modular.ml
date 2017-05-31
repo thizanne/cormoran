@@ -63,7 +63,7 @@ module OneThreadAnalysis (A : ThreadAnalysis) = struct
            having an explicit global state *)
         let interf = ref intf_bot in
         (fun () -> !interf),
-        (fun (lbl1, op, lbl2) state ->
+        (fun (lbl1, [op], lbl2) state ->
            let state', interf' = A.Application.generate op lbl1 lbl2 state in
            let state'', interf'' = apply_interferences lbl2 widening_delay state' in
            let new_intf = A.Interferences.join interf' interf'' in
