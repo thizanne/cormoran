@@ -179,19 +179,6 @@ let rec type_body ((env, labels) as info) = function
       type_expression_loc (program_var_loc_typer env) Ty.Bool condition,
       body
     ), info
-  | U.For (var, exp_from, exp_to, body) ->
-    let env =  match Env.get_loc_entry_option var env with
-      | None -> Env.add var.L.item Env.Int Ty.Local env
-      | Some (Env.Int, _) -> env
-      | Some (Env.Bool, _ ) ->
-        Error.type_error var "A `for` indice must have type Int, not Bool" in
-    let var = type_program_var_loc env Ty.Int var in
-    let exp_from =
-      type_expression_loc (program_var_loc_typer env) Ty.Int exp_from in
-    let exp_to =
-      type_expression_loc (program_var_loc_typer env) Ty.Int exp_to in
-    let body, info = type_body_loc (env, labels) body in
-    T.For (var, exp_from, exp_to, body), info
 
 and type_body_loc info { L.item = body; loc } =
   let body, info = type_body info body in

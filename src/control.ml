@@ -73,26 +73,6 @@ struct
       Filter (T.Unop (L.mkdummy T.Not, cond))
     in
 
-    let incr_one_edge var =
-      (* Builds the i++ edge for a for loop step *)
-        let var_plus_one =
-          T.Binop (
-            L.mkdummy T.Add,
-            L.mkdummy @@ T.Var (L.mkdummy var.L.item),
-            L.mkdummy @@ T.Int (L.mkdummy 1)
-          ) in
-        Assign (var.L.item, var_plus_one)
-    in
-
-    let for_filter rel i exp =
-      (* Builds the Filter edge for continuing a for loop *)
-      Filter
-        (T.Binop
-           (L.mkdummy rel,
-            L.mkloc (T.Var i) i.L.loc,
-            exp))
-    in
-
     (* The following functions take as a parameter and return a tuple
        `(graph, labels, offset)`. The graph is a CFG of a single-thread
        program, thus with edges in the form of [n : int].
@@ -161,23 +141,6 @@ struct
         |> add_op_edge [Identity] offset' offset
         |> add_op_edge [filter_edge cond] offset (succ offset)
         |> add_op_edge [filter_not_edge cond] offset (succ offset')
-      | T.For (i, exp_from, exp_to, body) ->
-        let acc', labels', offset' =
-          of_body (acc, labels, succ @@ succ offset) body in
-        (acc', labels', offset')
-        |> add_single_vertex
-        |> add_op_edge [assign_edge i exp_from]
-          offset
-          (succ offset)
-        |> add_op_edge [for_filter T.Le i exp_to]
-          (succ offset)
-          (succ @@ succ offset)
-        |> add_op_edge [for_filter T.Gt i exp_to]
-          (succ offset)
-          (succ offset')
-        |> add_op_edge [incr_one_edge i]
-          offset'
-          (succ offset)
     in
 
     let graph, labels, final =

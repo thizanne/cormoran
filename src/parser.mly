@@ -27,7 +27,7 @@
 %token Not Or And
 %token At Colon
 %token Comma Semicolon SharpLine
-%token MFence Pass While If For Label
+%token MFence Pass While If Label
 %token IntType BoolType
 %token <bool> Bool
 %token <int> Int
@@ -171,12 +171,6 @@ instruction :
   }
 | While cond = loc(program_expression) LCurly body = loc(body) RCurly {
     UntypedAst.While (cond, body)
-  }
-| For i = loc(var_sym) Semicolon
-  from_exp = loc(program_expression) Semicolon
-  to_exp = loc(program_expression)
-  LCurly body = loc(body) RCurly {
-    UntypedAst.For (i, from_exp, to_exp, body)
   }
 
 program_expression:

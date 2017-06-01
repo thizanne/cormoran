@@ -42,7 +42,6 @@ rule lexer = parse
   | "bool" { BoolType }
   | "if" { If }
   | "while" { While }
-  | "for" { For }
   | "pass" { Pass }
   | "mfence" { MFence }
   | "true" { Bool true }

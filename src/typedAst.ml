@@ -199,11 +199,6 @@ type body =
   | While of
       bool program_expression Location.loc * (* Condition *)
       body Location.loc (* Body *)
-  | For of
-      int program_var Location.loc * (* Indice *)
-      int program_expression Location.loc * (* From *)
-      int program_expression Location.loc * (* To *)
-      body Location.loc (* Body *)
 
 type thread = {
   locals : Env.ty Sym.Map.t;

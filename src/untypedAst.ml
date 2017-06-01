@@ -70,11 +70,6 @@ type body =
   | While of
       body_expression Location.loc * (* Condition *)
       body Location.loc (* Body *)
-  | For of
-      Sym.t Location.loc * (* Indice *)
-      body_expression Location.loc * (* From *)
-      body_expression Location.loc * (* To *)
-      body Location.loc (* Body *)
 
 type thread = {
   body : body Location.loc;
