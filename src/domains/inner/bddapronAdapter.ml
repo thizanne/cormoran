@@ -198,6 +198,7 @@ module Make (N : ApronAdapter.Numerical) = struct
   let unify = BddDomain.unify man
 
   let meet_cons cons abstr =
+    (* FIXME: meet with neq does not work properly *)
     let env = BddDomain.get_env abstr in
     BddDomain.meet_condition man cond abstr (expr_bool env cons)
 
