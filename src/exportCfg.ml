@@ -1,6 +1,6 @@
 open Batteries
 
-let edge_label (thread_id, [op]) =
+let edge_label (thread_id, op) =
   let output = IO.output_string () in
   Printf.fprintf output "%d :: %a"
     thread_id

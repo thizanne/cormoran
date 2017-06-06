@@ -42,9 +42,8 @@ module ThreadStructure =
 struct
 
   module Edge = struct
-    type t = Operation.t list
-    let default = [Operation.Identity]
-    let compare = List.compare Operation.compare
+    include Operation
+    let default = Operation.Identity
   end
 
   module Graph =
@@ -118,12 +117,12 @@ struct
       | T.Label lbl ->
         acc, Sym.Map.add lbl.L.item offset labels, offset
       | T.Pass ->
-        add_single_edge [Identity] (acc, labels, offset)
+        add_single_edge Identity (acc, labels, offset)
       | T.MFence ->
-        add_single_edge [MFence] (acc, labels, offset)
+        add_single_edge MFence (acc, labels, offset)
       | T.Assign (x, e) ->
         add_single_edge
-          [assign_edge x e]
+          (assign_edge x e)
           (acc, labels, offset)
       | T.Seq (b1, b2) ->
         of_body (of_body (acc, labels, offset) b1) b2
@@ -131,16 +130,16 @@ struct
         let acc', labels', offset' =
           of_body (acc, labels, succ offset) body in
         (acc', labels', offset')
-        |> add_op_edge [filter_edge cond] offset (succ offset)
-        |> add_op_edge [filter_not_edge cond] offset offset'
+        |> add_op_edge (filter_edge cond) offset (succ offset)
+        |> add_op_edge (filter_not_edge cond) offset offset'
       | T.While (cond, body) ->
         let acc', labels', offset' =
           of_body (acc, labels, succ offset) body in
         (acc', labels', offset')
         |> add_single_vertex
-        |> add_op_edge [Identity] offset' offset
-        |> add_op_edge [filter_edge cond] offset (succ offset)
-        |> add_op_edge [filter_not_edge cond] offset (succ offset')
+        |> add_op_edge Identity offset' offset
+        |> add_op_edge (filter_edge cond) offset (succ offset)
+        |> add_op_edge (filter_not_edge cond) offset (succ offset')
     in
 
     let graph, labels, final =
@@ -158,9 +157,9 @@ module ProgramStructure = struct
   module TS = ThreadStructure
 
   module Edge = struct
-    type t = Source.thread_id * Operation.t list
-    let default = -1, [Operation.Identity]
-    let compare = Tuple2.compare ~cmp1:Int.compare ~cmp2:(List.compare Operation.compare)
+    type t = Source.thread_id * Operation.t
+    let default = -1, Operation.Identity
+    let compare = Pervasives.compare
   end
 
   module Graph =
@@ -193,11 +192,7 @@ module ProgramStructure = struct
         (fun (i, op, i') ->
            Graph.fold_vertex
              (fun is g ->
-                Graph.add_edge_e g
-                  (Graph.E.create
-                     (i ++ is)
-                     (tid, op)
-                     (i' ++ is)))
+                Graph.add_edge_e g (Graph.E.create (i ++ is) (tid, op) (i' ++ is)))
              graph2)
         graph1 in
     let labels = labels1 :: labels2 in
