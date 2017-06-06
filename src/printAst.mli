@@ -15,3 +15,6 @@ val print_expression :
 
 val program_var_printer : (_, Types.origin) var_printer
 val property_var_printer : (_, Source.t) var_printer
+
+val print_prog_expr : 'a IO.output -> _ TypedAst.program_expression -> unit
+val print_prop_cond : 'a IO.output -> TypedAst.property_condition -> unit

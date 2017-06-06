@@ -1,21 +1,10 @@
 open Batteries
-open Printf
 
 let edge_label (thread_id, [op]) =
   let output = IO.output_string () in
-  begin match op with
-    | Operation.Identity ->
-      String.print output "Id"
-    | Operation.MFence ->
-      fprintf output "%d :: MFence" thread_id
-    | Operation.Filter c ->
-      PrintAst.print_expression PrintAst.program_var_printer output c
-    | Operation.Assign (x, e) ->
-      fprintf output "%d :: %a := %a"
-        thread_id
-        PrintAst.(program_var_printer.f) x
-        (PrintAst.print_expression PrintAst.program_var_printer) e
-  end;
+  Printf.fprintf output "%d :: %a"
+    thread_id
+    Operation.print op;
   IO.close_out output
 
 module Dot (D : Domain.ProgramState) = struct
@@ -30,7 +19,7 @@ module Dot (D : Domain.ProgramState) = struct
 
     let vertex_attributes v =
       let label v =
-        sprintf2 "%a" D.print (Data.data v)
+        Printf.sprintf2 "%a" D.print (Data.data v)
         |> String.replace_chars
           (function
             | '\n' -> "<BR/>"
@@ -43,7 +32,7 @@ module Dot (D : Domain.ProgramState) = struct
         `Style `Filled;
         `Style `Rounded;
         `HtmlLabel (
-          sprintf " \
+          Printf.sprintf " \
 <TABLE BORDER=\"0\" ALIGN=\"CENTER\"> \
 <TR><TD BORDER=\"0\">%s</TD></TR> \
 <TR><TD BORDER=\"1\" BGCOLOR=\"white\"> \
@@ -51,7 +40,7 @@ module Dot (D : Domain.ProgramState) = struct
 </TD> \
 </TR> \
 </TABLE>"
-            (sprintf2 "%a" Control.State.print v)
+            (Printf.sprintf2 "%a" Control.State.print v)
             (label v)
         )
       ]
@@ -65,7 +54,7 @@ module Dot (D : Domain.ProgramState) = struct
     let default_edge_attributes _ = []
     let get_subgraph _ = None
     let vertex_name v =
-      "\"" ^ (sprintf2 "%a" Control.State.print v) ^ "\""
+      "\"" ^ (Printf.sprintf2 "%a" Control.State.print v) ^ "\""
     let default_vertex_attributes _ = []
     let graph_attributes _ = []
   end

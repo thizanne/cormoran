@@ -11,15 +11,13 @@ type t =
 
 let compare = Pervasives.compare
 
-let print output = function
+let rec print output = function
   | Identity -> String.print output "Identity"
   | MFence -> String.print output "MFence"
   | Filter c ->
-    Printf.fprintf output
-      "Filter (%a)"
-      TypedAst.print_expr c
+    PrintAst.print_prog_expr output c
   | Assign (var, exp) ->
     Printf.fprintf output
-      "Assign (%a, %a)"
-      Sym.print var.TypedAst.var_sym
-      TypedAst.print_expr exp
+      "%a := %a"
+      PrintAst.(program_var_printer.f) var
+      PrintAst.print_prog_expr exp

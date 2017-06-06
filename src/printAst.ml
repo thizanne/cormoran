@@ -107,3 +107,6 @@ let property_var_printer = {
     fprintf output "%a:%a"
       Sym.print var_sym Source.print var_spec
 }
+
+let print_prog_expr output e = print_expression program_var_printer output e
+let print_prop_cond output e = print_expression property_var_printer output e
