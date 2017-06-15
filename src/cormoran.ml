@@ -17,7 +17,6 @@ let main param =
     let module Analysis = (val Analysis.get_analysis param) in
     let control = Analysis.get_control program in
     let data = Analysis.analyse param program control in
-    Analysis.export_graph param control data;
     (* Printf.printf "done.\nChecking properties...\n"; *)
     List.iteri
       (fun i prop ->
@@ -28,7 +27,9 @@ let main param =
            Printf.printf "\x1b[31mProperty %d could not be verified." (i + 1);
          Printf.printf "\x1b[39;49m\n" (* reset colors *)
       )
-      properties
+      properties;
+    Printf.printf "Exporting graph\n%!";
+    Analysis.export_graph param control data
   with
   | Error.Error e ->
     prerr_endline @@ Error.to_string e
