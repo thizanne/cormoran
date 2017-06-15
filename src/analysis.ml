@@ -12,10 +12,6 @@ module type S = sig
   val check_property : Property.t -> control -> data -> bool
 end
 
-let get_output = function
-  | None -> IO.stdnull
-  | Some filename -> File.open_out filename
-
 let get_inner param : (module Domain.Inner) =
   match param.Param.inner with
   | PA.BddPolka -> (module BddapronAdapter.Polka)
@@ -53,14 +49,17 @@ module Interleaving (D : Domain.ProgramState) : S = struct
   type data = Control.State.t -> D.t
   type control = Control.ProgramStructure.t
 
-  module Dot = ExportCfg.Dot (D)
+  module Dot = ExportCfg.Make (D)
   module Analysis = Interleaving.Make (D)
   module Prop = Property.Make (D)
 
   let get_control = Control.ProgramStructure.of_program
 
   let export_graph param control data =
-    Dot.output_graph (get_output param.Param.graph) data control
+    match param.Param.graph with
+    | None -> ()
+    | Some filename ->
+      Dot.export_interleaving_graph filename control data
 
   let analyse param program control =
     Analysis.analyze program control param.Param.state_widening_delay
@@ -75,16 +74,16 @@ module Modular (TA : Modular.ThreadAnalysis) : S = struct
 
   module Analysis = Modular.ProgramAnalysis (TA)
   module Prop = Property.MakeModular (TA.StateAbstraction) (TA.Application)
+  module Dot = ExportCfg.Make (TA.StateAbstraction)
 
   let get_control program =
     List.map Control.ThreadStructure.of_thread program.TypedAst.threads
 
-  let export_graph param _ _ =
+  let export_graph param control data =
     match param.Param.graph with
     | None -> ()
-    | Some _ ->
-      Error.not_implemented_msg_error
-        "Graph export is not yet available for modular analysis"
+    | Some filename ->
+      Dot.export_modular_graph filename control data
 
   let analyse param program control =
     Analysis.analyse program control
