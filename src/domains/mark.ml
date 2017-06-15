@@ -15,7 +15,7 @@ module Key = struct
     | Zero
     | One
     | MoreThanOne
-    [@@ deriving ord]
+  [@@ deriving ord]
 
   let up_presence = function
     | Zero-> One
