@@ -32,7 +32,7 @@ let get_program_state param : (module Domain.ProgramState) =
   let module Inner = (val get_inner param) in
   match param.Param.outer with
   | PA.Mark -> (module Mark.Make (Inner))
-  | PA.Top -> (module Top)
+  | PA.Top -> (module Top.ProgramState)
   | PA.MarkNoLocal ->
     Error.not_implemented_msg_error
       "mark-nolocal makes only sense in modular analysis"
@@ -47,9 +47,7 @@ let get_thread_analysis param : (module Modular.ThreadAnalysis) =
   | PA.Mark -> (module MarkThread.Make (Inner) (Control))
   | PA.MarkNoLocal -> (module MarkThreadNoLocal.Make (Inner) (Control))
   | PA.SC -> (module SequentialConsistency.Make (Inner) (Control))
-  | PA.Top ->
-    Error.not_implemented_msg_error
-      "Top domain is not yet implemented for modular analysis"
+  | PA.Top -> (module Top.ThreadAnalysis)
 
 module Interleaving (D : Domain.ProgramState) : S = struct
   type data = Control.State.t -> D.t
