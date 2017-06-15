@@ -157,7 +157,12 @@ module ProgramAnalysis (A : ThreadAnalysis) = struct
          set, therefore these data cannot change anymore.
 
          Interference widening works thread by thread. *)
-      | [] -> fixpoint interf interf_w_delays data 0 final thread_controls
+      | [] ->
+        (* If no thread generated any interference, we can now stop
+           the analysis, which is done by saying that thread 0 was the
+           last one to update them *)
+        let final = Some (final |? 0) in
+        fixpoint interf interf_w_delays data 0 final thread_controls
       | _ :: _ when Some current = final ->
         interf, data
       | _ :: ts ->
