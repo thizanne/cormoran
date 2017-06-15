@@ -518,24 +518,25 @@ struct
         generate_inner
           lbl1 lbl2 tid shared locals control (fun inner -> inner) result
       | O.Assign (x, expr) ->
-        match x.T.var_spec with
-        | Ty.Local ->
-          let result = StateAbstraction.local_assign tid x expr abstr in
-          let local_intf =
-            generate_inner
-              lbl1 lbl2 tid shared locals control
-              (StateAbstraction.local_assign_prime tid x expr)
-              abstr in
-          result, local_intf
-        | Ty.Shared ->
-          let result =
-            StateAbstraction.write tid x expr abstr in
-          let write_intf =
-            generate_inner
-              lbl1 lbl2 tid shared locals control
-              (StateAbstraction.write_prime tid x expr)
-              abstr in
-          result, write_intf
+        begin match x.T.var_spec with
+          | Ty.Local ->
+            let result = StateAbstraction.local_assign tid x expr abstr in
+            let local_intf =
+              generate_inner
+                lbl1 lbl2 tid shared locals control
+                (StateAbstraction.local_assign_prime tid x expr)
+                abstr in
+            result, local_intf
+          | Ty.Shared ->
+            let result =
+              StateAbstraction.write tid x expr abstr in
+            let write_intf =
+              generate_inner
+                lbl1 lbl2 tid shared locals control
+                (StateAbstraction.write_prime tid x expr)
+                abstr in
+            result, write_intf
+        end
 
     let generate op lbl1 lbl2 { StateAbstraction.thread_id; shared; locals; control; abstr } =
       let abstr', intf =

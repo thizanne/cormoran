@@ -800,42 +800,43 @@ struct
         generate_same_partitions
           lbl1 lbl2 tid shared control result (fun _key inner -> inner)
       | O.Assign (x, expr) ->
-        match x.T.var_spec with
-        | Ty.Local ->
-          let result =
-            StateAbstraction.(M.mapi (local_assign tid x expr) abstr) in
-          let local_intf =
-            generate_same_partitions
-              lbl1 lbl2 tid shared control abstr
-              (fun _key inner -> inner) in
-          result, local_intf
-        | Ty.Shared ->
-          let result, write_inner_intf =
-          StateAbstraction.M.Labels.fold
-            ~f:(fun ~key ~data:inner (acc_abstr, acc_inner_intf) ->
-                let new_key, new_inner =
-                  StateAbstraction.write tid x expr key inner in
-                let new_intf =
-                  generate_inner
-                    lbl1 lbl2
-                    tid shared control
-                    (fun inner -> inner (* No interference on buffered write *))
-                    inner in
-                StateAbstraction.add_join new_key new_inner acc_abstr,
-                Inner.join acc_inner_intf new_intf)
-            ~init:(
-              StateAbstraction.M.empty,
-              Interferences.inner_bot shared control
-            )
-            abstr in
-          let result', inner_intf =
-            close_by_flush_wrt_var
-              lbl2
-              tid shared control
-              x
-              write_inner_intf result in
-          result',
-          (VarSet.single_var x, inner_intf)
+        begin match x.T.var_spec with
+          | Ty.Local ->
+            let result =
+              StateAbstraction.(M.mapi (local_assign tid x expr) abstr) in
+            let local_intf =
+              generate_same_partitions
+                lbl1 lbl2 tid shared control abstr
+                (fun _key inner -> inner) in
+            result, local_intf
+          | Ty.Shared ->
+            let result, write_inner_intf =
+              StateAbstraction.M.Labels.fold
+                ~f:(fun ~key ~data:inner (acc_abstr, acc_inner_intf) ->
+                    let new_key, new_inner =
+                      StateAbstraction.write tid x expr key inner in
+                    let new_intf =
+                      generate_inner
+                        lbl1 lbl2
+                        tid shared control
+                        (fun inner -> inner (* No interference on buffered write *))
+                        inner in
+                    StateAbstraction.add_join new_key new_inner acc_abstr,
+                    Inner.join acc_inner_intf new_intf)
+                ~init:(
+                  StateAbstraction.M.empty,
+                  Interferences.inner_bot shared control
+                )
+                abstr in
+            let result', inner_intf =
+              close_by_flush_wrt_var
+                lbl2
+                tid shared control
+                x
+                write_inner_intf result in
+            result',
+            (VarSet.single_var x, inner_intf)
+        end
 
     let generate op lbl1 lbl2 { StateAbstraction.thread_id; shared; locals; control; abstr } =
       let abstr', intf =

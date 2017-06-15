@@ -282,18 +282,19 @@ module Make (Inner : Domain.Inner) = struct
       |> meet_unsymbolised_cond (inner_of_program tid) cond
       |> normalize
     | O.Assign (x, expr) ->
-      match x.T.var_spec with
-      | Ty.Local ->
-        M.mapi (local_assign tid x expr) d
-        |> close_by_flush_wrt_expr expr
-      | Ty.Shared ->
-        M.Labels.fold
-          ~f:(fun ~key ~data:abstr acc ->
-              let key', abstr' = write tid x expr key abstr
-              in add_join key' abstr' acc)
-          ~init:bottom
-          d
-        |> close_by_flush_wrt_var x
+      begin match x.T.var_spec with
+        | Ty.Local ->
+          M.mapi (local_assign tid x expr) d
+          |> close_by_flush_wrt_expr expr
+        | Ty.Shared ->
+          M.Labels.fold
+            ~f:(fun ~key ~data:abstr acc ->
+                let key', abstr' = write tid x expr key abstr
+                in add_join key' abstr' acc)
+            ~init:bottom
+            d
+          |> close_by_flush_wrt_var x
+      end
 
   let meet_cond cond abstr =
     (* normalisation is not needed since only a is_bottom will be done
