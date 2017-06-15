@@ -103,7 +103,7 @@ module Make (D : Domain.Common) = struct
     Filename.concat export_dirname filename
 
   let img_filename basename extension =
-    let filename = basename ^ extension in
+    let filename = Printf.sprintf "%s.%s" basename extension in
     Filename.concat export_dirname filename
 
   let final_filename basename extension =
