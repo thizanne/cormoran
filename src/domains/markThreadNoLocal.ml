@@ -602,13 +602,13 @@ struct
     type state = StateAbstraction.t
     type interference = Interferences.t
 
-  let normalise_env control shared inner =
-    (* Changes the environment of inner so that it contains exactly
-       labels and the variables present in shared and their primed
-       versions. *)
-    Inner.change_env
-      (initial_common_env ~add_prime:true shared @@ max_labels control)
-      inner
+    let normalise_env control shared inner =
+      (* Changes the environment of inner so that it contains exactly
+         labels and the variables present in shared and their primed
+         versions. *)
+      Inner.change_env
+        (initial_common_env ~add_prime:true shared @@ max_labels control)
+        inner
 
     let generate_inner lbl1 lbl2 tid shared control effect inner =
       Interferences.inner_identity shared control
