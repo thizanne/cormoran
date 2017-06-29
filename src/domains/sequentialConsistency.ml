@@ -431,7 +431,7 @@ struct
         (max_labels control)
       |> set_shared_identity shared
       |> List.fold_righti set_local_identity locals
-      |> Seq.(fold_right set_label_identity @@ 1 --^ C.nb_threads control)
+      |> Seq.(fold_right set_label_identity @@ 0 --^ C.nb_threads control)
 
     let join inner1 inner2 =
       Inner.join inner1 inner2

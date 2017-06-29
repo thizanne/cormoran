@@ -573,7 +573,7 @@ struct
         shared
         (max_labels control)
       |> set_shared_identity shared
-      |> Seq.(fold_right set_label_identity @@ 1 --^ C.nb_threads control)
+      |> Seq.(fold_right set_label_identity @@ 0 --^ C.nb_threads control)
 
     let join (vars1, inner1) (vars2, inner2) =
       VarSet.union vars1 vars2,
