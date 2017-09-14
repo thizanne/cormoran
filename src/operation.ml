@@ -11,7 +11,7 @@ type t =
 
 let compare = Pervasives.compare
 
-let rec print output = function
+let print output = function
   | Identity -> String.print output "Identity"
   | MFence -> String.print output "MFence"
   | Filter c ->
