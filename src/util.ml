@@ -76,3 +76,98 @@ let rec ordered_parts = function
     let xs = ordered_parts xs in
     List.flatten @@
     xs :: List.map (inser_all_pos x) xs
+
+(*
+   Timing
+*)
+
+let time1 f =
+  let cumulative_time = ref 0. in
+  fun arg1 ->
+    let t1 = Unix.gettimeofday () in
+    let res = f arg1 in
+    let t2 = Unix.gettimeofday () in
+    let time = t2 -. t1 in
+    Printf.printf
+      "\x1b[33mTiming: %f, cumulative: %f\x1b[39;49m\n%!"
+      time (!cumulative_time +. time);
+    cumulative_time := !cumulative_time +. time;
+    res
+
+let time2 f =
+  let cumulative_time = ref 0. in
+  fun arg1 arg2 ->
+    let t1 = Unix.gettimeofday () in
+    let res = f arg1 arg2 in
+    let t2 = Unix.gettimeofday () in
+    let time = t2 -. t1 in
+    Printf.printf
+      "\x1b[33mTiming: %f, cumulative: %f\x1b[39;49m\n%!"
+      time (!cumulative_time +. time);
+    cumulative_time := !cumulative_time +. time;
+    res
+
+let time3 f =
+  let cumulative_time = ref 0. in
+  fun arg1 arg2 arg3 ->
+    let t1 = Unix.gettimeofday () in
+    let res = f arg1 arg2 arg3 in
+    let t2 = Unix.gettimeofday () in
+    let time = t2 -. t1 in
+    Printf.printf
+      "\x1b[33mTiming: %f, cumulative: %f\x1b[39;49m\n%!"
+      time (!cumulative_time +. time);
+    cumulative_time := !cumulative_time +. time;
+    res
+
+let time4 f =
+  let cumulative_time = ref 0. in
+  fun arg1 arg2 arg3 arg4 ->
+    let t1 = Unix.gettimeofday () in
+    let res = f arg1 arg2 arg3 arg4 in
+    let t2 = Unix.gettimeofday () in
+    let time = t2 -. t1 in
+    Printf.printf
+      "\x1b[33mTiming: %f, cumulative: %f\x1b[39;49m\n%!"
+      time (!cumulative_time +. time);
+    cumulative_time := !cumulative_time +. time;
+    res
+
+let time5 f =
+  let cumulative_time = ref 0. in
+  fun arg1 arg2 arg3 arg4 arg5 ->
+    let t1 = Unix.gettimeofday () in
+    let res = f arg1 arg2 arg3 arg4 arg5 in
+    let t2 = Unix.gettimeofday () in
+    let time = t2 -. t1 in
+    Printf.printf
+      "\x1b[33mTiming: %f, cumulative: %f\x1b[39;49m\n%!"
+      time (!cumulative_time +. time);
+    cumulative_time := !cumulative_time +. time;
+    res
+
+let time6 f =
+  let cumulative_time = ref 0. in
+  fun arg1 arg2 arg3 arg4 arg5 arg6 ->
+    let t1 = Unix.gettimeofday () in
+    let res = f arg1 arg2 arg3 arg4 arg5 arg6 in
+    let t2 = Unix.gettimeofday () in
+    let time = t2 -. t1 in
+    Printf.printf
+      "\x1b[33mTiming: %f, cumulative: %f\x1b[39;49m\n%!"
+      time (!cumulative_time +. time);
+    cumulative_time := !cumulative_time +. time;
+    res
+
+let time7 f =
+  let cumulative_time = ref 0. in
+  fun arg1 arg2 arg3 arg4 arg5 arg6 arg7 ->
+    let t1 = Unix.gettimeofday () in
+    let res = f arg1 arg2 arg3 arg4 arg5 arg6 arg7 in
+    let t2 = Unix.gettimeofday () in
+    let time = t2 -. t1 in
+    Printf.printf
+      "\x1b[33mTiming: %f, cumulative: %f\x1b[39;49m\n%!"
+      time (!cumulative_time +. time);
+    cumulative_time := !cumulative_time +. time;
+    res
