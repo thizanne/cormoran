@@ -93,6 +93,11 @@ include struct
     litmus : bool;
     (** Use litmus syntax. *)
 
+    parallel : bool;
+    (** For modular analysis, analyse each thread with the same global
+        interference set at each pass. Interferences are only updated
+        between passes. *)
+
     state_widening_delay : int
         [@aka ["w"]]
         [@default 2];

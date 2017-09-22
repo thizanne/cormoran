@@ -123,7 +123,7 @@ end
 module ProgramAnalysis (A : ThreadAnalysis) = struct
   module ThreadAnalysis = OneThreadAnalysis (A)
 
-  let analyse prog thread_controls state_delay interf_delay =
+  let analyse param prog thread_controls state_delay interf_delay =
 
     let interf_bot = A.Interferences.bottom prog thread_controls in
 
@@ -147,27 +147,30 @@ module ProgramAnalysis (A : ThreadAnalysis) = struct
     let initial_data =
       List.mapi initial_thread_data thread_controls in
 
-    let rec fixpoint interf interf_w_delays data current final = function
-      (* current is the id option of the thread the function is going
-         to analyse. final is the id of the last thread which changed
-         its interference set. That means other threads did not add
-         interferences w.r.t the last analysis when the iteration
-         reaches this thread again. Therefore fixpoint is reached: all
-         thread data have been computed with the last interference
-         set, therefore these data cannot change anymore.
+    let rec sequential intf intf_w_delays data current final = function
+      (*
+         current is the id option of the thread the function is going
+         to analyse.
 
-         Interference widening works thread by thread. *)
+         final is the id of the thread for which, if the list
+         iteration reaches it, we know that the analysis is complete.
+
+         final is None at the beginning. This ensures that a first
+         pass will be done. After reaching the end of the list, final
+         is set to `Some 0` so that the analysis ends if no thread
+         generated any interference at all, which is useful for some
+         test programs.
+
+         Interference widening works thread by thread.
+      *)
       | [] ->
-        (* If no thread generated any interference, we can now stop
-           the analysis, which is done by saying that thread 0 was the
-           last one to update them *)
         let final = Some (final |? 0) in
-        fixpoint interf interf_w_delays data 0 final thread_controls
+        sequential intf intf_w_delays data 0 final thread_controls
       | _ :: _ when Some current = final ->
-        interf, data
+        intf, data
       | _ :: ts ->
         Printf.printf "Analysing thread %d\n%!" current;
-        let intf_t, intf_other = split_interferences current interf in
+        let intf_t, intf_other = split_interferences current intf in
         let old_data = List.at data current in
         let intf_t', d =
           ThreadAnalysis.analyse
@@ -179,27 +182,78 @@ module ProgramAnalysis (A : ThreadAnalysis) = struct
           else Some current in
         let data =
           List.modify_at current (const d) data in
-        let interf, interf_w_delays =
+        let intf, intf_w_delays =
           if intf_t_stable
-          then interf, interf_w_delays
+          then intf, intf_w_delays
           else
-            let w_delay = List.at interf_w_delays current in
+            let w_delay = List.at intf_w_delays current in
             let intf_t'', w_delay' =
               if w_delay > 0
               then intf_t', w_delay - 1
               else (Printf.printf "Widening\n%!"; A.Interferences.widening intf_t intf_t', 0)
             in
-            List.modify_at current (const intf_t'') interf,
-            List.modify_at current (const w_delay') interf_w_delays
+            List.modify_at current (const intf_t'') intf,
+            List.modify_at current (const w_delay') intf_w_delays
         in
-        fixpoint interf interf_w_delays data (succ current) final ts
+        sequential intf intf_w_delays data (succ current) final ts
+
     in
-    fixpoint
-      (List.map (const interf_bot) thread_controls) (* initial interferences *)
-      (List.map (const interf_delay) thread_controls) (* widening delays *)
-      initial_data (* initial data for a thread *)
-      0 (* first "current analysed state" *)
-      None (* Last thread updating interferences *)
-      thread_controls
-    |> snd (* Return the data, forget the interferences *)
+
+    let rec parallel all_intf_stable old_intf new_intf intf_w_delays data current = function
+      (*
+         current is the id option of the thread the function is going
+         to analyse.
+
+         Interference widening works thread by thread.
+      *)
+      | [] ->
+        if all_intf_stable
+        then new_intf, data
+        else
+          parallel true new_intf new_intf intf_w_delays data 0 thread_controls
+      | _ :: ts ->
+        Printf.printf "Analysing thread %d\n%!" current;
+        let old_intf_t, old_intf_other = split_interferences current old_intf in
+        let old_data = List.at data current in
+        let new_intf_t, new_data =
+          ThreadAnalysis.analyse
+            prog current thread_controls state_delay old_data old_intf_other in
+        let intf_t_stable = A.Interferences.equal old_intf_t new_intf_t in
+        let all_intf_stable = all_intf_stable && intf_t_stable in
+        let data = List.modify_at current (const new_data) data in
+        let new_intf, intf_w_delays =
+          if intf_t_stable
+          then new_intf, intf_w_delays
+          else
+            let w_delay = List.at intf_w_delays current in
+            let new_intf_t, w_delay' =
+              if w_delay > 0
+              then new_intf_t, w_delay - 1
+              else (Printf.printf "Widening\n%!"; A.Interferences.widening old_intf_t new_intf_t, 0)
+            in
+            List.modify_at current (const new_intf_t) new_intf,
+            List.modify_at current (const w_delay') intf_w_delays
+        in
+        parallel all_intf_stable old_intf new_intf intf_w_delays data (succ current) ts
+
+    in
+
+    if param.Param.parallel
+    then
+      parallel
+        true (* "All" the zero interferences are stable *)
+        (List.map (const interf_bot) thread_controls) (* initial old interferences *)
+        (List.map (const interf_bot) thread_controls) (* initial new interferences *)
+        (List.map (const interf_delay) thread_controls) (* widening delays *)
+        initial_data (* initial data for a thread *)
+        0 (* first "current analysed state" *)
+        thread_controls
+    else
+      sequential
+        (List.map (const interf_bot) thread_controls) (* initial interferences *)
+        (List.map (const interf_delay) thread_controls) (* widening delays *)
+        initial_data (* initial data for a thread *)
+        0 (* first "current analysed state" *)
+        None (* Last thread updating interferences *)
+        thread_controls
 end
