@@ -44,6 +44,7 @@ module Abstraction = struct
 
   type outer =
     | Mark
+    | MarkSmart
     | MarkNoLocal
     | SC
     | Top
@@ -51,6 +52,7 @@ module Abstraction = struct
   let outer_enum = [
     "top", Top;
     "mark", Mark;
+    "mark-smart", MarkSmart;
     "mark-nolocal", MarkNoLocal;
     "sc", SC;
   ]

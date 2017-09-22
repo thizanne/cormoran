@@ -30,6 +30,9 @@ let get_program_state param : (module Domain.ProgramState) =
   match param.Param.outer with
   | PA.Mark -> (module Mark.Make (Inner))
   | PA.Top -> (module Top.ProgramState)
+  | PA.MarkSmart ->
+    Error.not_implemented_msg_error
+      "mark-smart makes only sense in modular analysis"
   | PA.MarkNoLocal ->
     Error.not_implemented_msg_error
       "mark-nolocal makes only sense in modular analysis"
@@ -43,6 +46,7 @@ let get_thread_analysis param : (module Modular.ThreadAnalysis) =
   match param.Param.outer with
   | PA.Mark -> (module MarkThread.Make (Inner) (Control))
   | PA.MarkNoLocal -> (module MarkThreadNoLocal.Make (Inner) (Control))
+  | PA.MarkSmart -> (module MarkThreadSmart.Make (Inner) (Control))
   | PA.SC -> (module SequentialConsistency.Make (Inner) (Control))
   | PA.Top -> (module Top.ThreadAnalysis)
 
