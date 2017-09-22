@@ -19,7 +19,7 @@ module Make (N : ApronAdapter.Numerical) = struct
   let cudd = Cudd.Man.make_v ()
 
   let () =
-    Cudd.Man.print_limit := 200;
+    Cudd.Man.print_limit := 1_000_000;
     Cudd.Man.set_gc 1_000_000
       Gc.full_major
       Gc.full_major
