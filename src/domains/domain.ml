@@ -60,7 +60,7 @@ module type Inner = sig
     val empty : t
     val add : _ inner_var -> t -> t
     val drop : _ inner_var -> t -> t
-    val join : t -> t -> t (* Least common environment *)
+    val join : t -> t -> t (* Least common environment (which contains all variables) *)
     val add_label : Sym.t -> int -> t -> t (* int is abstract label max *)
     val drop_label : Sym.t -> t -> t
   end
