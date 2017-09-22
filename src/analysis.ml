@@ -10,6 +10,7 @@ module type S = sig
   val export_graph : Param.t -> control -> data -> unit
   val analyse : Param.t -> TypedAst.program -> control -> data
   val check_property : Property.t -> control -> data -> bool
+  val print_result : 'a IO.output -> TypedAst.program -> control -> data -> unit
 end
 
 let get_inner param : (module Domain.Inner) =
@@ -66,10 +67,24 @@ module Interleaving (D : Domain.ProgramState) : S = struct
 
   let check_property prop control data =
     Prop.satisfies prop control data
+
+  let print_result output _program control data =
+    Control.ProgramStructure.(
+      Graph.iter_vertex (
+        fun v ->
+          Printf.fprintf output "############%a\n\n%a\n\n%!"
+            Control.State.print v
+            D.print (data v)
+        )
+        control.graph
+    )
 end
 
 module Modular (TA : Modular.ThreadAnalysis) : S = struct
-  type data = (Control.Label.t -> TA.StateAbstraction.t) list
+  type data =
+    TA.Interferences.t list *
+    (Control.Label.t -> TA.StateAbstraction.t) list
+
   type control = Control.ThreadStructure.t list
 
   module Analysis = Modular.ProgramAnalysis (TA)
@@ -79,18 +94,44 @@ module Modular (TA : Modular.ThreadAnalysis) : S = struct
   let get_control program =
     List.map Control.ThreadStructure.of_thread program.TypedAst.threads
 
-  let export_graph param control data =
+  let export_graph param control (_intf, data) =
     match param.Param.graph with
     | None -> ()
     | Some filename ->
       Dot.export_modular_graph filename control data
 
   let analyse param program control =
-    Analysis.analyse program control
+    Analysis.analyse param program control
       param.Param.state_widening_delay param.Param.intf_widening_delay
 
-  let check_property prop control data =
+  let check_property prop control (_intf, data) =
     Prop.satisfies prop control data
+
+  let print_thread_result output _program tid thread_control thread_data =
+    (* TODO: do this properly with colors and stuff *)
+    Printf.fprintf output " ------------------------\n";
+    Printf.fprintf output "| Results for thread n°%d |\n" tid;
+    Printf.fprintf output " ------------------------\n\n";
+    Control.ThreadStructure.(
+      Graph.iter_vertex (
+        fun v ->
+          Printf.fprintf output "###########\nAt label %a:\n\n%a\n\n%!"
+            Control.Label.print v
+            TA.StateAbstraction.print (thread_data v)
+      )
+        thread_control.graph
+    )
+
+  let print_thread_intf output _program tid thread_intf =
+    Printf.fprintf output "\n\n";
+    Printf.fprintf output " -------------------------------\n";
+    Printf.fprintf output "| Interferences for thread n°%d |\n" tid;
+    Printf.fprintf output " -------------------------------\n\n";
+    TA.Interferences.print output thread_intf
+
+  let print_result output program control (intf, data) =
+    List.iter2i (print_thread_result output program) control data;
+    List.iteri (print_thread_intf output program) intf
 end
 
 let get_analysis param : (module S) =

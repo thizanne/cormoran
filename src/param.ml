@@ -90,6 +90,10 @@ include struct
         [@docv "FILE"];
     (** Graph output file name. *)
 
+    print_result : bool
+        [@aka ["p"]];
+    (** Print the full result of the analysis. *)
+
     litmus : bool;
     (** Use litmus syntax. *)
 

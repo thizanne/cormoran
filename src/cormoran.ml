@@ -28,6 +28,8 @@ let main param =
          Printf.printf "\x1b[39;49m\n" (* reset colors *)
       )
       properties;
+    if param.Param.print_result
+    then Analysis.print_result IO.stdout program control data;
     Printf.printf "Exporting graph\n%!";
     Analysis.export_graph param control data
   with
