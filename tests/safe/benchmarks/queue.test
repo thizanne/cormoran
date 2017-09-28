@@ -45,9 +45,9 @@ tail = head
 /* DEQ */
 while true {
     h2 = head
-    label test
+    label needed1
     while (tail >= h2) {
-        label cc
+        label needed2
         h2 = head
     }
     label bp

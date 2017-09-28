@@ -11,14 +11,11 @@ not b0 and not b1 and x = 0
 
 ## thread T0 ##
 while true {
-    label test
     b0 = true
     mfence
-    label zaoe
     local = turn1
     turn0 = local
     mfence
-    label azieu
     local_b1 = b1
     local_turn1 = turn1
     label truc
@@ -28,7 +25,6 @@ while true {
         local_turn1 = turn1
         label chose
     }
-    label truc2
     x = 3
     mfence
     label bp1
@@ -38,14 +34,11 @@ while true {
 
 ## thread T1 ##
 while true {
-    label test2
     b1 = true
     mfence
-    label azedza
     local = not turn0
     turn1 = local
     mfence
-    label azedh
     local_b0 = b0
     local_turn0 = turn0
     label machin
@@ -55,7 +48,6 @@ while true {
         local_turn0 = turn0
         label chose
     }
-    label lolol
     x = 4
     mfence
     label bp2

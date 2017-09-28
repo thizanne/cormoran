@@ -14,7 +14,7 @@ while true {
     turn = true
     mfence
     lflag1 = flag1
-    label test
+    label needed
     lturn0 = turn
     while (lflag1 and lturn0) {
         lflag1 = flag1
@@ -32,7 +32,7 @@ while true {
     turn = false
     mfence
     lflag0 = flag0
-    label test
+    label needed
     lturn1 = turn
     while (lflag0 and not lturn1) {
         lflag0 = flag0

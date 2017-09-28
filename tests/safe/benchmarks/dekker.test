@@ -13,18 +13,17 @@ while true {
     flag0 = true
     mfence
     f1 = flag1
-    label cc
+    label outerloop
     while (f1) {
         t1 = turn
         if (t1 > 0) {
             flag0 = false
             // mfence
             t1 = turn
-            label dd
+            label innerloop
             while(t1 > 0) {
                 t1 = turn
             }
-            // label ff
             flag0 = true
             mfence
         }
@@ -46,14 +45,14 @@ while true {
     flag1 = true
     mfence
     f2 = flag0
-    label aa
+    label outerloop
     while (f2) {
         t2 = turn
         if (t2 < 1) {
             flag1 = false
             // mfence
             t2 = turn
-               label bb
+                label innerloop
                 while(t2 < 1) {
                 t2 = turn
             }
