@@ -137,10 +137,6 @@ struct
 
   let satisfies { zone; condition } thread_structs data =
     List.for_all
-      (fun d ->
-         List.print ~sep:"\n###\n" ~last:"]\n"
-           D.print IO.stdout d;
-         data_satisfy condition.L.item d)
-      (*(data_satisfy condition.L.item) *)
-    (all_data zone thread_structs data)
+      (data_satisfy condition.L.item)
+      (all_data zone thread_structs data)
 end
