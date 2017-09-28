@@ -30,9 +30,7 @@ let get_program_state param : (module Domain.ProgramState) =
   match param.Param.outer with
   | PA.Mark -> (module Mark.Make (Inner))
   | PA.Top -> (module Top.ProgramState)
-  | PA.MarkSmart ->
-    Error.not_implemented_msg_error
-      "mark-smart makes only sense in modular analysis"
+  | PA.MarkSmart -> (module Mark.Make (Inner))
   | PA.MarkNoLocal ->
     Error.not_implemented_msg_error
       "mark-nolocal makes only sense in modular analysis"
