@@ -1,5 +1,5 @@
 true: annot, bin_annot
-true: warn_A, warn(-4), warn(-33), warn(-44), warn(-45)
+true: warn_A, warn(-4), warn(-33), warn(-44), warn(-45), warn(-48)
 
 true: use_menhir
 
