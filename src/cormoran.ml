@@ -7,7 +7,14 @@ let info =
     `S "BUGS";
     `P "Probably.";
   ] in
-  Term.info "cormoran" ~version:"0.1" ~doc ~man
+  Term.(
+    info
+      "cormoran"
+      ~version:"0.1"
+      ~doc
+      ~man
+      ~exits:default_exits
+  )
 
 let main param =
   try
@@ -39,6 +46,6 @@ let main param =
 let main_term =
   Term.(pure main $ Param.cmdliner_term ())
 
-let () = match Term.eval ~catch:false (main_term, info) with
-  | `Error _ -> exit 1
-  | _ -> exit 0
+let () =
+  Term.exit @@
+  Term.eval ~catch:false (main_term, info)
